@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-多智能体 -> 面向大一新生的“逐帧”的文生视频 Prompt 生成
-依赖:
-    pip install dashscope requests
+多智能体 -> 面向大一新生科普视频的“逐帧”文生视频 Prompt 生成
 """
 
 import os, re, json, time, uuid
@@ -13,15 +11,18 @@ from typing import List, Dict, Any, Optional, Tuple
 # 路径初始化
 # ==========================
 DATA_DIR = Path("history"); DATA_DIR.mkdir(exist_ok=True)
+# outline.json / expanded.json / critique.json / final_prompt.json
 MEM_DIR = Path("memory"); MEM_DIR.mkdir(exist_ok=True)
 MEM_FILE = MEM_DIR / "knowledge.json"
+# 全局偏好（风格、术语黑名单、数学模板）
+
 if not MEM_FILE.exists():
     MEM_FILE.write_text(json.dumps({
         "banned_logos": [],
         "style": {"palette": "blue-white", "subtitle": {"font": "Noto Sans SC", "size": 36}},
-        "jargon_blacklist": ["范畴论","鞅","变分下界","伴随算子","谱半径"],
-        "freshman_ok_terms": ["注意力","查询","键","值","权重","热力图","多头"],
-        "math_templates": {"scaled_dot": "softmax(QK^T/\\sqrt{d})V"}
+        "jargon_blacklist": [],
+        "freshman_ok_terms": [],
+        "math_templates": {}
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
 # ==========================
@@ -121,7 +122,7 @@ ALLOWED_ACTIONS = {
 ALLOWED_POSITIONS = {"left","center","right","top","bottom","top-left","top-right","bottom-left","bottom-right"}
 MAX_STEPS_PER_SCENE = 12
 MAX_ACTIONS_PER_STEP = 4
-MAX_FORMULAS_PER_SCENE = 1  # 大一友好：最多1处公式
+MAX_FORMULAS_PER_SCENE = 1  
 MAX_JARGON_PER_SCENE = 4
 
 def contains_coordinates(obj: Any) -> bool:
