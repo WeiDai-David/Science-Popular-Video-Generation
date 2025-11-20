@@ -1,1 +1,1 @@
-Text2Video Prompt-Generation MultiAgent
+Science-Popular-Video-Generation
