@@ -3,589 +3,825 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>卷积神经网络原理可视化 | CNN Explained</title>
+    <title>卷积神经网络原理 - Cinematic Explainer</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Noto+Sans+SC:wght@300;400;700&display=swap');
+
+        :root {
+            --bg-color: #f0f2f5;
+            --stage-bg: #ffffff;
+            --text-main: #2d3436;
+            --text-sub: #636e72;
+            --accent-blue: #0984e3;
+            --accent-orange: #e17055;
+            --accent-green: #00b894;
+            --accent-purple: #6c5ce7;
+            --shadow-soft: 0 10px 30px rgba(0,0,0,0.08);
+            --shadow-sharp: 0 4px 12px rgba(0,0,0,0.1);
+            --font-en: 'Inter', sans-serif;
+            --font-cn: 'Noto Sans SC', sans-serif;
+        }
 
         body, html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: #f9fafb; /* 极浅的灰白色 */
+            background-color: var(--bg-color);
             overflow: hidden;
-            font-family: 'Inter', 'Noto Sans SC', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
+            font-family: var(--font-en);
         }
 
-        #container {
-            position: relative;
-            width: 1280px; /* 固定画布比例 16:9 */
+        /* 影院模式容器 - 保持16:9比例 */
+        #cinema-container {
+            width: 1280px;
             height: 720px;
-            background: #ffffff;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.05);
+            background: var(--stage-bg);
+            position: relative;
+            box-shadow: var(--shadow-soft);
             border-radius: 12px;
             overflow: hidden;
+            transform-origin: center center;
         }
 
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
+        /* 顶部标题栏 */
+        .header {
+            position: absolute;
+            top: 30px;
+            left: 40px;
+            z-index: 10;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 1s ease;
+        }
+        .header h1 {
+            font-family: var(--font-cn);
+            font-size: 24px;
+            color: var(--text-main);
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .header span {
+            font-size: 14px;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
         /* 字幕区域 */
-        .subtitle-container {
+        .subtitle-box {
             position: absolute;
-            bottom: 60px;
-            left: 0;
-            width: 100%;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
             text-align: center;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
+            z-index: 100;
         }
-
         .subtitle-cn {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1f2937;
+            font-family: var(--font-cn);
+            font-size: 22px;
+            color: var(--text-main);
+            font-weight: 500;
             margin-bottom: 8px;
             text-shadow: 0 2px 4px rgba(255,255,255,0.8);
         }
-
         .subtitle-en {
+            font-family: var(--font-en);
             font-size: 16px;
+            color: var(--accent-blue);
             font-weight: 400;
-            color: #6b7280;
-            letter-spacing: 0.5px;
+            opacity: 0.8;
         }
 
-        /* 进度条 */
-        .progress-bar {
+        /* 通用图层样式 */
+        .layer {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 4px;
-            background: #e5e7eb;
-            width: 100%;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: #6366f1;
-            width: 0%;
-            transition: width 0.1s linear;
+            transition: all 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+            opacity: 0;
         }
 
-        /* 标签样式 (用于Canvas覆盖层，如果需要更复杂的排版) */
+        /* 1. 输入图像网格 */
+        .grid-container {
+            display: grid;
+            gap: 4px;
+            padding: 8px;
+            background: #f8f9fa;
+            border: 1px solid #dfe6e9;
+            border-radius: 8px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .pixel {
+            width: 40px;
+            height: 40px;
+            background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            color: #b2bec3;
+            border-radius: 4px;
+            font-family: monospace;
+            transition: background 0.3s;
+        }
+        .pixel.active {
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        /* 标签 */
         .label {
             position: absolute;
+            top: -30px;
+            left: 0;
+            width: 100%;
+            text-align: center;
             font-size: 14px;
-            color: #9ca3af;
+            color: var(--text-sub);
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1px;
+        }
+
+        /* 2. 卷积核 (Filter) */
+        .kernel {
+            position: absolute;
+            width: 140px; /* 3 * (40+4) + padding roughly */
+            height: 140px;
+            border: 3px solid var(--accent-orange);
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(225, 112, 85, 0.4);
+            pointer-events: none;
+            z-index: 20;
+            transition: all 0.4s ease;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+        }
+        .kernel-pixel {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 10px;
+            color: var(--accent-orange);
+            font-weight: bold;
+        }
+
+        /* 池化窗口 */
+        .pool-window {
+            position: absolute;
+            width: 92px; /* 2 * (40+4) + padding */
+            height: 92px;
+            border: 3px solid var(--accent-green);
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 184, 148, 0.4);
+            pointer-events: none;
+            z-index: 20;
+            transition: all 0.4s ease;
+        }
+
+        /* 连接线 (SVG) */
+        svg.connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+        path.connection-line {
+            fill: none;
+            stroke: var(--accent-orange);
+            stroke-width: 2;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            opacity: 0.5;
+        }
+
+        /* 3. 特征图 (Feature Map) */
+        .feature-map .pixel {
+            border: 1px solid var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        /* 4. 扁平化与全连接 */
+        .flat-layer {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .neuron {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--accent-purple);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: var(--accent-purple);
+            box-shadow: var(--shadow-sharp);
+        }
+
+        /* 结果展示 */
+        .result-card {
+            background: white;
+            padding: 20px 40px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-soft);
+            text-align: center;
+            border-left: 5px solid var(--accent-green);
+        }
+        .result-bar {
+            width: 200px;
+            height: 10px;
+            background: #eee;
+            margin-top: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .result-fill {
+            height: 100%;
+            background: var(--accent-green);
+            width: 0%;
+            transition: width 1s ease;
+        }
+
+        /* 动画辅助类 */
+        .visible { opacity: 1 !important; }
+        .highlight-bg { background-color: rgba(225, 112, 85, 0.1); }
+        .highlight-text { color: var(--accent-orange); transform: scale(1.2); }
+        
+        /* 介绍页大字 */
+        .intro-title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 50;
+            transition: opacity 1s;
+        }
+        .intro-main {
+            font-size: 60px;
+            font-weight: 800;
+            background: -webkit-linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        /* 输出类别样式 */
+        .output-categories {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .category-name {
+            width: 80px;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .category-prob {
+            width: 40px;
+            text-align: left;
+            font-size: 12px;
         }
 
     </style>
 </head>
 <body>
 
-    <div id="container">
-        <canvas id="stage" width="1280" height="720"></canvas>
-        
-        <div class="subtitle-container" id="subs">
-            <div class="subtitle-cn"></div>
-            <div class="subtitle-en"></div>
+    <div id="cinema-container">
+        <!-- 头部 -->
+        <div class="header" id="header">
+            <h1>卷积神经网络</h1>
+            <span>Convolutional Neural Networks</span>
         </div>
 
-        <div class="progress-bar">
-            <div class="progress-fill" id="progress"></div>
+        <!-- SVG 层用于画线 -->
+        <svg class="connections" id="svg-layer"></svg>
+
+        <!-- 场景元素 (初始隐藏) -->
+
+        <!-- 1. 介绍文字 -->
+        <div class="intro-title" id="intro-scene">
+            <div class="intro-main">CNN</div>
+            <div style="color: var(--text-sub); letter-spacing: 5px;">计算机视觉的核心</div>
+        </div>
+
+        <!-- 2. 输入层 (5x5) -->
+        <div class="layer" id="input-layer" style="left: 30px; top: 200px;">
+            <div class="label">Input Image (5x5 Pixels)</div>
+            <div class="grid-container" style="grid-template-columns: repeat(5, 1fr);" id="input-grid">
+                <!-- JS will populate this -->
+            </div>
+        </div>
+
+        <!-- 3. 卷积核 (Filter) -->
+        <div class="kernel" id="kernel-box" style="opacity: 0;">
+            <!-- JS will populate weights -->
+        </div>
+
+        <!-- 4. 特征图 (3x3) -->
+        <div class="layer" id="feature-layer" style="left: 300px; top: 200px;">
+            <div class="label">Feature Map (Convolution)</div>
+            <div class="grid-container" style="grid-template-columns: repeat(3, 1fr);" id="feature-grid">
+                <!-- JS will populate this -->
+            </div>
+        </div>
+
+        <!-- 5. 池化窗口 -->
+        <div class="pool-window" id="pool-window" style="opacity: 0;"></div>
+
+        <!-- 6. 池化层 (2x2) -->
+        <div class="layer" id="pool-layer" style="left: 480px; top: 220px;">
+            <div class="label">Max Pooling</div>
+            <div class="grid-container" style="grid-template-columns: repeat(2, 1fr);" id="pool-grid">
+                <!-- JS will populate -->
+            </div>
+        </div>
+
+        <!-- 7. 全连接层 -->
+        <div class="layer" id="fc-layer" style="left: 650px; top: 180px;">
+            <div class="label">Fully Connected</div>
+            <div class="flat-layer" id="fc-neurons">
+                <!-- JS will populate -->
+            </div>
+        </div>
+
+        <!-- 8. 隐藏层 -->
+        <div class="layer" id="hidden-layer" style="left: 900px; top: 140px; opacity: 0;">
+            <div class="label">Hidden Layer</div>
+            <div class="flat-layer" id="hidden-neurons">
+                <!-- JS will populate -->
+            </div>
+        </div>
+
+        <!-- 9. 输出结果 -->
+        <div class="layer" id="output-layer" style="left: 1100px; top: 200px; opacity: 0;">
+            <div class="label">Output Layer</div>
+            <div class="flat-layer" id="output-neurons">
+                <!-- JS will populate -->
+            </div>
+        </div>
+
+        <!-- 字幕 -->
+        <div class="subtitle-box">
+            <div class="subtitle-cn" id="sub-cn"></div>
+            <div class="subtitle-en" id="sub-en"></div>
         </div>
     </div>
 
-<script>
-/**
- * 动画引擎与逻辑
- * 
- * 核心思想：
- * 1. 定义时间轴和场景。
- * 2. 每一帧根据当前时间绘制对应的元素状态。
- * 3. 使用插值函数(Lerp)实现平滑运动。
- */
+    <script>
+        // --- 配置与数据 ---
+        const inputData = [
+            0, 0, 1, 1, 0,
+            0, 1, 0, 1, 0,
+            1, 0, 0, 0, 1,
+            0, 1, 1, 1, 0,
+            0, 0, 1, 1, 0
+        ]; // 简单的图形 (像个圆/菱形)
 
-const canvas = document.getElementById('stage');
-const ctx = canvas.getContext('2d');
-const subCn = document.querySelector('.subtitle-cn');
-const subEn = document.querySelector('.subtitle-en');
-const progressFill = document.getElementById('progress');
+        const kernelWeights = [
+            1, 0, -1,
+            1, 0, -1,
+            1, 0, -1
+        ]; // 边缘检测过滤器
 
-// --- 配置参数 ---
-const COLORS = {
-    bg: '#ffffff',
-    gridEmpty: '#f3f4f6',
-    gridActive: '#1f2937', // 输入的黑色像素
-    highlight: '#6366f1', // 卷积核颜色 (Indigo)
-    featureMap: '#818cf8', // 特征图颜色
-    poolMap: '#34d399',    // 池化层颜色 (Emerald)
-    flatLayer: '#f472b6',  // 全连接层颜色 (Pink)
-    output: '#fbbf24',     // 输出颜色 (Amber)
-    text: '#374151',
-    line: '#d1d5db'
-};
+        // 修正的特征图数据 (3x3卷积结果)
+        const featureMapData = [
+            1, 0, -1,
+            2, 0, -2,
+            1, 0, -1
+        ];
 
-// 手写数字 "7" 的 10x10 像素数据 (简化版)
-const INPUT_GRID_SIZE = 10;
-const INPUT_DATA = [
-    [0,0,0,0,0,0,0,0,0,0],
-    [0,0,1,1,1,1,1,1,0,0],
-    [0,0,1,1,1,1,1,1,1,0],
-    [0,0,0,0,0,0,0,1,1,0],
-    [0,0,0,0,0,0,1,1,0,0],
-    [0,0,0,0,0,1,1,0,0,0],
-    [0,0,0,0,1,1,0,0,0,0],
-    [0,0,0,1,1,0,0,0,0,0],
-    [0,0,1,1,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0]
-];
+        // ReLU 后的特征图 (负数变为0)
+        const reluFeatureMapData = [
+            1, 0, 0,
+            2, 0, 0,
+            1, 0, 0
+        ];
 
-// 时间轴配置 (单位：秒)
-const TIMELINE = {
-    totalDuration: 42,
-    scenes: {
-        intro: { start: 0, end: 6 },
-        conv: { start: 6, end: 18 },
-        pool: { start: 18, end: 26 },
-        fc: { start: 26, end: 34 },
-        result: { start: 34, end: 42 }
-    }
-};
+        // 池化结果 (2x2 Max Pooling from 3x3)
+        const pooledData = [
+            2, 0,  // 左上区域最大值是2，右上区域最大值是0
+            1, 0   // 左下区域最大值是1，右下区域最大值是0
+        ];
 
-// 字幕脚本
-const SCRIPTS = [
-    { t: 0, dur: 3, cn: "计算机是如何“看见”图像的？", en: "How do computers 'see' images?" },
-    { t: 3, dur: 3, cn: "对计算机而言，图片只是一个由数字组成的网格。", en: "To a computer, an image is just a grid of numbers." },
-    { t: 6, dur: 4, cn: "第一步：卷积层。这是CNN的核心。", en: "Step 1: The Convolution Layer. This is the core of CNN." },
-    { t: 10, dur: 5, cn: "像手电筒一样，卷积核扫描图像，提取边缘等特征。", en: "Like a flashlight, the kernel scans the image to extract features." },
-    { t: 15, dur: 3, cn: "这一过程生成了“特征图”。", en: "This process generates a 'Feature Map'." },
-    { t: 18, dur: 4, cn: "第二步：池化层。它负责压缩数据。", en: "Step 2: The Pooling Layer. It compresses the data." },
-    { t: 22, dur: 4, cn: "保留最重要的特征，减小计算量，防止过拟合。", en: "Keeping important features while reducing complexity." },
-    { t: 26, dur: 4, cn: "第三步：全连接层。将二维特征拉平。", en: "Step 3: Fully Connected Layer. Flattening the 2D features." },
-    { t: 30, dur: 4, cn: "神经网络根据这些特征组合进行最终思考。", en: "The network thinks based on these combined features." },
-    { t: 34, dur: 4, cn: "最后，输出层给出分类结果。", en: "Finally, the output layer gives the classification." },
-    { t: 38, dur: 4, cn: "这就是卷积神经网络的工作原理。", en: "This is how a Convolutional Neural Network works." }
-];
+        // --- 辅助函数 ---
+        const $ = id => document.getElementById(id);
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-let startTime = null;
-let isPlaying = true;
-
-// --- 绘图辅助函数 ---
-
-function drawRoundedRect(x, y, w, h, r, color, fill = true, glow = false) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-    
-    if (glow) {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = color;
-    } else {
-        ctx.shadowBlur = 0;
-    }
-
-    if (fill) {
-        ctx.fillStyle = color;
-        ctx.fill();
-    } else {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-    ctx.shadowBlur = 0; // Reset
-}
-
-function drawGrid(data, startX, startY, cellSize, gap, activeColor, opacity = 1) {
-    ctx.globalAlpha = opacity;
-    for (let i = 0; i < data.length; i++) {
-        for (let j = 0; j < data[i].length; j++) {
-            const x = startX + j * (cellSize + gap);
-            const y = startY + i * (cellSize + gap);
-            const val = data[i][j];
-            const color = val > 0 ? activeColor : COLORS.gridEmpty;
-            
-            // 简单的呼吸效果
-            const scale = val > 0 ? 1 : 0.9;
-            const offset = (cellSize - cellSize * scale) / 2;
-            
-            drawRoundedRect(x + offset, y + offset, cellSize * scale, cellSize * scale, 4, color);
+        // 缩放舞台以适应屏幕
+        function resizeStage() {
+            const container = $('cinema-container');
+            const scaleX = window.innerWidth / 1280;
+            const scaleY = window.innerHeight / 720;
+            const scale = Math.min(scaleX, scaleY) * 0.9; // 留白
+            container.style.transform = `scale(${scale})`;
         }
-    }
-    ctx.globalAlpha = 1;
-}
+        window.addEventListener('resize', resizeStage);
+        resizeStage();
 
-function drawLine(x1, y1, x2, y2, color, width = 1, dash = []) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.setLineDash(dash);
-    ctx.stroke();
-    ctx.setLineDash([]);
-}
-
-function drawText(text, x, y, size, color, align = "center") {
-    ctx.font = `bold ${size}px Inter, sans-serif`;
-    ctx.fillStyle = color;
-    ctx.textAlign = align;
-    ctx.fillText(text, x, y);
-}
-
-// 缓动函数
-function easeInOutCubic(x) {
-    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-}
-
-function lerp(start, end, t) {
-    return start * (1 - t) + end * t;
-}
-
-// --- 场景渲染逻辑 ---
-
-function render(timestamp) {
-    if (!startTime) startTime = timestamp;
-    const elapsed = (timestamp - startTime) / 1000; // 秒
-    
-    if (elapsed > TIMELINE.totalDuration) {
-        // 循环播放或停止
-        startTime = timestamp; // Loop
-    }
-
-    // 更新UI
-    progressFill.style.width = `${(elapsed / TIMELINE.totalDuration) * 100}%`;
-    updateSubtitles(elapsed);
-
-    // 清空画布
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = COLORS.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // 场景状态计算
-    const tIntro = Math.min(Math.max((elapsed - TIMELINE.scenes.intro.start) / (TIMELINE.scenes.intro.end - TIMELINE.scenes.intro.start), 0), 1);
-    const tConv = Math.min(Math.max((elapsed - TIMELINE.scenes.conv.start) / (TIMELINE.scenes.conv.end - TIMELINE.scenes.conv.start), 0), 1);
-    const tPool = Math.min(Math.max((elapsed - TIMELINE.scenes.pool.start) / (TIMELINE.scenes.pool.end - TIMELINE.scenes.pool.start), 0), 1);
-    const tFc = Math.min(Math.max((elapsed - TIMELINE.scenes.fc.start) / (TIMELINE.scenes.fc.end - TIMELINE.scenes.fc.start), 0), 1);
-    const tRes = Math.min(Math.max((elapsed - TIMELINE.scenes.result.start) / (TIMELINE.scenes.result.end - TIMELINE.scenes.result.start), 0), 1);
-
-    // 布局常量
-    const inputSize = 25;
-    const inputGap = 3;
-    const gridW = INPUT_GRID_SIZE * (inputSize + inputGap);
-    
-    // 动态位置
-    // 输入网格从中心移动到左侧
-    let inputX = canvas.width/2 - gridW/2;
-    let inputY = canvas.height/2 - gridW/2;
-    
-    if (tConv > 0) {
-        inputX = lerp(canvas.width/2 - gridW/2, 150, easeInOutCubic(Math.min(tConv * 3, 1))); // 快速移动到左侧
-    }
-
-    // 绘制标题
-    if (tIntro < 1) {
-        ctx.globalAlpha = 1 - tConv;
-        drawText("INPUT IMAGE (28x28 Pixels)", inputX + gridW/2, inputY - 30, 16, COLORS.text);
-        ctx.globalAlpha = 1;
-    }
-
-    // 1. 绘制输入层
-    drawGrid(INPUT_DATA, inputX, inputY, inputSize, inputGap, COLORS.gridActive);
-
-    // 2. 卷积层动画
-    if (tConv > 0 && tPool < 1) {
-        const featureMapSize = 8; // 假设卷积核3x3, stride 1, padding 0 -> 10-3+1 = 8
-        const fmCellSize = inputSize;
-        const fmX = inputX + 400;
-        const fmY = inputY + (gridW - (featureMapSize*(fmCellSize+inputGap)))/2;
-
-        // 标题
-        ctx.globalAlpha = Math.min(tConv * 2, 1);
-        drawText("CONVOLUTION (Feature Extraction)", fmX + (featureMapSize*fmCellSize)/2, fmY - 30, 16, COLORS.highlight);
-        ctx.globalAlpha = 1;
-
-        // 扫描动画逻辑
-        // 模拟扫描过程：总共扫描 8x8 = 64步
-        // 在 tConv 0.2 到 0.9 之间完成扫描
-        const scanProgress = Math.max(0, Math.min((tConv - 0.2) / 0.7, 1));
-        const totalSteps = 64;
-        const currentStep = Math.floor(scanProgress * totalSteps);
-        
-        const kernelSize = 3;
-        const kRow = Math.floor(currentStep / featureMapSize);
-        const kCol = currentStep % featureMapSize;
-
-        // 绘制卷积核 (在输入图上)
-        if (scanProgress < 1 && scanProgress > 0) {
-            const kX = inputX + kCol * (inputSize + inputGap);
-            const kY = inputY + kRow * (inputSize + inputGap);
-            const kW = kernelSize * (inputSize + inputGap) - inputGap;
-            
-            drawRoundedRect(kX - 4, kY - 4, kW + 8, kW + 8, 6, COLORS.highlight, false, true); // 边框高亮
-            
-            // 绘制连接线
-            const fmTargetX = fmX + kCol * (fmCellSize + inputGap) + fmCellSize/2;
-            const fmTargetY = fmY + kRow * (fmCellSize + inputGap) + fmCellSize/2;
-            
-            ctx.globalAlpha = 0.3;
-            drawLine(kX + kW, kY, fmTargetX, fmTargetY - fmCellSize/2, COLORS.highlight, 1);
-            drawLine(kX + kW, kY + kW, fmTargetX, fmTargetY + fmCellSize/2, COLORS.highlight, 1);
-            ctx.globalAlpha = 1;
-        }
-
-        // 绘制特征图 (Feature Map)
-        // 构建逐渐填充的特征图数据
-        let featureData = [];
-        for(let r=0; r<featureMapSize; r++) {
-            let row = [];
-            for(let c=0; c<featureMapSize; c++) {
-                let stepIndex = r * featureMapSize + c;
-                // 简单的逻辑：如果输入对应区域有像素，特征图就亮
-                // 这里简化模拟，直接用某种模式
-                let val = 0;
-                if (stepIndex <= currentStep) {
-                     // 模拟提取边缘：这里简单硬编码一些亮的点
-                     if (r > 1 && r < 7 && c > 1 && c < 6) val = 1;
+        // 创建网格
+        function createGrid(containerId, data, size, isInput = false) {
+            const container = $(containerId);
+            container.innerHTML = '';
+            data.forEach((val, idx) => {
+                const div = document.createElement('div');
+                div.className = 'pixel';
+                div.id = `${containerId}-p-${idx}`;
+                div.innerText = val;
+                // 简单的灰度可视化
+                if(isInput) {
+                    const gray = 255 - (val * 200);
+                    div.style.backgroundColor = `rgb(${gray},${gray},${gray})`;
+                    if(val > 0) div.style.color = 'white';
                 }
-                row.push(val);
-            }
-            featureData.push(row);
-        }
-        
-        ctx.globalAlpha = Math.min(tConv * 2, 1);
-        drawGrid(featureData, fmX, fmY, fmCellSize, inputGap, COLORS.featureMap);
-        ctx.globalAlpha = 1;
-    }
-
-    // 3. 池化层动画
-    if (tPool > 0 && tFc < 1) {
-        // 特征图位置
-        const fmX = inputX + 400; 
-        const featureMapSize = 8;
-        const fmCellSize = inputSize;
-        const fmY = inputY + (gridW - (featureMapSize*(fmCellSize+inputGap)))/2;
-
-        // 池化图位置 (Max Pooling 2x2 -> 4x4)
-        const poolSize = 4;
-        const poolCellSize = inputSize; // 视觉上保持大小，或者稍微变大
-        const poolX = fmX + 350;
-        const poolY = inputY + (gridW - (poolSize*(poolCellSize+inputGap)))/2;
-        
-        // 池化过程：输入淡出，池化图淡入，并有线条连接
-        const poolProgress = Math.min(tPool * 1.5, 1); // 快速进入
-
-        // 绘制之前的特征图 (逐渐变透明)
-        let staticFeatureData = []; // 完整特征图
-        for(let r=0; r<8; r++) {
-            let row = [];
-            for(let c=0; c<8; c++) row.push((r > 1 && r < 7 && c > 1 && c < 6)?1:0);
-            staticFeatureData.push(row);
-        }
-        
-        if (tPool < 0.8) {
-             drawGrid(staticFeatureData, fmX, fmY, fmCellSize, inputGap, COLORS.featureMap, 1 - tPool);
-             drawText("POOLING (Downsampling)", poolX + (poolSize*poolCellSize)/2, poolY - 30, 16, COLORS.poolMap);
+                container.appendChild(div);
+            });
         }
 
-        // 绘制池化后的图
-        let poolData = [
-            [0,0,0,0],
-            [0,1,1,0],
-            [0,1,1,0],
-            [0,0,0,0]
-        ]; // 4x4
-        
-        ctx.globalAlpha = poolProgress;
-        drawGrid(poolData, poolX, poolY, poolCellSize, inputGap, COLORS.poolMap);
-
-        // 演示 2x2 -> 1x1 的连接线 (仅展示一组)
-        if (tPool > 0.2 && tPool < 0.8) {
-             // 源区域 (2,2) - (3,3)
-             const srcX = fmX + 2*(fmCellSize+inputGap);
-             const srcY = fmY + 2*(fmCellSize+inputGap);
-             const srcW = 2*(fmCellSize+inputGap) - inputGap;
-             
-             drawRoundedRect(srcX, srcY, srcW, srcW, 4, COLORS.poolMap, false, true);
-
-             // 目标区域 (1,1)
-             const dstX = poolX + 1*(poolCellSize+inputGap);
-             const dstY = poolY + 1*(poolCellSize+inputGap);
-             
-             ctx.beginPath();
-             ctx.moveTo(srcX + srcW, srcY + srcW/2);
-             ctx.lineTo(dstX, dstY + poolCellSize/2);
-             ctx.strokeStyle = COLORS.poolMap;
-             ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-    }
-
-    // 4. 全连接层动画
-    if (tFc > 0) {
-        const poolX = inputX + 400 + 350; // 上一步的位置
-        const poolY = inputY + (gridW - (4*(inputSize+inputGap)))/2;
-        
-        // 扁平化：4x4 矩阵变成 1x16 列向量
-        // 动画：矩阵粒子飞向一列
-        
-        const flatX = poolX + 250;
-        const flatYBase = canvas.height/2 - (10 * 18) / 2; // 10个代表节点
-        
-        // 标题
-        ctx.globalAlpha = Math.min(tFc * 2, 1);
-        drawText("FULLY CONNECTED", flatX, flatYBase - 40, 16, COLORS.flatLayer);
-        
-        // 绘制扁平化节点
-        const fcNodes = 10; // 简化展示10个节点
-        for(let i=0; i<fcNodes; i++) {
-            const nodeX = flatX;
-            const nodeY = flatYBase + i * 25;
+        // 字幕控制
+        async function speak(cn, en, duration = 3000) {
+            const cnEl = $('sub-cn');
+            const enEl = $('sub-en');
             
-            // 动画：从池化层飞过来
-            let curX = nodeX;
-            let curY = nodeY;
+            // 淡出
+            cnEl.style.opacity = 0;
+            enEl.style.opacity = 0;
+            await sleep(300);
             
-            if (tFc < 0.5) {
-                // 飞入阶段
-                const flyT = easeInOutCubic(tFc * 2);
-                // 起点大致在池化层中心
-                curX = lerp(poolX + 50, nodeX, flyT);
-                curY = lerp(poolY + 50, nodeY, flyT);
-            }
+            cnEl.innerText = cn;
+            enEl.innerText = en;
             
-            ctx.beginPath();
-            ctx.arc(curX, curY, 6, 0, Math.PI*2);
-            ctx.fillStyle = (i > 2 && i < 8) ? COLORS.flatLayer : '#e5e7eb'; // 中间几个亮一点
-            ctx.fill();
+            // 淡入
+            cnEl.style.transition = 'opacity 0.5s';
+            enEl.style.transition = 'opacity 0.5s';
+            cnEl.style.opacity = 1;
+            enEl.style.opacity = 1;
+
+            await sleep(duration);
         }
 
-        // 绘制输出层 (0-9)
-        const outX = flatX + 200;
-        const outYBase = flatYBase;
-        
-        if (tFc > 0.5) {
-            drawText("OUTPUT", outX + 20, outYBase - 40, 16, COLORS.output);
-            const connectT = Math.min((tFc - 0.5) * 2, 1); // 连接线透明度
+        // 绘制连线
+        function drawLine(fromRect, toRect, color = '#e17055') {
+            const svg = $('svg-layer');
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
             
-            for(let i=0; i<10; i++) {
-                const nodeX = outX;
-                const nodeY = outYBase + i * 25;
-                
-                // 绘制连接线 (FC -> Output)
-                if (connectT > 0) {
-                    ctx.globalAlpha = connectT * 0.1; // 淡
-                    // 画几条线意思一下，全画太乱
-                    if (i === 7) {
-                        // 连接到7的线亮一点
-                        ctx.globalAlpha = connectT * 0.5;
-                        ctx.strokeStyle = COLORS.output;
+            // const startX = fromRect.left + fromRect.width / 2 - $('cinema-container').getBoundingClientRect().left -100;
+            // const startY = fromRect.top + fromRect.height / 2 - $('cinema-container').getBoundingClientRect().top -50;
+            // const endX = toRect.left + toRect.width / 2 - $('cinema-container').getBoundingClientRect().left -100;
+            // const endY = toRect.top + toRect.height / 2 - $('cinema-container').getBoundingClientRect().top -50;
+            const startX = fromRect.left + fromRect.width / 2 - $('cinema-container').getBoundingClientRect().left -100;
+            const startY = fromRect.top + fromRect.height / 2 - $('cinema-container').getBoundingClientRect().top -50;
+            const endX = toRect.left + toRect.width / 2 - $('cinema-container').getBoundingClientRect().left -160;
+            const endY = toRect.top + toRect.height / 2 - $('cinema-container').getBoundingClientRect().top -50;
+
+            
+            // 输出坐标到控制台
+            console.log('起点坐标:', { startX, startY });
+            console.log('终点坐标:', { endX, endY });
+            console.log('源元素位置:', fromRect);
+            console.log('目标元素位置:', toRect);
+            console.log('容器位置:', $('cinema-container').getBoundingClientRect());
+            // 贝塞尔曲线控制点
+            const d = `M ${startX} ${startY} C ${startX - 20} ${startY}, ${endX - 80} ${endY}, ${endX - 30} ${endY}`;
+            
+            path.setAttribute("d", d);
+            path.setAttribute("class", "connection-line");
+            path.style.stroke = color;
+            path.style.strokeDashoffset = 0; // 触发动画
+            path.style.transition = 'stroke-dashoffset 1s linear';
+            
+            svg.appendChild(path);
+            return path;
+        }
+
+        function clearLines() {
+            $('svg-layer').innerHTML = '';
+        }
+
+        // --- 主剧本 ---
+        async function playMovie() {
+            // 初始化
+            createGrid('input-grid', inputData, 5, true);
+            createGrid('feature-grid', Array(9).fill(0), 3); // 空的特征图
+            createGrid('pool-grid', Array(4).fill(0), 2); // 空的池化层
+            
+            // 填充卷积核UI
+            const kernelBox = $('kernel-box');
+            kernelWeights.forEach(w => {
+                const d = document.createElement('div');
+                d.className = 'kernel-pixel';
+                d.innerText = w;
+                kernelBox.appendChild(d);
+            });
+
+            await sleep(1000);
+
+            // ---------------- SCENE 1: INTRO ----------------
+            $('header').classList.add('visible');
+            await speak("想象一下，计算机是如何‘看’到图像的？", "Imagine, how does a computer 'see' an image?", 3000);
+            
+            $('intro-scene').style.opacity = 0; // 隐藏大标题
+            await sleep(800);
+            
+            $('input-layer').classList.add('visible');
+            await speak("对计算机来说，图像只是一堆数字构成的网格。", "To a computer, an image is just a grid of numbers.", 3000);
+            await speak("这里的数字代表像素的亮度。0是黑色，1是白色。", "Numbers represent pixel brightness. 0 is black, 1 is white.", 3000);
+
+            // ---------------- SCENE 2: CONVOLUTION ----------------
+            await speak("为了理解图像内容，我们需要提取特征。", "To understand the content, we need to extract features.", 2500);
+            
+            // 显示 Filter
+            kernelBox.style.opacity = 1;
+            const startLeft = 30 + 8; 
+            const startTop = 200 + 8;
+            kernelBox.style.left = startLeft + 'px';
+            kernelBox.style.top = startTop + 'px';
+
+            await speak("这就是‘卷积核’，或者叫过滤器。它就像一个手电筒。", "This is the 'Kernel', or filter. It acts like a flashlight.", 4000);
+
+            $('feature-layer').classList.add('visible');
+            await speak("它在图像上滑动，进行数学运算，寻找匹配的模式。", "It slides over the image, doing math to find matching patterns.", 1000);
+
+            // 动画：卷积过程
+            const stepX = 44; // 40px + 4px gap
+            const stepY = 44;
+            
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    // 移动 Kernel
+                    kernelBox.style.transform = `translate(${col * stepX}px, ${row * stepY}px)`;
+                    
+                    const featureIdx = row * 3 + col;
+                    const targetPixel = $(`feature-grid-p-${featureIdx}`);
+                    
+                    if (row === 0 && col === 0) {
+                        await sleep(1000);
+                        await speak("它将重叠区域的像素与卷积核对应相乘并求和。", "It multiplies overlapping pixels with the kernel and sums them up.", 3000);
+                        kernelBox.style.boxShadow = "0 0 30px rgba(225, 112, 85, 1)";
+                        await sleep(500);
+                        kernelBox.style.boxShadow = "0 0 15px rgba(225, 112, 85, 0.4)";
+                    } else if (row === 0 && col === 1) {
+                        await sleep(800);
                     } else {
-                        ctx.strokeStyle = COLORS.line;
+                        await sleep(200);
                     }
-                    
-                    // 从FC层每个点连过来
-                    for(let j=0; j<fcNodes; j++) {
-                        if (Math.abs(i - j) < 3) { // 只画附近的线，优化视觉
-                             ctx.beginPath();
-                             ctx.moveTo(flatX, flatYBase + j * 25);
-                             ctx.lineTo(nodeX, nodeY);
-                             ctx.stroke();
-                        }
-                    }
-                }
-                
-                ctx.globalAlpha = 1;
-                // 绘制输出节点
-                ctx.beginPath();
-                ctx.arc(nodeX, nodeY, 8, 0, Math.PI*2);
-                
-                // 结果展示阶段
-                if (tRes > 0 && i === 7) {
-                    // 最终结果 "7" 高亮
-                    const glow = Math.sin(elapsed * 5) * 0.5 + 0.5; // 呼吸
-                    ctx.shadowColor = COLORS.output;
-                    ctx.shadowBlur = 10 + glow * 10;
-                    ctx.fillStyle = COLORS.output;
-                } else {
-                    ctx.fillStyle = '#e5e7eb';
-                    ctx.shadowBlur = 0;
-                }
-                ctx.fill();
-                ctx.shadowBlur = 0;
 
-                // 数字标签
-                ctx.fillStyle = '#6b7280';
-                ctx.font = '12px Inter';
-                ctx.textAlign = 'left';
-                ctx.fillText(i, nodeX + 15, nodeY + 4);
-                
-                // 概率条 (仅在结果阶段)
-                if (tRes > 0) {
-                    let prob = 0.05;
-                    if (i === 7) prob = 0.92;
-                    if (i === 1) prob = 0.1;
-                    
-                    // 动态增长
-                    const barW = prob * 50 * Math.min(tRes * 3, 1);
-                    ctx.fillStyle = i===7 ? COLORS.output : '#e5e7eb';
-                    ctx.fillRect(nodeX + 30, nodeY - 4, barW, 8);
-                    
-                    if (i === 7 && tRes > 0.5) {
-                        ctx.fillStyle = COLORS.output;
-                        ctx.font = 'bold 14px Inter';
-                        ctx.fillText("92%", nodeX + 90, nodeY + 4);
+                    // 填入卷积结果
+                    targetPixel.innerText = featureMapData[featureIdx];
+                    // 根据数值正负显示不同颜色
+                    if (featureMapData[featureIdx] > 0) {
+                        targetPixel.style.background = `rgba(9, 132, 227, ${featureMapData[featureIdx]/3})`;
+                    } else {
+                        targetPixel.style.background = `rgba(225, 112, 85, ${-featureMapData[featureIdx]/3})`;
                     }
+                    targetPixel.style.color = 'white';
+                    targetPixel.style.transform = "scale(1.2)";
+                    setTimeout(() => targetPixel.style.transform = "scale(1)", 200);
                 }
             }
+
+            kernelBox.style.opacity = 0;
+            
+            await speak("这个过程生成了‘特征图’。这提取了图像的边缘或形状。", "This creates a 'Feature Map', extracting edges or shapes.", 3500);
+
+            // ---------------- SCENE 3: ReLU (Activation) ----------------
+            await speak("接下来是激活函数 (ReLU)。", "Next is the Activation Function (ReLU).", 2000);
+            await speak("它会将所有负数变为0，去除不重要的信息。", "It turns all negative numbers to zero, removing noise.", 4000);
+            
+            // 演示 ReLU
+            const featurePixels = document.querySelectorAll('#feature-grid .pixel');
+            featurePixels.forEach((p, i) => {
+                p.style.transition = 'all 0.5s';
+                if (featureMapData[i] <= 0) {
+                    p.innerText = '0';
+                    p.style.background = '#f8f9fa';
+                    p.style.color = '#b2bec3';
+                }
+            });
+            await sleep(1000);
+
+            // ---------------- SCENE 4: POOLING ----------------
+            $('pool-layer').classList.add('visible');
+            await speak("为了减少计算量，我们使用'池化' (Pooling)。", "To reduce computation, we use 'Pooling'.", 3000);
+            await speak("最大池化通过保留局部最大值来缩小图像尺寸。", "Max Pooling shrinks the image by keeping the maximum value in each region.", 4000);
+
+            // 显示池化窗口
+            const poolWindow = $('pool-window');
+            poolWindow.style.opacity = 1;
+            const poolStartLeft = 300 + 8;
+            const poolStartTop = 200 + 8;
+            poolWindow.style.left = poolStartLeft + 'px';
+            poolWindow.style.top = poolStartTop + 'px';
+
+            // 池化过程动画 (2x2窗口在3x3特征图上滑动)
+            const poolSteps = [
+                {row: 0, col: 0, poolIdx: 0, values: [1, 0, 2, 0], maxValue: 2}, // 左上角
+                {row: 0, col: 1, poolIdx: 1, values: [0, 0, 0, 0], maxValue: 0}, // 右上角
+                {row: 1, col: 0, poolIdx: 2, values: [2, 0, 1, 0], maxValue: 1}, // 左下角
+                {row: 1, col: 1, poolIdx: 3, values: [0, 0, 0, 0], maxValue: 0}  // 右下角
+            ];
+
+            for (let step of poolSteps) {
+                // 移动池化窗口
+                poolWindow.style.transform = `translate(${step.col * 44}px, ${step.row * 44}px)`;
+                
+                if (step.poolIdx === 0) {
+                    await sleep(1000);
+                    await speak("池化窗口在每个2x2区域找到最大值。", "The pooling window finds the maximum value in each 2x2 region.", 3000);
+                } else {
+                    await sleep(500);
+                }
+
+                // 填入池化结果
+                const poolPixel = $(`pool-grid-p-${step.poolIdx}`);
+                poolPixel.innerText = step.maxValue;
+                poolPixel.style.background = step.maxValue > 0 ? '#00b894' : '#f8f9fa';
+                poolPixel.style.color = step.maxValue > 0 ? 'white' : '#b2bec3';
+                poolPixel.style.transform = "scale(1.2)";
+                setTimeout(() => poolPixel.style.transform = "scale(1)", 200);
+            }
+
+            poolWindow.style.opacity = 0;
+            await sleep(1000);
+            clearLines();
+
+            // ---------------- SCENE 5: FLATTEN & FC ----------------
+            $('fc-layer').classList.add('visible');
+            await speak("现在我们将二维特征图'拉平'成一维向量。", "Now we 'Flatten' the 2D feature map into a 1D vector.", 3000);
+
+            // 创建输入层神经元
+            const fcContainer = $('fc-neurons');
+            pooledData.forEach((val, i) => {
+                const n = document.createElement('div');
+                n.className = 'neuron';
+                n.innerText = val;
+                n.id = `neuron-${i}`;
+                fcContainer.appendChild(n);
+            });
+
+            await speak("这些特征通过全连接层连接到隐藏层。", "These features connect to a hidden layer through fully connected connections.", 3500);
+
+            // ---------------- SCENE 6: HIDDEN LAYER ----------------
+            $('hidden-layer').classList.add('visible');
+            await speak("这是隐藏层，进行更复杂的特征组合。", "This is the hidden layer, performing more complex feature combinations.", 3000);
+
+            // 创建隐藏层神经元
+            const hiddenContainer = $('hidden-neurons');
+            const hiddenNeurons = 6; // 隐藏层神经元数量
+            for (let i = 0; i < hiddenNeurons; i++) {
+                const n = document.createElement('div');
+                n.className = 'neuron';
+                n.innerText = '?';
+                n.id = `hidden-${i}`;
+                n.style.background = '#6c5ce7';
+                n.style.color = 'white';
+                hiddenContainer.appendChild(n);
+            }
+
+            // 绘制输入层到隐藏层的连接线
+            await speak("输入层的每个神经元都连接到隐藏层的每个神经元。", "Each neuron in the input layer connects to every neuron in the hidden layer.", 3000);
+
+            for (let i = 0; i < 4; i++) {
+                const inputNeuron = $(`neuron-${i}`);
+                for (let j = 0; j < hiddenNeurons; j++) {
+                    const hiddenNeuron = $(`hidden-${j}`);
+                    drawLine(inputNeuron.getBoundingClientRect(), hiddenNeuron.getBoundingClientRect(), '#6c5ce7');
+                    await sleep(50);
+                }
+            }
+
+            // ---------------- SCENE 6: OUTPUT LAYER ----------------
+            $('output-layer').classList.add('visible');
+            await speak("最后，隐藏层连接到输出层，得到分类结果。", "Finally, the hidden layer connects to the output layer for classification.", 3000);
+
+            // 创建输出层神经元 - 只保留3个类别
+            const outputContainer = $('output-neurons');
+            const categories = ['Dog', 'Cat', 'Bird']; // 只保留3个类别
+            categories.forEach((cat, i) => {
+                const n = document.createElement('div');
+                n.className = 'neuron';
+                n.innerHTML = `
+                    <div style="font-size: 10px; margin-bottom: 2px;">${cat}</div>
+                    <div style="font-size: 8px; color: #b2bec3;" id="output-prob-${i}">0%</div>
+                `;
+                n.id = `output-${i}`;
+                n.style.background = '#e17055';
+                n.style.color = 'white';
+                n.style.width = '60px';
+                n.style.height = '60px';
+                n.style.flexDirection = 'column';
+                outputContainer.appendChild(n);
+            });
+
+            // 绘制隐藏层到输出层的连接线
+            for (let i = 0; i < hiddenNeurons; i++) {
+                const hiddenNeuron = $(`hidden-${i}`);
+                for (let j = 0; j < categories.length; j++) {
+                    const outputNeuron = $(`output-${j}`);
+                    drawLine(hiddenNeuron.getBoundingClientRect(), outputNeuron.getBoundingClientRect(), '#e17055');
+                    await sleep(30);
+                }
+            }
+
+            // ---------------- SCENE 7: FINAL RESULT ----------------
+            await speak("神经网络计算每个类别的概率...", "The network calculates probabilities for each category...", 2000);
+
+            // 概率计算动画 - 3个类别的概率
+            const probabilities = [15, 75, 10]; // Dog: 15%, Cat: 75%, Bird: 10%
+            const maxProbabilityIndex = probabilities.indexOf(Math.max(...probabilities)); // 找到最大概率的索引
+
+            // 使用Promise来等待所有概率动画完成
+            await new Promise((resolve) => {
+                let completedCount = 0;
+                
+                for (let i = 0; i < categories.length; i++) {
+                    const outputNeuron = $(`output-${i}`);
+                    const probText = $(`output-prob-${i}`);
+                    
+                    // 动画效果显示概率
+                    let currentPercent = 0;
+                    const interval = setInterval(() => {
+                        currentPercent += 2;
+                        if (currentPercent >= probabilities[i]) {
+                            currentPercent = probabilities[i];
+                            clearInterval(interval);
+                            completedCount++;
+                            
+                            // 当所有概率都显示完成后
+                            if (completedCount === categories.length) {
+                                resolve();
+                            }
+                        }
+                        probText.innerText = currentPercent + '%';
+                    }, 40);
+                }
+            });
+
+            // 在所有概率动画完成后，高亮最高概率的类别
+            const bestNeuron = $(`output-${maxProbabilityIndex}`);
+            bestNeuron.style.transform = 'scale(1.3)';
+            bestNeuron.style.boxShadow = '0 0 20px #00b894';
+            bestNeuron.style.background = '#00b894';
+            bestNeuron.style.border = '3px solid #00b894';
+
+            const bestCategory = categories[maxProbabilityIndex];
+            await speak(`恭喜！模型以${probabilities[maxProbabilityIndex]}%的概率识别出这是一只${bestCategory}。`, 
+                    `Success! The model identifies it as a ${bestCategory.toUpperCase()} with ${probabilities[maxProbabilityIndex]}% probability.`, 4000);
+
+            // ---------------- OUTRO ----------------
+            clearLines();
+            await speak("这就是卷积神经网络提取特征、理解图像的基本原理。", "This is how CNNs extract features and understand images.", 5000);
+            
+            // 结束画面
+            $('header').style.opacity = 0;
+            $('input-layer').style.opacity = 0;
+            $('feature-layer').style.opacity = 0;
+            $('pool-layer').style.opacity = 0;
+            $('fc-layer').style.opacity = 0;
+            $('output-layer').style.opacity = 0;
+            
+            await sleep(1000);
+            
+            const replay = document.createElement('div');
+            replay.innerHTML = "Replaying...";
+            replay.style.position = "absolute";
+            replay.style.top = "50%";
+            replay.style.left = "50%";
+            replay.style.transform = "translate(-50%, -50%)";
+            replay.style.color = "#b2bec3";
+            replay.style.fontSize = "24px";
+            $('cinema-container').appendChild(replay);
+            
+            await sleep(2000);
+            location.reload();
         }
-    }
 
-    requestAnimationFrame(render);
-}
+        // 启动
+        window.onload = () => {
+            setTimeout(playMovie, 500);
+        };
 
-// 字幕更新逻辑
-function updateSubtitles(time) {
-    const script = SCRIPTS.find(s => time >= s.t && time < s.t + s.dur);
-    if (script) {
-        if (subCn.innerText !== script.cn) {
-            subCn.style.opacity = 0;
-            subEn.style.opacity = 0;
-            setTimeout(() => {
-                subCn.innerText = script.cn;
-                subEn.innerText = script.en;
-                subCn.style.opacity = 1;
-                subEn.style.opacity = 1;
-            }, 200); // 淡入淡出
-        }
-    } else {
-        // 没有字幕时留白或保持上一句(这里选择淡出)
-        // subCn.style.opacity = 0;
-        // subEn.style.opacity = 0;
-    }
-}
-
-// 启动动画
-requestAnimationFrame(render);
-
-</script>
+    </script>
 </body>
 </html>

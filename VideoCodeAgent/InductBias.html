@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inductive Bias - 归纳偏置</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700&family=Inter:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #fdfbf7;
+            /* 极淡的米色背景 */
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --accent-blue: #5dade2;
+            --accent-purple: #a569bd;
+            --accent-green: #58d68d;
+            --point-color: #34495e;
+            --grid-color: rgba(0, 0, 0, 0.03);
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 电影感遮幅容器 */
+        #cinema-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 1920px;
+            max-height: 1080px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* 顶部标题区域 */
+        .header {
+            position: absolute;
+            top: 40px;
+            left: 50px;
+            z-index: 10;
+            opacity: 0;
+            animation: fadeIn 2s ease-out forwards;
+        }
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle-top {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* 底部字幕区域 */
+        .subtitle-container {
+            position: absolute;
+            bottom: 10%;
+            width: 80%;
+            text-align: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .caption-en {
+            font-size: 1.4rem;
+            font-weight: 400;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            text-shadow: 0 2px 10px rgba(255, 255, 255, 0.8);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .caption-cn {
+            font-size: 1.1rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+            transition-delay: 0.1s;
+        }
+
+        .caption-active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            width: 0%;
+            z-index: 20;
+        }
+
+        /* 装饰性背景文字 */
+        .bg-decor {
+            position: absolute;
+            font-size: 12rem;
+            font-weight: 900;
+            color: rgba(0, 0, 0, 0.02);
+            z-index: 0;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="cinema-container">
+        <!-- 背景装饰 -->
+        <div class="bg-decor" style="top: 10%; left: -5%;">LEARN</div>
+        <div class="bg-decor" style="bottom: 10%; right: -5%;">BIAS</div>
+
+        <div class="header">
+            <div class="title">归纳偏置</div>
+            <div class="subtitle-top">INDUCTIVE BIAS</div>
+        </div>
+
+        <canvas id="mainCanvas"></canvas>
+
+        <div class="subtitle-container">
+            <div id="caption-en" class="caption-en"></div>
+            <div id="caption-cn" class="caption-cn"></div>
+        </div>
+
+        <div id="progress" class="progress-bar"></div>
+    </div>
+
+    <script>
+        /**
+         * 动画脚本逻辑
+         * 使用 Canvas API 进行绘制，requestAnimationFrame 进行循环
+         */
+
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const captionEn = document.getElementById('caption-en');
+        const captionCn = document.getElementById('caption-cn');
+        const progressBar = document.getElementById('progress');
+
+        let width, height;
+        let time = 0;
+        let startTime = null;
+        let totalDuration = 42000; // 42秒总时长
+
+        // 核心数据点 (归一化坐标 0-1)
+        const dataPoints = [
+            { x: 0.15, y: 0.75 },
+            { x: 0.30, y: 0.60 },
+            { x: 0.45, y: 0.65 },
+            { x: 0.60, y: 0.45 },
+            { x: 0.75, y: 0.35 },
+            { x: 0.90, y: 0.20 }
+        ];
+
+        // 剧本时间轴
+        const script = [
+            { start: 0, end: 5000, en: "Imagine we have observed a set of data points.", cn: "想象我们观察到了一组孤立的数据点。" },
+            { start: 5000, end: 10000, en: "Our goal is to learn a function that predicts the unknown.", cn: "我们的目标是学习一个函数，来预测未知的区域。" },
+            { start: 10000, end: 16000, en: "But without assumptions, there are infinite ways to connect them.", cn: "但如果不做任何假设，连接它们的方式是无穷无尽的。" },
+            { start: 16000, end: 22000, en: "This is the problem of 'No Free Lunch'. We need constraints.", cn: "这就是‘没有免费的午餐’问题。我们需要约束条件。" },
+            { start: 22000, end: 28000, en: "Inductive Bias is that constraint. It's our preference for a solution.", cn: "归纳偏置就是这种约束。它是我们对某种解法的偏好。" },
+            { start: 28000, end: 34000, en: "For example, 'Linear Bias' assumes the world is simple and straight.", cn: "例如，‘线性偏置’假设世界是简单且笔直的。" },
+            { start: 34000, end: 38000, en: "Bias is not an error. It is the necessary lens to understand the world.", cn: "偏置不是错误。它是我们理解世界所必须的透镜。" },
+            { start: 38000, end: 42000, en: "Inductive Bias makes learning possible.", cn: "归纳偏置让学习成为可能。" }
+        ];
+
+        // 调整画布尺寸
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 辅助函数：线性插值
+        const lerp = (a, b, t) => a + (b - a) * t;
+        // 辅助函数：缓动
+        const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+        const easeInOutQuad = t => t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+        // 状态管理变量
+        let currentScene = 0;
+        let chaosLines = []; // 存储混乱线条的随机参数
+
+        // 初始化混乱线条参数
+        for (let i = 0; i < 10; i++) {
+            chaosLines.push({
+                offset: Math.random() * 100,
+                speed: 0.5 + Math.random() * 1.5,
+                color: Math.random() > 0.5 ? '#a569bd' : '#5dade2'
+            });
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(0,0,0,0.03)';
+            ctx.lineWidth = 1;
+            const gridSize = 50;
+
+            // 移动网格效果
+            const offset = (time * 0.02) % gridSize;
+
+            for (let x = offset; x < width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = offset; y < height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawPoints(opacity = 1, scale = 1) {
+            dataPoints.forEach((p, i) => {
+                const px = width * 0.15 + p.x * width * 0.7;
+                const py = height * 0.1 + p.y * height * 0.6; // 调整高度范围，留出底部空间
+
+                ctx.save();
+                ctx.translate(px, py);
+                ctx.scale(scale, scale);
+
+                // 外光晕
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = 'rgba(52, 73, 94, 0.3)';
+
+                // 点实体
+                ctx.fillStyle = `rgba(44, 62, 80, ${opacity})`;
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 呼吸效果圈
+                const breath = (Math.sin(time * 0.003 + i) + 1) / 2;
+                ctx.strokeStyle = `rgba(93, 173, 226, ${opacity * 0.5})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, 12 + breath * 5, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.restore();
+            });
+        }
+
+        // 场景绘制函数
+        function render(timestamp) {
+            if (!startTime) startTime = timestamp;
+            const elapsed = timestamp - startTime;
+            time = elapsed;
+
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
+
+            // 1. 绘制背景网格
+            drawGrid();
+
+            // 2. 计算剧本进度
+            let currentScript = script.find(s => elapsed >= s.start && elapsed < s.end);
+            if (currentScript) {
+                if (captionEn.innerText !== currentScript.en) {
+                    // 切换文字动画
+                    captionEn.classList.remove('caption-active');
+                    captionCn.classList.remove('caption-active');
+                    setTimeout(() => {
+                        captionEn.innerText = currentScript.en;
+                        captionCn.innerText = currentScript.cn;
+                        captionEn.classList.add('caption-active');
+                        captionCn.classList.add('caption-active');
+                    }, 800);
+                }
+            }
+
+            // 进度条
+            const progressPct = Math.min((elapsed / totalDuration) * 100, 100);
+            progressBar.style.width = `${progressPct}%`;
+
+            // ---------------- 场景逻辑 ----------------
+
+            // 阶段 1: 数据出现 (0 - 5s)
+            if (elapsed < 5000) {
+                const t = Math.min(elapsed / 2000, 1);
+                const ease = easeOutCubic(t);
+                drawPoints(ease, ease);
+            }
+
+            // 阶段 2: 混乱/无限可能 (5s - 16s)
+            else if (elapsed < 16000) {
+                drawPoints(1);
+
+                // 绘制疯狂的线条
+                const intensity = Math.min((elapsed - 5000) / 3000, 1); // 渐入
+
+                ctx.save();
+                // 限制绘制区域在点周围
+                ctx.beginPath();
+                ctx.rect(width * 0.1, height * 0.1, width * 0.8, height * 0.7);
+                ctx.clip();
+
+                if (intensity > 0) {
+                    chaosLines.forEach((line, idx) => {
+                        ctx.beginPath();
+                        ctx.strokeStyle = line.color === '#a569bd' ? `rgba(165, 105, 189, ${0.3 * intensity})` : `rgba(93, 173, 226, ${0.3 * intensity})`;
+                        ctx.lineWidth = 2;
+
+                        // 使用正弦波模拟穿过所有点的疯狂曲线
+                        let first = true;
+
+                        // 生成平滑曲线穿过点，但添加巨大的噪声
+                        for (let x = 0; x <= width; x += 10) {
+                            // 基础趋势
+                            const normalizedX = (x - width * 0.15) / (width * 0.7);
+
+                            // 噪声
+                            const noise = Math.sin(x * 0.01 * line.speed + time * 0.005 + line.offset) * 150 * intensity;
+                            const y = height * 0.5 + noise;
+
+                            if (first) {
+                                ctx.moveTo(x, y);
+                                first = false;
+                            } else {
+                                ctx.lineTo(x, y);
+                            }
+                        }
+                        ctx.stroke();
+                    });
+                }
+                ctx.restore();
+
+                // 绘制"Question Marks" 浮动
+                if (elapsed > 8000) {
+                    ctx.fillStyle = `rgba(44, 62, 80, ${(Math.sin(time * 0.005) + 1) * 0.1})`;
+                    ctx.font = "bold 100px sans-serif";
+                    ctx.fillText("?", width * 0.5, height * 0.4);
+                }
+            }
+
+            // 阶段 3: 过滤/透镜 (16s - 22s)
+            else if (elapsed < 22000) {
+                drawPoints(1);
+
+                // 混乱线条淡出
+                const fadeOut = 1 - Math.min((elapsed - 16000) / 2000, 1);
+                if (fadeOut > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = fadeOut;
+                    // (重复一点简单的混乱逻辑为了平滑过渡，简化处理)
+                    chaosLines.forEach((line, idx) => {
+                        if (idx > 3) return; // 减少线条
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(165, 105, 189, 0.2)`;
+                        ctx.lineWidth = 2;
+                        for (let x = 0; x <= width; x += 20) {
+                            const noise = Math.sin(x * 0.01 + time * 0.005) * 100;
+                            ctx.lineTo(x, height * 0.5 + noise);
+                        }
+                        ctx.stroke();
+                    });
+                    ctx.restore();
+                }
+
+                // 透镜出现
+                const lensProgress = Math.min((elapsed - 17000) / 3000, 1);
+                const lensEase = easeInOutQuad(lensProgress);
+
+                if (lensProgress > 0) {
+                    const lensX = lerp(-200, width / 2, lensEase);
+
+                    ctx.save();
+                    // 绘制透镜框
+                    ctx.strokeStyle = varColor('--text-primary');
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(lensX - 150, height * 0.2, 300, height * 0.6, 20);
+                    ctx.stroke();
+
+                    // 透镜内部高亮
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+                    ctx.fill();
+
+                    // 文字 Label
+                    ctx.fillStyle = varColor('--text-primary');
+                    ctx.font = "20px Inter";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Inductive Bias", lensX, height * 0.2 - 20);
+                    ctx.restore();
+                }
+            }
+
+            // 阶段 4: 线性偏置示例 (22s - 34s)
+            else if (elapsed < 34000) {
+                drawPoints(1);
+
+                // 透镜固定在中间
+                const lensX = width / 2;
+                ctx.save();
+                ctx.strokeStyle = varColor('--accent-green');
+                ctx.lineWidth = 2;
+                ctx.setLineDash([10, 10]);
+                ctx.beginPath();
+                ctx.roundRect(lensX - 150, height * 0.2, 300, height * 0.6, 20);
+                ctx.stroke();
+                ctx.restore();
+
+                // 绘制拟合线
+                // 简单的线性回归模拟：从左上到右下
+                const startX = width * 0.15;
+                const endX = width * 0.15 + width * 0.7;
+                const startY = height * 0.1 + 0.75 * height * 0.6; // 对应第一个点附近
+                const endY = height * 0.1 + 0.20 * height * 0.6;   // 对应最后一个点附近
+
+                // 动画画线
+                const lineProgress = Math.min((elapsed - 28000) / 3000, 1);
+                const lineEase = easeOutCubic(lineProgress);
+
+                if (lineProgress > 0) {
+                    const currentEndX = lerp(startX, endX, lineEase);
+                    const currentEndY = lerp(startY, endY, lineEase);
+
+                    ctx.save();
+                    ctx.strokeStyle = varColor('--accent-blue');
+                    ctx.lineWidth = 8;
+                    ctx.lineCap = 'round';
+                    ctx.shadowColor = varColor('--accent-blue');
+                    ctx.shadowBlur = 20;
+
+                    ctx.beginPath();
+                    ctx.moveTo(startX - 50, startY + 30); // 稍微延伸一点
+                    ctx.lineTo(currentEndX, currentEndY);
+                    ctx.stroke();
+
+                    // 显示 "Linear Bias" 标签
+                    if (lineProgress > 0.8) {
+                        ctx.fillStyle = varColor('--accent-blue');
+                        ctx.font = "bold 24px Inter";
+                        ctx.fillText("f(x) = ax + b", width / 2 + 20, height / 2 - 20);
+                    }
+                    ctx.restore();
+                }
+            }
+
+            // 阶段 5: 总结 (34s - End)
+            else {
+                // 保持点和线
+                drawPoints(1);
+                const startX = width * 0.15 - 50;
+                const startY = height * 0.1 + 0.75 * height * 0.6 + 30;
+                const endX = width * 0.15 + width * 0.7;
+                const endY = height * 0.1 + 0.20 * height * 0.6;
+
+                ctx.save();
+                ctx.strokeStyle = varColor('--accent-blue');
+                ctx.lineWidth = 8;
+                ctx.lineCap = 'round';
+                ctx.shadowColor = varColor('--accent-blue');
+                ctx.shadowBlur = 20;
+                ctx.globalAlpha = 0.3; // 变淡
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+                ctx.restore();
+
+                // 绘制一个新点（预测点）
+                const predictTime = Math.min((elapsed - 36000) / 2000, 1);
+                if (predictTime > 0) {
+                    const px = width * 0.5; // 预测中间位置
+                    const py = lerp(height * 0.8, (startY + endY) / 2, easeOutCubic(predictTime));
+
+                    ctx.save();
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = varColor('--accent-purple');
+                    ctx.fillStyle = varColor('--accent-purple');
+
+                    // 绘制菱形代表新数据
+                    ctx.beginPath();
+                    ctx.translate(px, py);
+                    ctx.rotate(Math.PI / 4);
+                    const size = 15 * predictTime;
+                    ctx.rect(-size / 2, -size / 2, size, size);
+                    ctx.fill();
+                    ctx.restore();
+
+                    if (predictTime > 0.8) {
+                        ctx.fillStyle = varColor('--text-primary');
+                        ctx.font = "16px Inter";
+                        ctx.textAlign = "center";
+                        ctx.fillText("Prediction / 预测", width * 0.5, (startY + endY) / 2 - 30);
+                    }
+                }
+            }
+
+            if (elapsed < totalDuration + 2000) {
+                requestAnimationFrame(render);
+            }
+        }
+
+        // 辅助函数：获取CSS变量颜色
+        function varColor(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        // 开始动画
+        requestAnimationFrame(render);
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>什么是过拟合？ What is Overfitting?</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #343a40;
+            --primary-color: #007bff;
+            --point-color: #007bffa0;
+            --new-point-color: #28a745a0;
+            --underfit-color: #fd7e14;
+            --goodfit-color: #28a745;
+            --overfit-color: #dc3545;
+            --grid-color: #e9ecef;
+            --subtitle-bg: rgba(248, 249, 250, 0.85);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            position: relative;
+            width: 1920px;
+            height: 1080px;
+            background-color: var(--bg-color);
+            transform-origin: center center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        #plot-svg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 1600px;
+            height: 900px;
+        }
+
+        /* SVG elements styling */
+        .grid-line {
+            stroke: var(--grid-color);
+            stroke-width: 2;
+        }
+
+        .axis-line {
+            stroke: #adb5bd;
+            stroke-width: 3;
+        }
+
+        .data-point {
+            fill: var(--point-color);
+            stroke: var(--primary-color);
+            stroke-width: 3;
+            transition: all 0.3s ease-in-out;
+        }
+        
+        .new-data-point {
+            fill: var(--new-point-color);
+            stroke: var(--goodfit-color);
+            stroke-width: 3;
+        }
+
+        .model-line {
+            fill: none;
+            stroke-width: 5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        #underfit-line { stroke: var(--underfit-color); }
+        #goodfit-curve { stroke: var(--goodfit-color); }
+        #overfit-curve { stroke: var(--overfit-color); }
+
+        /* Labels and Text elements */
+        .label {
+            position: absolute;
+            font-size: 28px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+            backdrop-filter: blur(5px);
+        }
+
+        #underfit-label { color: var(--underfit-color); top: 300px; left: 950px; }
+        #goodfit-label { color: var(--goodfit-color); top: 350px; left: 1050px; }
+        #overfit-label { color: var(--overfit-color); top: 680px; left: 1200px; }
+        #generalization-label {
+            position: absolute;
+            top: 200px;
+            left: 1100px;
+            font-size: 32px;
+            font-weight: 500;
+            color: var(--text-color);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        
+        #title-card {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-color);
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            z-index: 100;
+        }
+
+        #title-card h1 {
+            font-size: 80px;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        #title-card p {
+            font-size: 48px;
+            font-weight: 300;
+            margin-top: 10px;
+            color: #6c757d;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: var(--subtitle-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            backdrop-filter: blur(10px);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+            z-index: 50;
+        }
+
+        #subtitles p {
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+
+        #subtitle-cn {
+            font-size: 28px;
+            font-weight: 400;
+            color: var(--text-color);
+        }
+
+        #subtitle-en {
+            font-size: 22px;
+            font-weight: 300;
+            color: #495057;
+        }
+        
+        /* Animation classes */
+        .visible { opacity: 1 !important; }
+        .hidden { display: none; }
+
+        @keyframes fadeInScale {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .point-appear {
+            animation: fadeInScale 0.5s ease-out forwards;
+        }
+
+        @keyframes noise-animation {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(1px, -1px); }
+            50% { transform: translate(-1px, 2px); }
+            75% { transform: translate(-1px, -1px); }
+        }
+
+        .noisy-point {
+            animation: noise-animation 0.2s infinite;
+        }
+        
+        /* Final Summary Screen */
+        #summary-screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            z-index: 90;
+        }
+        #summary-title {
+            font-size: 64px;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 60px;
+        }
+        #summary-content {
+            display: flex;
+            justify-content: space-around;
+            width: 80%;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-item svg {
+            width: 300px;
+            height: 200px;
+            border: 2px solid var(--grid-color);
+            border-radius: 8px;
+            background: #fff;
+        }
+        .summary-item h3 {
+            font-size: 32px;
+            margin-top: 20px;
+            margin-bottom: 5px;
+        }
+        #summary-underfit h3 { color: var(--underfit-color); }
+        #summary-goodfit h3 { color: var(--goodfit-color); }
+        #summary-overfit h3 { color: var(--overfit-color); }
+
+        /* Responsive scaling */
+        @media (max-width: 1920px) {
+            #animation-container {
+                transform: scale(calc(100vw / 1920));
+                transform-origin: top left;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                margin-left: -960px;
+                margin-top: -540px;
+            }
+        }
+        @media (max-height: 1080px) {
+             #animation-container {
+                transform: scale(calc(100vh / 1080));
+                transform-origin: top left;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                margin-left: calc(-1920px * (100vh / 1080) / 2);
+                margin-top: -540px;
+             }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="animation-container">
+        <div id="title-card">
+            <h1>什么是过拟合？</h1>
+            <p>What is Overfitting?</p>
+        </div>
+
+        <svg id="plot-svg" viewBox="0 0 1600 900">
+            <!-- Grid -->
+            <g id="grid">
+                <line class="grid-line" x1="100" y1="50" x2="100" y2="850"/>
+                <line class="grid-line" x1="300" y1="50" x2="300" y2="850"/>
+                <line class="grid-line" x1="500" y1="50" x2="500" y2="850"/>
+                <line class="grid-line" x1="700" y1="50" x2="700" y2="850"/>
+                <line class="grid-line" x1="900" y1="50" x2="900" y2="850"/>
+                <line class="grid-line" x1="1100" y1="50" x2="1100" y2="850"/>
+                <line class="grid-line" x1="1300" y1="50" x2="1300" y2="850"/>
+                <line class="grid-line" x1="1500" y1="50" x2="1500" y2="850"/>
+                <line class="grid-line" x1="50" y1="100" x2="1550" y2="100"/>
+                <line class="grid-line" x1="50" y1="300" x2="1550" y2="300"/>
+                <line class="grid-line" x1="50" y1="500" x2="1550" y2="500"/>
+                <line class="grid-line" x1="50" y1="700" x2="1550" y2="700"/>
+            </g>
+            <!-- Axes -->
+            <g id="axes">
+                <line class="axis-line" x1="50" y1="850" x2="1550" y2="850"/>
+                <line class="axis-line" x1="50" y1="50" x2="50" y2="850"/>
+            </g>
+            
+            <!-- Model Lines/Curves -->
+            <path id="underfit-line" class="model-line" d="M 150 500 L 1450 400" stroke-dasharray="2000" stroke-dashoffset="2000" opacity="0"></path>
+            <path id="goodfit-curve" class="model-line" d="M 150 650 Q 800 200, 1450 550" stroke-dasharray="2000" stroke-dashoffset="2000" opacity="0"></path>
+            <path id="overfit-curve" class="model-line" d="M 150,600 C 250,350 350,450 450,400 S 550,650 650,600 S 750,300 850,350 S 950,750 1050,700 S 1150,400 1250,450 S 1350,650 1450,600" stroke-dasharray="3000" stroke-dashoffset="3000" opacity="0"></path>
+            
+            <!-- Data Points -->
+            <g id="data-points-group" opacity="0"></g>
+            <g id="new-data-points-group" opacity="0"></g>
+        </svg>
+
+        <div id="underfit-label" class="label">欠拟合 / Underfitting</div>
+        <div id="goodfit-label" class="label">理想拟合 / Good Fit</div>
+        <div id="overfit-label" class="label">过拟合 / Overfitting</div>
+        <div id="generalization-label">在新数据上表现不佳<br>Poor performance on new data</div>
+
+        <div id="subtitles">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+        
+        <div id="summary-screen">
+            <div id="summary-title">模型拟合的三种状态</div>
+            <div id="summary-content">
+                <div class="summary-item" id="summary-underfit">
+                    <h3>欠拟合</h3>
+                    <svg viewBox="0 0 300 200">
+                        <path d="M 20 100 L 280 80" stroke="#fd7e14" stroke-width="3" fill="none"></path>
+                        <circle cx="40" cy="120" r="4" fill="#007bffa0"></circle><circle cx="80" cy="70" r="4" fill="#007bffa0"></circle><circle cx="120" cy="90" r="4" fill="#007bffa0"></circle><circle cx="160" cy="130" r="4" fill="#007bffa0"></circle><circle cx="200" cy="60" r="4" fill="#007bffa0"></circle><circle cx="240" cy="110" r="4" fill="#007bffa0"></circle>
+                    </svg>
+                </div>
+                <div class="summary-item" id="summary-goodfit">
+                    <h3>理想拟合</h3>
+                     <svg viewBox="0 0 300 200">
+                        <path d="M 20 130 Q 150 40, 280 110" stroke="#28a745" stroke-width="3" fill="none"></path>
+                         <circle cx="40" cy="120" r="4" fill="#007bffa0"></circle><circle cx="80" cy="70" r="4" fill="#007bffa0"></circle><circle cx="120" cy="90" r="4" fill="#007bffa0"></circle><circle cx="160" cy="130" r="4" fill="#007bffa0"></circle><circle cx="200" cy="60" r="4" fill="#007bffa0"></circle><circle cx="240" cy="110" r="4" fill="#007bffa0"></circle>
+                    </svg>
+                </div>
+                <div class="summary-item" id="summary-overfit">
+                    <h3>过拟合</h3>
+                    <svg viewBox="0 0 300 200">
+                        <path d="M 20,120 C 50,70 70,90 80,70 S 100,130 120,90 S 140,60 160,130 S 180,50 200,60 S 220,130 240,110 S 260,80 280,120" stroke="#dc3545" stroke-width="3" fill="none"></path>
+                        <circle cx="40" cy="120" r="4" fill="#007bffa0"></circle><circle cx="80" cy="70" r="4" fill="#007bffa0"></circle><circle cx="120" cy="90" r="4" fill="#007bffa0"></circle><circle cx="160" cy="130" r="4" fill="#007bffa0"></circle><circle cx="200" cy="60" r="4" fill="#007bffa0"></circle><circle cx="240" cy="110" r="4" fill="#007bffa0"></circle>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DOM = {
+            titleCard: document.getElementById('title-card'),
+            subtitles: document.getElementById('subtitles'),
+            subtitleCN: document.getElementById('subtitle-cn'),
+            subtitleEN: document.getElementById('subtitle-en'),
+            dataPointsGroup: document.getElementById('data-points-group'),
+            newDataPointsGroup: document.getElementById('new-data-points-group'),
+            underfitLine: document.getElementById('underfit-line'),
+            goodfitCurve: document.getElementById('goodfit-curve'),
+            overfitCurve: document.getElementById('overfit-curve'),
+            underfitLabel: document.getElementById('underfit-label'),
+            goodfitLabel: document.getElementById('goodfit-label'),
+            overfitLabel: document.getElementById('overfit-label'),
+            generalizationLabel: document.getElementById('generalization-label'),
+            summaryScreen: document.getElementById('summary-screen'),
+        };
+
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        function setSubtitle(cn, en) {
+            DOM.subtitleCN.textContent = cn;
+            DOM.subtitleEN.textContent = en;
+            DOM.subtitles.classList.add('visible');
+        }
+
+        function hideSubtitle() {
+            DOM.subtitles.classList.remove('visible');
+        }
+
+        function animatePath(pathElement, duration) {
+            const length = pathElement.getTotalLength();
+            pathElement.style.strokeDasharray = length;
+            pathElement.style.strokeDashoffset = length;
+            pathElement.style.opacity = '1';
+            
+            pathElement.animate([
+                { strokeDashoffset: length },
+                { strokeDashoffset: 0 }
+            ], {
+                duration: duration,
+                easing: 'ease-in-out',
+                fill: 'forwards'
+            });
+        }
+
+        function generateDataPoints() {
+            const points = [
+                { cx: 200, cy: 600 }, { cx: 350, cy: 400 }, { cx: 500, cy: 450 },
+                { cx: 650, cy: 600 }, { cx: 800, cy: 350 }, { cx: 950, cy: 700 },
+                { cx: 1100, cy: 450 }, { cx: 1250, cy: 500 }, { cx: 1400, cy: 600 }
+            ];
+            
+            points.forEach((p, i) => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', p.cx);
+                circle.setAttribute('cy', p.cy);
+                circle.setAttribute('r', 10);
+                circle.setAttribute('class', 'data-point');
+                circle.style.opacity = 0;
+                circle.style.animationDelay = `${i * 100}ms`;
+                DOM.dataPointsGroup.appendChild(circle);
+            });
+        }
+        
+        function generateNewDataPoints() {
+            const points = [
+                { cx: 275, cy: 500 }, { cx: 575, cy: 550 }, { cx: 875, cy: 450 },
+                { cx: 1175, cy: 400 }, { cx: 1475, cy: 570 }
+            ];
+            
+             points.forEach((p, i) => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', p.cx);
+                circle.setAttribute('cy', p.cy);
+                circle.setAttribute('r', 10);
+                circle.setAttribute('class', 'new-data-point');
+                circle.style.opacity = 0;
+                circle.style.animationDelay = `${i * 150}ms`;
+                DOM.newDataPointsGroup.appendChild(circle);
+            });
+        }
+
+        const timeline = [
+            // Scene 1: Introduction
+            { duration: 1000, action: () => { DOM.titleCard.classList.add('visible'); } },
+            { duration: 3000, action: () => {} },
+            { duration: 1000, action: () => { DOM.titleCard.classList.remove('visible'); } },
+            { duration: 1000, action: () => {
+                setSubtitle('想象一下，我们有一些训练数据点。', 'Imagine we have some training data points.');
+                DOM.dataPointsGroup.style.opacity = '1';
+                document.querySelectorAll('#data-points-group circle').forEach(c => c.classList.add('point-appear'));
+            }},
+            { duration: 4000, action: () => {
+                setSubtitle('我们的目标是找到一个模型，能最好地描述这些数据背后的规律。', 'Our goal is to find a model that best describes the underlying pattern in this data.');
+            }},
+
+            // Scene 2: Underfitting
+            { duration: 1000, action: () => {
+                setSubtitle('我们可以尝试一个非常简单的模型，比如一条直线。', "We could try a very simple model, like a straight line.");
+                animatePath(DOM.underfitLine, 1500);
+            }},
+            { duration: 2000, action: () => { DOM.underfitLabel.classList.add('visible'); } },
+            { duration: 4000, action: () => {
+                setSubtitle('但它太简单了，没能捕捉到数据的趋势。这叫做“欠拟合”。', "But it's too simple. It fails to capture the data's trend. This is called Underfitting.");
+            }},
+            { duration: 1500, action: () => {
+                DOM.underfitLine.style.opacity = '0';
+                DOM.underfitLabel.classList.remove('visible');
+            }},
+
+            // Scene 3: Good Fit
+            { duration: 1000, action: () => {
+                setSubtitle('一个稍微复杂点的模型可能会更好。', 'A slightly more complex model might be better.');
+                animatePath(DOM.goodfitCurve, 1500);
+            }},
+            { duration: 2000, action: () => { DOM.goodfitLabel.classList.add('visible'); } },
+            { duration: 4000, action: () => {
+                setSubtitle('它抓住了主要趋势，又没有被个别数据点过度影响。这是一个理想的拟合。', "It captures the main trend without being overly influenced by individual points. This is a Good Fit.");
+            }},
+            { duration: 1500, action: () => {
+                DOM.goodfitCurve.style.opacity = '0';
+                DOM.goodfitLabel.classList.remove('visible');
+            }},
+
+            // Scene 4: Overfitting
+            { duration: 1000, action: () => {
+                setSubtitle('但如果我们把模型变得“过于”复杂呢？', "But what if we make the model *too* complex?");
+                animatePath(DOM.overfitCurve, 2000);
+            }},
+            { duration: 2500, action: () => {
+                 setSubtitle('它开始完美地穿过每一个数据点…', "It starts to fit the data perfectly, passing through every single point...");
+                 DOM.overfitLabel.classList.add('visible');
+            }},
+            { duration: 4000, action: () => {
+                setSubtitle('…甚至包括了数据中固有的“噪声”。', "...including the inherent 'noise' in the data.");
+                document.querySelectorAll('.data-point').forEach(p => p.classList.add('noisy-point'));
+            }},
+            { duration: 4000, action: () => {
+                setSubtitle('这就是“过拟合”。模型把训练数据学得“太好了”。', "This is Overfitting. The model has learned the training data 'too well'.");
+                document.querySelectorAll('.data-point').forEach(p => p.classList.remove('noisy-point'));
+            }},
+
+            // Scene 5: The Test (Generalization)
+            { duration: 1000, action: () => {
+                 setSubtitle('当遇到新的、未曾见过的数据时，问题就出现了。', 'The problem arises when we encounter new, unseen data.');
+                 DOM.newDataPointsGroup.style.opacity = '1';
+                 generateNewDataPoints();
+                 document.querySelectorAll('#new-data-points-group circle').forEach(c => c.classList.add('point-appear'));
+            }},
+            { duration: 4000, action: () => {
+                setSubtitle('过拟合模型在新数据上表现很差…', 'The overfitted model performs poorly on this new data...');
+                DOM.generalizationLabel.classList.add('visible');
+            }},
+            { duration: 4000, action: () => {
+                setSubtitle('…因为它学到的是噪声，而不是真实的潜在规律。', "...because it learned the noise, not the true underlying pattern.");
+                DOM.goodfitCurve.style.opacity = '0.3';
+                DOM.goodfitCurve.style.strokeDasharray = 'none';
+            }},
+            { duration: 4000, action: () => {
+                setSubtitle('而一个好的模型，能很好地泛化到新数据上。', "A good model, however, generalizes well to new data.");
+            }},
+            
+            // Scene 6: Conclusion
+            { duration: 2000, action: () => {
+                hideSubtitle();
+                document.body.style.transition = 'opacity 1s';
+                document.body.style.opacity = '0';
+            }},
+            { duration: 1000, action: () => {
+                DOM.summaryScreen.style.opacity = 1;
+                document.body.style.opacity = '1';
+            }},
+            { duration: 5000, action: () => {
+                setSubtitle('总结：过拟合指模型学习了训练数据的噪声而非其潜在模式，导致在新数据上表现不佳。', "In summary: Overfitting is when a model learns the training data's noise instead of its underlying pattern, leading to poor performance on new data.");
+            }}
+        ];
+
+        async function playAnimation() {
+            generateDataPoints();
+            for (const scene of timeline) {
+                scene.action();
+                await sleep(scene.duration);
+            }
+        }
+
+        window.onload = () => {
+            // A small delay to ensure everything is rendered before starting
+            setTimeout(playAnimation, 500);
+        };
+
+    </script>
+</body>
+</html>
