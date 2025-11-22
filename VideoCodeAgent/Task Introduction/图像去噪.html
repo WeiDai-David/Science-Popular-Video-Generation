@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Denoising Explanation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700&family=Outfit:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #fdfbf7;
+            --text-main: #2c3e50;
+            --text-sub: #7f8c8d;
+            --accent-clean: #88b04b; /* Greenish for clean */
+            --accent-noise: #e07a5f; /* Reddish for noise */
+            --scanner-glow: rgba(100, 181, 246, 0.6);
+            --frame-shadow: 0 20px 50px rgba(0,0,0,0.1);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            font-family: 'Outfit', 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 影院容器 */
+        #cinema-container {
+            width: 1000px;
+            height: 562.5px; /* 16:9 aspect ratio */
+            background: white;
+            position: relative;
+            box-shadow: var(--frame-shadow);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 背景装饰元素 */
+        .bg-circle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.4;
+            filter: blur(60px);
+            z-index: 0;
+        }
+        .c1 { width: 400px; height: 400px; background: #e0f7fa; top: -100px; left: -100px; }
+        .c2 { width: 300px; height: 300px; background: #fff3e0; bottom: -50px; right: -50px; }
+
+        /* 主视觉区域 */
+        #visual-stage {
+            width: 600px;
+            height: 340px;
+            position: relative;
+            z-index: 2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1000px;
+        }
+
+        /* 图像画框 */
+        .image-frame {
+            width: 100%;
+            height: 100%;
+            background: #ecf0f1;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: repeat(30, 1fr); /* 30x17 pixels */
+            grid-template-rows: repeat(17, 1fr);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            transition: transform 1s ease, filter 1s ease;
+            opacity: 0; /* Start hidden */
+        }
+
+        /* 像素点 */
+        .pixel {
+            width: 100%;
+            height: 100%;
+            transition: background-color 0.5s ease;
+        }
+
+        /* 噪点层 */
+        .noise-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .noise-dot {
+            position: absolute;
+            width: 20px; /* size of grid cell */
+            height: 20px;
+            background-color: var(--accent-noise);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        /* 扫描仪/滤镜光束 */
+        #scanner-bar {
+            position: absolute;
+            top: 0;
+            left: -20px;
+            width: 4px;
+            height: 100%;
+            background: white;
+            box-shadow: 0 0 20px 5px var(--scanner-glow), 0 0 10px var(--scanner-glow);
+            z-index: 10;
+            opacity: 0;
+            transition: transform 4s linear; /* 扫描速度 */
+        }
+
+        /* 字幕区域 */
+        #subtitle-area {
+            position: absolute;
+            bottom: 40px;
+            width: 80%;
+            text-align: center;
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+
+        .sub-en {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .sub-cn {
+            font-size: 1rem;
+            font-weight: 400;
+            color: var(--text-sub);
+        }
+
+        /* 标题卡片 */
+        #title-card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255,255,255,0.9);
+            z-index: 20;
+            opacity: 1;
+            transition: opacity 1s ease;
+        }
+        
+        #title-card h1 {
+            font-size: 3rem;
+            color: var(--text-main);
+            margin: 0;
+            letter-spacing: 2px;
+        }
+        #title-card p {
+            font-size: 1.2rem;
+            color: var(--text-sub);
+            margin-top: 10px;
+            font-weight: 300;
+        }
+
+        /* 标签 */
+        .label {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            background: rgba(255,255,255,0.8);
+            padding: 4px 12px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        /* 辅助动画类 */
+        .fade-out { opacity: 0 !important; pointer-events: none; }
+        .fade-in { opacity: 1 !important; }
+        
+        /* 放大镜效果 (CSS Metaphor) */
+        .magnify {
+            transform: scale(1.05);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.15);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="cinema-container">
+        <!-- 背景氛围 -->
+        <div class="bg-circle c1"></div>
+        <div class="bg-circle c2"></div>
+
+        <!-- 标题开场 -->
+        <div id="title-card">
+            <h1>IMAGE DENOISING</h1>
+            <p>图像去噪任务解析</p>
+        </div>
+
+        <!-- 核心演示舞台 -->
+        <div id="visual-stage">
+            <div class="label" id="stage-label">Original Signal</div>
+            
+            <!-- 图像容器 -->
+            <div class="image-frame" id="grid-container">
+                <!-- JS will populate pixels here -->
+            </div>
+
+            <!-- 噪点层 -->
+            <div class="noise-overlay" id="noise-container"></div>
+
+            <!-- 扫描光束 -->
+            <div id="scanner-bar"></div>
+        </div>
+
+        <!-- 字幕 -->
+        <div id="subtitle-area">
+            <div class="sub-en" id="txt-en"></div>
+            <div class="sub-cn" id="txt-cn"></div>
+        </div>
+    </div>
+
+    <script>
+        // ---------------------------------------------------------
+        // 1. 场景构建：生成像素画 (Abstract Landscape)
+        // ---------------------------------------------------------
+        const gridContainer = document.getElementById('grid-container');
+        const noiseContainer = document.getElementById('noise-container');
+        const cols = 30;
+        const rows = 17;
+        const totalPixels = cols * rows;
+        
+        // 定义颜色板
+        const colors = {
+            sky: '#e1f5fe',
+            sun: '#ffe082',
+            mountainLight: '#90a4ae',
+            mountainDark: '#546e7a',
+            grass: '#a5d6a7'
+        };
+
+        let pixelElements = [];
+        let noiseElements = [];
+
+        function createArt() {
+            for (let i = 0; i < totalPixels; i++) {
+                const x = i % cols;
+                const y = Math.floor(i / cols);
+                const pixel = document.createElement('div');
+                pixel.classList.add('pixel');
+
+                // 简单的绘图逻辑
+                let color = colors.sky; // 默认天空
+                
+                // 太阳
+                const dx = x - 22;
+                const dy = y - 4;
+                if (dx*dx + dy*dy < 16) color = colors.sun;
+
+                // 山脉
+                if (y > 8) {
+                    // 简单的山脉形状函数
+                    let mHeight = Math.sin(x * 0.5) * 3 + 10;
+                    if (y > mHeight) {
+                        color = x < 15 ? colors.mountainLight : colors.mountainDark;
+                    }
+                }
+                // 草地
+                if (y > 14) color = colors.grass;
+
+                pixel.style.backgroundColor = color;
+                pixel.dataset.originalColor = color; // 记住原始颜色
+                gridContainer.appendChild(pixel);
+                pixelElements.push(pixel);
+
+                // 同时在对应位置生成一个潜在的噪点
+                const noise = document.createElement('div');
+                noise.classList.add('noise-dot');
+                noise.style.left = (x * (100/cols)) + '%';
+                noise.style.top = (y * (100/rows)) + '%';
+                noise.style.width = (100/cols) + '%';
+                noise.style.height = (100/rows) + '%';
+                
+                // 随机噪点颜色 (模拟椒盐噪声或高斯噪声的视觉效果)
+                const isSalt = Math.random() > 0.5;
+                noise.style.backgroundColor = isSalt ? '#ffffff' : '#333333'; 
+                
+                noiseContainer.appendChild(noise);
+                noiseElements.push(noise);
+            }
+        }
+
+        createArt();
+
+        // ---------------------------------------------------------
+        // 2. 导演系统：字幕与动画控制
+        // ---------------------------------------------------------
+        const txtEn = document.getElementById('txt-en');
+        const txtCn = document.getElementById('txt-cn');
+        const titleCard = document.getElementById('title-card');
+        const imageFrame = document.querySelector('.image-frame');
+        const scanner = document.getElementById('scanner-bar');
+        const stageLabel = document.getElementById('stage-label');
+
+        const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function setSubtitle(en, cn) {
+            // 淡出
+            txtEn.style.opacity = 0;
+            txtCn.style.opacity = 0;
+            
+            setTimeout(() => {
+                txtEn.textContent = en;
+                txtCn.textContent = cn;
+                // 淡入
+                txtEn.style.opacity = 1;
+                txtCn.style.opacity = 1;
+            }, 300);
+        }
+
+        // ---------------------------------------------------------
+        // 3. 剧本流程 (Timeline)
+        // ---------------------------------------------------------
+        async function playMovie() {
+            // --- 0s: 开场 ---
+            await wait(1000);
+            
+            // --- 2s: 隐藏标题，显示干净图像 ---
+            titleCard.classList.add('fade-out');
+            await wait(1000);
+            
+            imageFrame.style.opacity = 1; // 显示画框
+            setSubtitle(
+                "In the digital world, images are made of pixels.", 
+                "在数字世界中，图像由像素组成。"
+            );
+            await wait(4000);
+
+            // --- 6s: 引入噪点 ---
+            setSubtitle(
+                "However, sensors often capture interference, creating 'Noise'.", 
+                "然而，传感器经常捕捉到干扰，从而产生“噪点”。"
+            );
+            
+            stageLabel.textContent = "Corrupted Input (Noisy Image)";
+            stageLabel.style.opacity = 1;
+
+            // 激活噪点 (随机选取30%的像素显示噪点)
+            const noiseIndices = [];
+            noiseElements.forEach((el, index) => {
+                if (Math.random() < 0.3) { // 30% 污染率
+                    setTimeout(() => {
+                        el.style.opacity = 0.7;
+                    }, Math.random() * 1000); // 随机出现时间
+                    noiseIndices.push(index);
+                }
+            });
+
+            await wait(5000);
+
+            // --- 11s: 解释问题 ---
+            setSubtitle(
+                "Noise destroys details and degrades visual quality.", 
+                "噪点会破坏细节，降低视觉质量。"
+            );
+            imageFrame.classList.add('magnify'); // 放大强调
+            await wait(4000);
+
+            // --- 15s: 引入去噪任务 ---
+            imageFrame.classList.remove('magnify');
+            setSubtitle(
+                "Image Denoising is the task of recovering the clean signal.", 
+                "图像去噪就是恢复纯净信号的任务。"
+            );
+            await wait(4000);
+
+            // --- 19s: 算法扫描 (核心动画) ---
+            setSubtitle(
+                "Algorithms analyze patterns to filter out the errors.", 
+                "算法通过分析模式来过滤掉这些误差。"
+            );
+            
+            stageLabel.textContent = "Processing: Denoising Algorithm";
+            
+            // 启动扫描仪
+            scanner.style.opacity = 1;
+            // 强制重绘以触发transition
+            void scanner.offsetWidth; 
+            scanner.style.transform = "translateX(640px)"; // 扫过整个画面
+
+            // 配合扫描仪清除噪点
+            // 扫描仪移动耗时4000ms，总宽度约600px。
+            // 我们根据像素的x坐标来决定何时清除噪点
+            const totalDuration = 4000;
+            
+            noiseElements.forEach((el, index) => {
+                if (el.style.opacity > 0) {
+                    const x = index % cols;
+                    // 计算该像素什么时候被扫到
+                    // x / cols = 进度百分比
+                    const delay = (x / cols) * totalDuration; 
+                    
+                    setTimeout(() => {
+                        el.style.opacity = 0; // 噪点消失
+                        // 还可以加一个小闪光效果在原像素上
+                        pixelElements[index].style.filter = "brightness(1.2)";
+                        setTimeout(()=> pixelElements[index].style.filter = "brightness(1)", 300);
+                    }, delay);
+                }
+            });
+
+            await wait(4500); // 等待扫描结束
+
+            // --- 24s: 结果展示 ---
+            scanner.style.opacity = 0;
+            setSubtitle(
+                "The result is a restored, high-quality image.", 
+                "结果是一张被修复的高质量图像。"
+            );
+            stageLabel.textContent = "Output: Clean Image";
+            stageLabel.style.color = "var(--accent-clean)";
+            stageLabel.style.fontWeight = "bold";
+            
+            await wait(4000);
+
+            // --- 28s: 总结 ---
+            setSubtitle(
+                "From Chaos to Clarity. That is Image Denoising.", 
+                "从混乱到清晰，这就是图像去噪。"
+            );
+            
+            // 最后的优雅淡出
+            await wait(5000);
+            titleCard.classList.remove('fade-out'); // 重新显示标题作为结束
+            titleCard.innerHTML = "<h1>REPLAY</h1><p>点击刷新重新播放</p>";
+            setSubtitle("", ""); // 清空字幕
+        }
+
+        // 启动
+        window.onload = playMovie;
+
+    </script>
+</body>
+</html>

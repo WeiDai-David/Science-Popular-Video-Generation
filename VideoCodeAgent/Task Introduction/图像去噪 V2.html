@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Denoising: Deep Dive</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+SC:wght@300;400;700&display=swap');
+
+        :root {
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-main: #1a1a1a;
+            --text-sub: #666;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --accent-green: #10b981;
+            --accent-purple: #8b5cf6;
+            --pixel-size: 16px;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* 16:9 影院容器 */
+        #cinema-container {
+            width: 1280px;
+            height: 720px;
+            background: var(--card-bg);
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* 顶部进度条 */
+        #progress-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: #eee;
+            z-index: 100;
+        }
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            transition: width 0.5s linear;
+        }
+
+        /* 章节指示器 */
+        #chapter-indicator {
+            position: absolute;
+            top: 30px;
+            right: 40px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-sub);
+            background: rgba(240, 242, 245, 0.8);
+            padding: 6px 16px;
+            border-radius: 20px;
+            backdrop-filter: blur(5px);
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        /* 主舞台 */
+        #stage {
+            flex: 1;
+            width: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1200px; /* 3D透视 */
+        }
+
+        /* 图像网格容器 */
+        .image-grid {
+            display: grid;
+            /* 40x24 grid based on script */
+            grid-template-columns: repeat(40, var(--pixel-size));
+            grid-template-rows: repeat(24, var(--pixel-size));
+            background: #e5e7eb;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            transform-style: preserve-3d;
+            transition: transform 1s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.5s, opacity 0.5s;
+            position: relative;
+        }
+
+        .pixel {
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            transition: background-color 0.3s, transform 0.5s, opacity 0.3s;
+        }
+
+        /* 噪点层 - 使用伪元素或单独的div */
+        .noise-dot {
+            position: absolute;
+            width: var(--pixel-size);
+            height: var(--pixel-size);
+            background: rgba(255, 255, 255, 0); /* 初始透明 */
+            pointer-events: none;
+            z-index: 2;
+            transition: background-color 0.2s, opacity 0.3s;
+        }
+
+        /* 滤波核 (3x3 Kernel) */
+        #kernel-highlight {
+            position: absolute;
+            width: calc(var(--pixel-size) * 3);
+            height: calc(var(--pixel-size) * 3);
+            border: 2px solid var(--accent-blue);
+            background: rgba(59, 130, 246, 0.2);
+            box-shadow: 0 0 15px var(--accent-blue);
+            z-index: 10;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transition: top 0.1s linear, left 0.1s linear, opacity 0.3s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        #kernel-highlight::after {
+            content: "Average";
+            text-shadow: 0 1px 2px black;
+        }
+
+        /* 神经网络层可视化 */
+        .layer-stack {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: none; /* JS控制显示 */
+        }
+        
+        .feature-map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            opacity: 0;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            transition: transform 1s, opacity 1s;
+        }
+
+        /* 字幕区域 */
+        #subtitle-box {
+            height: 140px;
+            width: 80%;
+            background: transparent;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            text-align: center;
+            padding-bottom: 40px;
+            z-index: 20;
+        }
+
+        .sub-en {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 10px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease;
+        }
+        .sub-cn {
+            font-size: 1.1rem;
+            color: var(--text-sub);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease 0.1s;
+        }
+        .active-sub { opacity: 1; transform: translateY(0); }
+
+        /* 标题卡 */
+        #intro-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            transition: opacity 1s;
+        }
+        h1 { font-size: 3.5rem; margin: 0; background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 1.5rem; color: var(--text-sub); font-weight: 400; margin-top: 10px;}
+
+        /* 特效类 */
+        .blur-effect { filter: blur(2px); }
+        .sharpen-effect { filter: contrast(1.2) saturate(1.1); }
+        .split-view { 
+            transform: rotateY(25deg) rotateX(10deg) scale(0.9); 
+            box-shadow: -20px 20px 60px rgba(0,0,0,0.2);
+        }
+        .neural-view {
+            transform: rotateY(-15deg) scale(0.8);
+        }
+        
+        /* 连线SVG */
+        #connection-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="cinema-container">
+        <div id="progress-container"><div id="progress-bar"></div></div>
+        <div id="chapter-indicator">Chapter 1: The Noise</div>
+
+        <div id="intro-overlay">
+            <h1>Image Denoising</h1>
+            <h2>From Signal Processing to Deep Learning</h2>
+        </div>
+
+        <div id="stage">
+            <!-- 核心图像网格 -->
+            <div class="image-grid" id="main-grid">
+                <!-- 像素通过JS生成 -->
+                <div id="kernel-highlight"></div>
+                <div class="layer-stack" id="dl-layers">
+                    <!-- 深度学习特征层模拟 -->
+                    <div class="feature-map" style="background: rgba(255,0,0,0.1); transform: translateZ(50px);"></div>
+                    <div class="feature-map" style="background: rgba(0,255,0,0.1); transform: translateZ(100px);"></div>
+                    <div class="feature-map" style="background: rgba(0,0,255,0.1); transform: translateZ(150px);"></div>
+                </div>
+            </div>
+            <svg id="connection-lines"></svg>
+        </div>
+
+        <div id="subtitle-box">
+            <div class="sub-en" id="txt-en"></div>
+            <div class="sub-cn" id="txt-cn"></div>
+        </div>
+    </div>
+
+    <script>
+        // ================= 配置 =================
+        const config = {
+            cols: 40,
+            rows: 24,
+            colors: {
+                sky: '#dbeafe',
+                cloud: '#ffffff',
+                grass: '#86efac',
+                houseBody: '#fca5a5',
+                houseRoof: '#ef4444',
+                treeTrunk: '#92400e',
+                treeLeaf: '#166534',
+                sun: '#fcd34d'
+            },
+            totalDuration: 45000 // 预计总时长ms
+        };
+
+        const els = {
+            grid: document.getElementById('main-grid'),
+            kernel: document.getElementById('kernel-highlight'),
+            subEn: document.getElementById('txt-en'),
+            subCn: document.getElementById('txt-cn'),
+            intro: document.getElementById('intro-overlay'),
+            progress: document.getElementById('progress-bar'),
+            chapter: document.getElementById('chapter-indicator'),
+            dlLayers: document.getElementById('dl-layers'),
+            featureMaps: document.querySelectorAll('.feature-map')
+        };
+
+        let pixels = [];
+        let noiseOverlays = [];
+        let originalColors = []; // 存储原始干净颜色
+
+        // ================= 绘图逻辑 =================
+        function initScene() {
+            els.grid.innerHTML = '';
+            els.grid.appendChild(els.kernel);
+            els.grid.appendChild(els.dlLayers);
+            pixels = [];
+            noiseOverlays = [];
+            originalColors = [];
+
+            for (let i = 0; i < config.rows * config.cols; i++) {
+                const x = i % config.cols;
+                const y = Math.floor(i / config.cols);
+                
+                // 1. 创建像素
+                const p = document.createElement('div');
+                p.className = 'pixel';
+                
+                // 2. 简单的像素画逻辑
+                let color = config.colors.sky;
+                
+                // 太阳
+                if ((x-34)**2 + (y-4)**2 <= 16) color = config.colors.sun;
+                // 云
+                if ((x > 5 && x < 12 && y > 3 && y < 6) || (x > 8 && x < 15 && y > 4 && y < 7)) color = config.colors.cloud;
+
+                // 草地
+                if (y >= 18) color = config.colors.grass;
+
+                // 房子
+                if (x > 15 && x < 25 && y >= 12 && y < 18) color = config.colors.houseBody;
+                // 房顶 (三角形)
+                if (y >= 8 && y < 12 && x >= (15 - (y-12)) && x <= (25 + (y-12))) {
+                     // 简单矩形模拟三角形房顶
+                     if (x > 14 && x < 26) color = config.colors.houseRoof;
+                }
+                // 房顶修正
+                if (y==8 && x>19 && x<21) color = config.colors.houseRoof;
+                if (y==9 && x>18 && x<22) color = config.colors.houseRoof;
+                if (y==10 && x>17 && x<23) color = config.colors.houseRoof;
+                if (y==11 && x>16 && x<24) color = config.colors.houseRoof;
+
+                // 树
+                if (x > 5 && x < 9 && y >= 14 && y < 18) color = config.colors.treeTrunk;
+                if ((x-7)**2 + (y-12)**2 <= 12) color = config.colors.treeLeaf;
+
+                p.style.backgroundColor = color;
+                originalColors.push(color);
+                els.grid.appendChild(p);
+                pixels.push(p);
+
+                // 3. 创建对应的噪点层
+                const n = document.createElement('div');
+                n.className = 'noise-dot';
+                n.style.left = (x * 16) + 'px';
+                n.style.top = (y * 16) + 'px';
+                els.grid.appendChild(n);
+                noiseOverlays.push(n);
+            }
+        }
+
+        initScene();
+
+        // ================= 动画控制系统 =================
+        const wait = ms => new Promise(res => setTimeout(res, ms));
+        
+        function setSub(en, cn) {
+            els.subEn.classList.remove('active-sub');
+            els.subCn.classList.remove('active-sub');
+            setTimeout(() => {
+                els.subEn.innerText = en;
+                els.subCn.innerText = cn;
+                els.subEn.classList.add('active-sub');
+                els.subCn.classList.add('active-sub');
+            }, 400);
+        }
+
+        function updateChapter(text) {
+            els.chapter.style.opacity = 0;
+            setTimeout(() => {
+                els.chapter.innerText = text;
+                els.chapter.style.opacity = 1;
+            }, 500);
+        }
+
+        // 模拟加噪
+        function applyNoise(intensity = 0.4) {
+            noiseOverlays.forEach(n => {
+                if (Math.random() < intensity) {
+                    // 椒盐噪声
+                    const type = Math.random() > 0.5 ? '255,255,255' : '0,0,0';
+                    n.style.backgroundColor = `rgba(${type}, 0.6)`;
+                } else {
+                    n.style.backgroundColor = 'rgba(0,0,0,0)';
+                }
+            });
+        }
+
+        function clearNoise() {
+            noiseOverlays.forEach(n => {
+                n.style.backgroundColor = 'rgba(0,0,0,0)';
+            });
+        }
+
+        // 模拟模糊 (均值滤波结果)
+        function applyBlurryLook() {
+            pixels.forEach(p => {
+                p.style.filter = 'blur(3px)';
+            });
+            clearNoise();
+        }
+
+        function resetPixelLook() {
+            pixels.forEach(p => {
+                p.style.filter = 'none';
+                p.style.transform = 'none';
+            });
+        }
+
+        // ================= 剧本流程 =================
+        async function startAnimation() {
+            // --- 0s: Intro ---
+            await wait(1000);
+            els.intro.style.opacity = 0;
+            await wait(1000);
+            els.intro.style.display = 'none';
+
+            // --- Chapter 1: The Problem ---
+            updateChapter("Chapter 1: The Corruption");
+            els.progress.style.width = "10%";
+            
+            setSub("Digital images are captured as a grid of pixel values.", "数字图像是以像素值网格的形式被捕捉的。");
+            // 视觉：网格稍微倾斜展示3D感
+            els.grid.classList.add('split-view');
+            await wait(4000);
+
+            setSub("But sensors are imperfect. Heat and interference create 'Noise'.", "但传感器并不完美。热量和干扰会产生“噪点”。");
+            // 视觉：注入噪点
+            applyNoise(0.3);
+            await wait(4000);
+
+            setSub("Noise corrupts information, making edges and details unclear.", "噪点会破坏信息，使边缘和细节变得模糊不清。");
+            // 视觉：放大某一部分（Camera zoom in effect handled by scaling grid）
+            els.grid.style.transform = "rotateY(25deg) rotateX(10deg) scale(1.3)";
+            await wait(4000);
+            els.grid.style.transform = ""; // Reset
+            els.grid.classList.remove('split-view');
+
+            // --- Chapter 2: Traditional Methods ---
+            updateChapter("Chapter 2: Traditional Filtering");
+            els.progress.style.width = "40%";
+
+            setSub("Early solutions used 'Spatial Filtering', like Mean Filters.", "早期的解决方案使用“空间滤波”，例如均值滤波器。");
+            await wait(4000);
+
+            setSub("By averaging neighboring pixels, we can smooth out the noise.", "通过计算邻域像素的平均值，我们可以平滑掉噪点。");
+            
+            // 视觉：展示3x3框移动
+            els.kernel.style.opacity = 1;
+            const path = [0, 1, 2, 3, 4, 5, 6];
+            for (let i of path) {
+                // 移动框
+                els.kernel.style.left = (15 + i) * 16 + 'px';
+                els.kernel.style.top = (12 + i) * 16 + 'px'; // 斜着走过房子
+                
+                // 模拟该区域变模糊
+                // 简单起见，我们不做真实计算，只是象征性动画
+                await wait(200);
+            }
+            
+            // 瞬间切换到模糊状态 (模拟处理完)
+            els.kernel.style.opacity = 0;
+            applyBlurryLook();
+            
+            await wait(1000);
+            setSub("However, this also blurs important edges and textures.", "然而，这也会导致重要的边缘和纹理变得模糊。");
+            await wait(4000);
+
+            // 重置回噪点状态，准备介绍AI
+            resetPixelLook();
+            applyNoise(0.3); 
+            setSub("We need a smarter way to distinguish signal from noise.", "我们需要一种更聪明的方法来区分信号和噪声。");
+            await wait(4000);
+
+            // --- Chapter 3: Deep Learning ---
+            updateChapter("Chapter 3: Deep Learning (CNNs)");
+            els.progress.style.width = "70%";
+            
+            setSub("Modern methods use Convolutional Neural Networks (CNNs).", "现代方法使用卷积神经网络（CNN）。");
+            els.grid.classList.add('neural-view');
+            await wait(4000);
+
+            setSub("The network decomposes the image into 'Feature Maps'.", "网络将图像分解为多个“特征图”。");
+            
+            // 视觉：图层分离效果
+            els.dlLayers.style.display = 'block';
+            // 给特征图上色模拟提取的特征
+            els.featureMaps[0].style.background = "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSIyNCI+PHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjI0IiBmaWxsPSIjZmZmIi8+PHBhdGggZD0iTTE1IDEyaDEwIiBzdHJva2U9IiMwMDAiIHN0cm9rZS13aWR0aD0iMiIvPjwvc3ZnPg==')"; // 模拟横向边缘
+            els.featureMaps[1].style.background = "url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSIyNCI+PHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjI0IiBmaWxsPSIjZmZmIi8+PHBhdGggZD0iTTIwIDh2OCIgc3Ryb2tlPSIjMDAwIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=')"; // 模拟纵向边缘
+            
+            setTimeout(() => {
+                els.featureMaps[0].style.opacity = 0.8;
+                els.featureMaps[0].style.transform = "translateZ(100px)";
+                
+                els.featureMaps[1].style.opacity = 0.6;
+                els.featureMaps[1].style.transform = "translateZ(200px)";
+                
+                els.featureMaps[2].style.opacity = 0.4;
+                els.featureMaps[2].style.transform = "translateZ(300px)";
+            }, 100);
+
+            await wait(5000);
+
+            setSub("It learns to keep structural details while discarding noise.", "它学会了在丢弃噪声的同时保留结构细节。");
+            
+            // 视觉：特征图合拢 + 噪点消失
+            els.featureMaps.forEach(el => {
+                el.style.transform = "translateZ(0px)";
+                el.style.opacity = 0;
+            });
+            
+            // 模拟处理过程中的闪烁
+            pixels.forEach((p, i) => {
+                setTimeout(() => {
+                    p.style.filter = "brightness(1.5)";
+                }, Math.random() * 1000);
+                setTimeout(() => {
+                    p.style.filter = "none";
+                }, 1000 + Math.random() * 500);
+            });
+
+            await wait(1500);
+            clearNoise(); // 清除噪点
+            els.dlLayers.style.display = 'none';
+            
+            await wait(2000);
+
+            // --- Conclusion ---
+            updateChapter("Final Result");
+            els.progress.style.width = "100%";
+            els.grid.classList.remove('neural-view');
+            els.grid.classList.add('sharpen-effect'); // 增强一点对比度显得很清晰
+
+            setSub("The result: A clean image with sharp edges preserved.", "结果：一张保留了清晰边缘的干净图像。");
+            await wait(4000);
+
+            setSub("From noisy chaos to restored clarity.", "从噪点的混乱，到复原的清晰。");
+            await wait(4000);
+
+            // End
+            els.intro.style.display = 'flex';
+            els.intro.innerHTML = "<h1>REPLAY</h1><p>点击刷新页面重播</p>";
+            els.intro.style.opacity = 1;
+        }
+
+        // 启动
+        window.onload = startAnimation;
+
+    </script>
+</body>
+</html>
