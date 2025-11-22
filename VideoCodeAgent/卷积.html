@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convolution Explained | 卷积动画讲解</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #212529;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --accent-color: #F5A623;
+            --gray-light: #E9ECEF;
+            --gray-medium: #CED4DA;
+            --gray-dark: #6C757D;
+            --font-main: 'Roboto', 'Noto Sans SC', sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-main);
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background-color: var(--bg-color);
+            transform-origin: center center;
+            overflow: hidden;
+        }
+
+        .background-shapes {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        .shape {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            opacity: 0.1;
+            animation: float 20s infinite ease-in-out alternate;
+        }
+
+        .shape1 {
+            width: 400px;
+            height: 400px;
+            top: 10%;
+            left: 5%;
+            animation-duration: 25s;
+        }
+
+        .shape2 {
+            width: 200px;
+            height: 200px;
+            top: 70%;
+            left: 80%;
+            animation-duration: 18s;
+        }
+
+        .shape3 {
+            width: 300px;
+            height: 300px;
+            top: 20%;
+            right: 10%;
+            animation-duration: 22s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            100% {
+                transform: translateY(50px) rotate(30deg);
+            }
+        }
+
+        .title-card {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .title-card h1 {
+            font-size: 120px;
+            color: var(--text-color);
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .title-card p {
+            font-size: 60px;
+            color: var(--gray-dark);
+            margin-top: 20px;
+            font-weight: 300;
+        }
+
+        .subtitle-container {
+            position: absolute;
+            bottom: 60px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            padding: 0 5%;
+            box-sizing: border-box;
+        }
+
+        .subtitle-box {
+            display: inline-block;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px 40px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        .subtitle-en,
+        .subtitle-zh {
+            margin: 0;
+            line-height: 1.5;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .subtitle-en {
+            font-size: 32px;
+            color: var(--text-color);
+            font-weight: 400;
+        }
+
+        .subtitle-zh {
+            font-size: 28px;
+            color: var(--gray-dark);
+            font-weight: 300;
+        }
+
+        #main-svg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
+        .matrix-label {
+            font-size: 48px;
+            font-weight: 500;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .matrix-cell rect {
+            stroke: var(--gray-medium);
+            stroke-width: 2;
+            transition: fill 0.3s ease;
+        }
+
+        .matrix-cell text {
+            font-size: 40px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            fill: var(--text-color);
+            font-weight: 400;
+        }
+
+        #input-matrix .matrix-cell rect {
+            fill: #E3F2FD;
+        }
+
+        #kernel-matrix .matrix-cell rect {
+            fill: #E8F5E9;
+        }
+
+        #output-matrix .matrix-cell rect {
+            fill: #FFF3E0;
+        }
+
+        #kernel-overlay .matrix-cell rect {
+            fill: var(--secondary-color);
+            stroke: var(--secondary-color);
+            stroke-width: 6;
+            fill-opacity: 0.2;
+        }
+
+        #kernel-overlay .matrix-cell text {
+            fill: #1B5E20;
+            font-weight: 500;
+        }
+
+        .calculation-text {
+            font-size: 36px;
+            font-family: monospace;
+            fill: var(--gray-dark);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .sum-result-text {
+            font-size: 60px;
+            font-weight: 500;
+            fill: var(--accent-color);
+            text-anchor: middle;
+            opacity: 0;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .final-text {
+            text-align: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            opacity: 0;
+        }
+
+        .final-text h2 {
+            font-size: 100px;
+            color: var(--text-color);
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .final-text p {
+            font-size: 50px;
+            color: var(--gray-dark);
+            margin-top: 20px;
+            font-weight: 300;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <div class="background-shapes">
+            <div class="shape shape1"></div>
+            <div class="shape shape2"></div>
+            <div class="shape shape3"></div>
+        </div>
+
+        <div id="title-card" class="title-card">
+            <h1>Convolution</h1>
+            <p>卷积</p>
+        </div>
+
+        <svg id="main-svg" viewbox="0 0 2560 1440">
+            <!-- Matrix Groups -->
+            <g id="input-group" style="opacity: 0; transition: opacity 1s ease;">
+                <text x="450" y="300" class="matrix-label">Input / 输入</text>
+                <g id="input-matrix"></g>
+            </g>
+            <g id="kernel-group" style="opacity: 0; transition: opacity 1s ease;">
+                <text x="1280" y="300" class="matrix-label">Kernel / 卷积核</text>
+                <g id="kernel-matrix"></g>
+            </g>
+            <g id="output-group" style="opacity: 0; transition: opacity 1s ease;">
+                <text x="2110" y="300" class="matrix-label">Output / 输出</text>
+                <g id="output-matrix"></g>
+            </g>
+
+            <!-- Kernel Overlay for animation -->
+            <g id="kernel-overlay"
+                style="opacity: 0; transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);"></g>
+
+            <!-- Calculation display area -->
+            <g id="calculation-area"></g>
+            <text id="sum-result" class="sum-result-text"></text>
+
+        </svg>
+
+        <div class="subtitle-container">
+            <div class="subtitle-box">
+                <p id="subtitle-en" class="subtitle-en"></p>
+                <p id="subtitle-zh" class="subtitle-zh"></p>
+            </div>
+        </div>
+
+        <div id="final-card" class="final-text">
+            <h2>Convolution / 卷积</h2>
+            <p>The Building Block of Computer Vision<br>构建计算机视觉的基石</p>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const CONFIG = {
+            CELL_SIZE: 150,
+            CELL_GAP: 10,
+            INPUT_GRID_SIZE: 5,
+            KERNEL_GRID_SIZE: 3,
+            OUTPUT_GRID_SIZE: 3,
+
+            INPUT_POS: { x: 150, y: 350 },
+            KERNEL_POS: { x: 1000, y: 490 },
+            OUTPUT_POS: { x: 1800, y: 490 },
+
+            CALC_AREA_POS: { x: 950, y: 950 },
+            SUM_RESULT_POS: { x: 1280, y: 1250 }
+        };
+
+        // --- Data ---
+        const inputData = [
+            [1, 1, 1, 0, 0],
+            [0, 1, 1, 1, 0],
+            [0, 0, 1, 1, 1],
+            [0, 0, 1, 1, 0],
+            [0, 1, 1, 0, 0]
+        ];
+        const kernelData = [
+            [1, 0, 1],
+            [0, 1, 0],
+            [1, 0, 1]
+        ];
+
+        // --- DOM Elements ---
+        const container = document.getElementById('animation-container');
+        const titleCard = document.getElementById('title-card');
+        const finalCard = document.getElementById('final-card');
+
+        const inputGroup = document.getElementById('input-group');
+        const kernelGroup = document.getElementById('kernel-group');
+        const outputGroup = document.getElementById('output-group');
+
+        const inputMatrixSVG = document.getElementById('input-matrix');
+        const kernelMatrixSVG = document.getElementById('kernel-matrix');
+        const outputMatrixSVG = document.getElementById('output-matrix');
+        const kernelOverlaySVG = document.getElementById('kernel-overlay');
+        const calculationAreaSVG = document.getElementById('calculation-area');
+        const sumResultText = document.getElementById('sum-result');
+
+        const subtitleEn = document.getElementById('subtitle-en');
+        const subtitleZh = document.getElementById('subtitle-zh');
+
+        // --- Utility Functions ---
+        function createMatrix(svgElement, data, pos, name) {
+            const gridSize = data.length;
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    g.setAttribute('class', 'matrix-cell');
+                    g.setAttribute('id', `${name}-cell-${r}-${c}`);
+
+                    const x = pos.x + c * (CONFIG.CELL_SIZE + CONFIG.CELL_GAP);
+                    const y = pos.y + r * (CONFIG.CELL_SIZE + CONFIG.CELL_GAP);
+
+                    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttribute('x', x);
+                    rect.setAttribute('y', y);
+                    rect.setAttribute('width', CONFIG.CELL_SIZE);
+                    rect.setAttribute('height', CONFIG.CELL_SIZE);
+                    rect.setAttribute('rx', 15);
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute('x', x + CONFIG.CELL_SIZE / 2);
+                    text.setAttribute('y', y + CONFIG.CELL_SIZE / 2);
+                    text.setAttribute('id', `${name}-text-${r}-${c}`);
+                    if (data[r][c] !== null) {
+                        text.textContent = data[r][c];
+                    }
+
+                    g.appendChild(rect);
+                    g.appendChild(text);
+                    svgElement.appendChild(g);
+                }
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function updateSubtitles(en, zh) {
+            subtitleEn.style.opacity = '0';
+            subtitleZh.style.opacity = '0';
+            setTimeout(() => {
+                subtitleEn.textContent = en;
+                subtitleZh.textContent = zh;
+                subtitleEn.style.opacity = '1';
+                subtitleZh.style.opacity = '1';
+            }, 300);
+        }
+
+        // --- Animation Timeline ---
+        const timeline = [
+            { func: showTitle, duration: 3000 },
+            { func: hideTitleAndShowMatrices, duration: 2000 },
+            { func: startConvolution, duration: 45000 }
+        ];
+
+        async function playTimeline() {
+            for (const step of timeline) {
+                await step.func();
+                await sleep(step.duration);
+            }
+        }
+
+        // --- Animation Step Functions ---
+        async function showTitle() {
+            titleCard.style.opacity = '1';
+            updateSubtitles(
+                "What is Convolution? Let's explore this core concept in deep learning.",
+                "什么是卷积？让我们来探究这个深度学习中的核心概念。"
+            );
+        }
+
+        async function hideTitleAndShowMatrices() {
+            titleCard.style.opacity = '0';
+            updateSubtitles(
+                "Convolution involves three key components: an Input, a Kernel, and an Output.",
+                "卷积包含三个关键部分：输入、卷积核、以及输出。"
+            );
+            await sleep(500);
+            inputGroup.style.opacity = '1';
+            kernelGroup.style.opacity = '1';
+            outputGroup.style.opacity = '1';
+        }
+
+        async function startConvolution() {
+            kernelOverlaySVG.style.opacity = '1';
+
+            for (let out_r = 0; out_r < CONFIG.OUTPUT_GRID_SIZE; out_r++) {
+                for (let out_c = 0; out_c < CONFIG.OUTPUT_GRID_SIZE; out_c++) {
+                    // 1. Move Kernel
+                    const isFirstStep = (out_r === 0 && out_c === 0);
+                    if (isFirstStep) {
+                        updateSubtitles(
+                            "The process begins by placing the Kernel over a section of the Input.",
+                            "这个过程始于将卷积核覆盖在输入数据的一个区域上。"
+                        );
+                    } else {
+                        updateSubtitles(
+                            "Next, we 'slide' the kernel across the input. This movement is called the 'stride'.",
+                            "接下来，我们将卷积核在输入上“滑动”。这个移动的步长被称为“步幅”。"
+                        );
+                    }
+
+                    const targetX = CONFIG.INPUT_POS.x + out_c * (CONFIG.CELL_SIZE + CONFIG.CELL_GAP);
+                    const targetY = CONFIG.INPUT_POS.y + out_r * (CONFIG.CELL_SIZE + CONFIG.CELL_GAP);
+                    kernelOverlaySVG.style.transform = `translate(${targetX}px, ${targetY}px)`;
+
+                    await sleep(isFirstStep ? 2000 : 1000);
+
+                    // 2. Element-wise Multiplication
+                    updateSubtitles(
+                        "Then, we perform an element-wise multiplication between the overlapping values.",
+                        "然后，我们对覆盖区域的数值进行逐元素相乘。"
+                    );
+
+                    let sum = 0;
+                    let products = [];
+                    calculationAreaSVG.innerHTML = '';
+
+                    for (let k_r = 0; k_r < CONFIG.KERNEL_GRID_SIZE; k_r++) {
+                        for (let k_c = 0; k_c < CONFIG.KERNEL_GRID_SIZE; k_c++) {
+                            const input_val = inputData[out_r + k_r][out_c + k_c];
+                            const kernel_val = kernelData[k_r][k_c];
+                            const product = input_val * kernel_val;
+                            sum += product;
+                            products.push(product);
+
+                            const inputCell = document.getElementById(`input-cell-${out_r + k_r}-${out_c + k_c}`);
+                            const overlayCell = document.getElementById(`kernel-overlay-cell-${k_r}-${k_c}`);
+
+                            // Highlight
+                            inputCell.querySelector('rect').style.fill = '#BBDEFB';
+                            overlayCell.querySelector('rect').style.fillOpacity = 0.5;
+
+                            if (isFirstStep) {
+                                // Show detailed calculation text only for the first step
+                                const calcText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                                const calcX = CONFIG.CALC_AREA_POS.x + k_c * 250;
+                                const calcY = CONFIG.CALC_AREA_POS.y + k_r * 80;
+                                calcText.setAttribute('x', calcX);
+                                calcText.setAttribute('y', calcY);
+                                calcText.setAttribute('class', 'calculation-text');
+                                calcText.textContent = `${input_val} × ${kernel_val} = ${product}`;
+                                calculationAreaSVG.appendChild(calcText);
+                                await sleep(150);
+                                calcText.style.opacity = '1';
+                            }
+                        }
+                    }
+
+                    await sleep(isFirstStep ? 1500 : 200);
+
+                    // 3. Summation
+                    updateSubtitles(
+                        "All the products are then summed up to get a single value.",
+                        "所有乘积的结果会被相加，得到一个单一的数值。"
+                    );
+
+                    sumResultText.textContent = products.join(' + ') + ` = ${sum}`;
+                    sumResultText.setAttribute('x', CONFIG.SUM_RESULT_POS.x);
+                    sumResultText.setAttribute('y', CONFIG.SUM_RESULT_POS.y);
+                    sumResultText.style.opacity = '1';
+                    sumResultText.style.transform = 'scale(1)';
+
+                    await sleep(isFirstStep ? 2000 : 500);
+
+                    // 4. Place result in Output
+                    updateSubtitles(
+                        "This sum becomes the next element in our Output Feature Map.",
+                        "这个和，就成为了我们输出特征图的下一个元素。"
+                    );
+
+                    const out_x = CONFIG.OUTPUT_POS.x + out_c * (CONFIG.CELL_SIZE + CONFIG.CELL_GAP) + CONFIG.CELL_SIZE / 2;
+                    const out_y = CONFIG.OUTPUT_POS.y + out_r * (CONFIG.CELL_SIZE + CONFIG.CELL_GAP) + CONFIG.CELL_SIZE / 2;
+
+                    sumResultText.style.transition = 'opacity 0.5s ease, transform 0.8s ease-in-out';
+                    sumResultText.style.transform = `translate(${out_x - CONFIG.SUM_RESULT_POS.x}px, ${out_y - CONFIG.SUM_RESULT_POS.y}px) scale(0.6)`;
+                    sumResultText.style.opacity = '0';
+
+                    await sleep(800);
+
+                    const outputText = document.getElementById(`output-text-${out_r}-${out_c}`);
+                    outputText.textContent = sum;
+                    const outputCellRect = document.getElementById(`output-cell-${out_r}-${out_c}`).querySelector('rect');
+                    outputCellRect.style.fill = '#FDD835';
+                    await sleep(100);
+                    outputCellRect.style.fill = '#FFF3E0';
+
+                    // Reset highlights
+                    calculationAreaSVG.innerHTML = '';
+                    for (let k_r = 0; k_r < CONFIG.KERNEL_GRID_SIZE; k_r++) {
+                        for (let k_c = 0; k_c < CONFIG.KERNEL_GRID_SIZE; k_c++) {
+                            const inputCell = document.getElementById(`input-cell-${out_r + k_r}-${out_c + k_c}`);
+                            const overlayCell = document.getElementById(`kernel-overlay-cell-${k_r}-${k_c}`);
+                            inputCell.querySelector('rect').style.fill = '#E3F2FD';
+                            overlayCell.querySelector('rect').style.fillOpacity = 0.2;
+                        }
+                    }
+                }
+            }
+            await sleep(1000);
+            // Final scene
+            updateSubtitles(
+                "The final Output is a 'Feature Map'. It highlights specific features from the input.",
+                "最终的输出是一个“特征图”。它根据卷积核的定义，提取并突出了输入中的特定特征。"
+            );
+            kernelOverlaySVG.style.opacity = '0';
+            await sleep(3000);
+
+            updateSubtitles(
+                "And that's convolution! A simple operation with powerful results.",
+                "这就是卷积！一个简单却功能强大的操作，也是计算机“看见”世界的基石。"
+            );
+
+            inputGroup.style.opacity = '0';
+            kernelGroup.style.opacity = '0';
+            outputGroup.style.opacity = '0';
+
+            await sleep(1000);
+            finalCard.style.opacity = '1';
+        }
+
+        // --- Initialization ---
+        function init() {
+            // Create static matrices
+            createMatrix(inputMatrixSVG, inputData, CONFIG.INPUT_POS, 'input');
+            createMatrix(kernelMatrixSVG, kernelData, CONFIG.KERNEL_POS, 'kernel');
+
+            const emptyOutputData = Array(CONFIG.OUTPUT_GRID_SIZE).fill(0).map(() => Array(CONFIG.OUTPUT_GRID_SIZE).fill(null));
+            createMatrix(outputMatrixSVG, emptyOutputData, CONFIG.OUTPUT_POS, 'output');
+
+            // Create kernel overlay (at 0,0 initially)
+            createMatrix(kernelOverlaySVG, kernelData, { x: 0, y: 0 }, 'kernel-overlay');
+
+            // Handle resizing
+            function resize() {
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+                const scaleX = screenWidth / 2560;
+                const scaleY = screenHeight / 1440;
+                const scale = Math.min(scaleX, scaleY);
+                container.style.transform = `scale(${scale})`;
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            // Start animation
+            playTimeline();
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+
+</html>

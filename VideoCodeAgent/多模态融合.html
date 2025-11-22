@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multimodal Fusion Explained</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #F4F7F9;
+            --primary-text-color: #2c3e50;
+            --secondary-text-color: #7f8c8d;
+            --accent-color-1: #3498db;
+            /* Main Blue */
+            --accent-color-2: #2ecc71;
+            /* Green for Visual */
+            --accent-color-3: #9b59b6;
+            /* Purple for Audio */
+            --accent-color-4: #e67e22;
+            /* Orange for Text */
+            --fusion-core-color: #3498db;
+            --output-color: #1abc9c;
+            /* Teal for enhanced output */
+            --container-width: 2560;
+            --container-height: 1440;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            width: 100%;
+            max-width: 95vw;
+            max-height: 95vh;
+            aspect-ratio: var(--container-width) / var(--container-height);
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            background: #ffffff;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        #canvas-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+        }
+
+        #subtitle-cn,
+        #subtitle-en {
+            margin: 0;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        #subtitle-cn {
+            font-size: 38px;
+            font-weight: 600;
+            color: var(--primary-text-color);
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            font-weight: 300;
+            color: var(--secondary-text-color);
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-wrapper">
+        <svg id="canvas-svg" viewBox="0 0 2560 1440" preserveAspectRatio="xMidYMid meet">
+            <!-- Background Elements -->
+            <defs>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="15" result="coloredBlur" />
+                    <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+                <radialGradient id="fusionGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                    <stop offset="0%" style="stop-color:white; stop-opacity:0.8" />
+                    <stop offset="100%" style="stop-color:var(--fusion-core-color); stop-opacity:0.5" />
+                </radialGradient>
+            </defs>
+
+            <!-- Main Title -->
+            <g id="main-title" opacity="0">
+                <text x="1280" y="650" font-family="Poppins" font-size="120" font-weight="600"
+                    fill="var(--primary-text-color)" text-anchor="middle">Multimodal Fusion</text>
+                <text x="1280" y="780" font-family="Poppins" font-size="80" font-weight="300"
+                    fill="var(--secondary-text-color)" text-anchor="middle">多模态融合</text>
+            </g>
+
+            <!-- Modality Inputs -->
+            <g id="modalities" opacity="0">
+                <!-- Visual -->
+                <g id="visual-modality">
+                    <circle cx="450" cy="400" r="100" fill="var(--accent-color-2)" fill-opacity="0.1" />
+                    <path d="M400,350 L500,350 L500,450 L400,450 Z M450,350 L450,320 M420,320 L480,320"
+                        stroke="var(--accent-color-2)" stroke-width="10" fill="none" stroke-linejoin="round"
+                        stroke-linecap="round" />
+                    <circle cx="450" cy="400" r="25" stroke="var(--accent-color-2)" stroke-width="10" fill="none" />
+                    <text x="450" y="550" text-anchor="middle" font-size="36" font-weight="400"
+                        fill="var(--primary-text-color)">视觉 (Visual)</text>
+                    <path id="visual-stream" d="M560,400 C800,400 900,720 1150,720" stroke="var(--accent-color-2)"
+                        stroke-width="8" fill="none" stroke-dasharray="20 30" stroke-linecap="round" />
+                </g>
+
+                <!-- Audio -->
+                <g id="audio-modality">
+                    <circle cx="450" cy="720" r="100" fill="var(--accent-color-3)" fill-opacity="0.1" />
+                    <path
+                        d="M450,660 V740 M420,780 H480 A40,40 0 0,0 420,780 M485,710 A35,35 0 0,1 485,730 M500,700 A50,50 0 0,1 500,740"
+                        stroke="var(--accent-color-3)" stroke-width="10" fill="none" stroke-linejoin="round"
+                        stroke-linecap="round" />
+                    <text x="450" y="870" text-anchor="middle" font-size="36" font-weight="400"
+                        fill="var(--primary-text-color)">听觉 (Audio)</text>
+                    <path id="audio-stream" d="M560,720 C800,720 900,720 1150,720" stroke="var(--accent-color-3)"
+                        stroke-width="8" fill="none" stroke-dasharray="20 30" stroke-linecap="round" />
+                </g>
+
+                <!-- Text -->
+                <g id="text-modality">
+                    <circle cx="450" cy="1040" r="100" fill="var(--accent-color-4)" fill-opacity="0.1" />
+                    <path d="M410,990 H490 M410,1020 H490 M410,1050 H460" stroke="var(--accent-color-4)"
+                        stroke-width="10" fill="none" stroke-linejoin="round" stroke-linecap="round" />
+                    <rect x="390" y="970" width="120" height="120" rx="10" stroke="var(--accent-color-4)"
+                        stroke-width="10" fill="none" />
+                    <text x="450" y="1190" text-anchor="middle" font-size="36" font-weight="400"
+                        fill="var(--primary-text-color)">文本 (Text)</text>
+                    <path id="text-stream" d="M560,1040 C800,1040 900,720 1150,720" stroke="var(--accent-color-4)"
+                        stroke-width="8" fill="none" stroke-dasharray="20 30" stroke-linecap="round" />
+                </g>
+            </g>
+
+            <!-- Fusion Core -->
+            <g id="fusion-core" opacity="0">
+                <circle cx="1280" cy="720" r="150" fill="url(#fusionGradient)" />
+                <circle id="core-ring-1" cx="1280" cy="720" r="130" stroke="var(--fusion-core-color)" stroke-width="3"
+                    fill="none" stroke-dasharray="10 10" />
+                <circle id="core-ring-2" cx="1280" cy="720" r="160" stroke="var(--fusion-core-color)" stroke-width="5"
+                    fill="none" stroke-dasharray="30 15" />
+                <circle id="core-ring-3" cx="1280" cy="720" r="190" stroke="var(--fusion-core-color)" stroke-width="2"
+                    fill="none" stroke-dasharray="5 5 5 15" />
+                <text id="fusion-text" x="1280" y="735" text-anchor="middle" font-size="50" font-weight="600"
+                    fill="var(--primary-text-color)" opacity="0">FUSION</text>
+            </g>
+
+            <!-- Output -->
+            <g id="output-group" opacity="0">
+                <path id="output-stream" d="M1440,720 C1600,720 1800,720 2000,720" stroke="var(--output-color)"
+                    stroke-width="12" fill="none" stroke-dasharray="30 10" stroke-linecap="round" />
+                <g id="output-result" transform="translate(2100, 720) scale(0)">
+                    <rect x="-180" y="-180" width="360" height="360" rx="20" fill="#fff" stroke="var(--output-color)"
+                        stroke-width="5" />
+                    <!-- A simple SVG for an Apple -->
+                    <path
+                        d="M-25, -60 C 25, -120, 100, -80, 100, -20 C 100, 50, 40, 100, -30, 90 C -100, 80, -150, 20, -120, -40 C -90, -100, -75, -120, -25, -60 Z"
+                        fill="#e74c3c" />
+                    <path d="M-10, -90 C 0,-130 40,-140 30,-90" stroke="#7E5109" stroke-width="12" fill="none"
+                        stroke-linecap="round" />
+                    <path d="M 40, -110 C 80, -150, 120, -100, 80, -60" fill="#2ecc71" />
+                    <text x="0" y="160" text-anchor="middle" font-size="40" font-weight="600"
+                        fill="var(--primary-text-color)">Apple / 苹果</text>
+                    <text x="0" y="210" text-anchor="middle" font-size="30" font-weight="400"
+                        fill="var(--output-color)">Confidence: 99.8%</text>
+                </g>
+                <text id="output-label" x="2100" y="450" text-anchor="middle" font-size="48" font-weight="600"
+                    fill="var(--primary-text-color)" opacity="0">更全面、准确的理解</text>
+                <text id="output-label-en" x="2100" y="510" text-anchor="middle" font-size="32" font-weight="300"
+                    fill="var(--secondary-text-color)" opacity="0">A More Comprehensive & Accurate Understanding</text>
+            </g>
+
+            <!-- Final Scene: Applications -->
+            <g id="applications" opacity="0">
+                <!-- Self-driving car -->
+                <g transform="translate(800, 720)">
+                    <circle r="120" fill="#fff" stroke="#bdc3c7" stroke-width="5" />
+                    <path fill="#2c3e50" d="M-60-20h120v40h-120z M-70,20 l20,30 h100 l20,-30 z" />
+                    <circle cx="-40" cy="55" r="15" fill="#34495e" />
+                    <circle cx="40" cy="55" r="15" fill="#34495e" />
+                    <text y="160" text-anchor="middle" font-size="32" fill="var(--primary-text-color)">自动驾驶</text>
+                </g>
+                <!-- Medical AI -->
+                <g transform="translate(1280, 720)">
+                    <circle r="120" fill="#fff" stroke="#bdc3c7" stroke-width="5" />
+                    <path fill="#e74c3c" d="M-40-10h20v-30h40v30h20v40h-20v30h-40v-30h-20z" />
+                    <path fill="#3498db" d="M-60, -60 L-60, 60 L60, 60 L60, -60 Z" stroke-width="5" stroke="#fff"
+                        fill-opacity="0.2" />
+                    <text y="160" text-anchor="middle" font-size="32" fill="var(--primary-text-color)">医疗诊断</text>
+                </g>
+                <!-- Smart Assistant -->
+                <g transform="translate(1760, 720)">
+                    <circle r="120" fill="#fff" stroke="#bdc3c7" stroke-width="5" />
+                    <circle cx="0" cy="-10" r="50" fill="#9b59b6" fill-opacity="0.8" />
+                    <rect x="-15" y="40" width="30" height="40" rx="15" fill="#2c3e50" />
+                    <circle cx="0" cy="40" r="25" fill="#34495e" />
+                    <text y="160" text-anchor="middle" font-size="32" fill="var(--primary-text-color)">智能助手</text>
+                </g>
+            </g>
+
+
+        </svg>
+
+        <div id="subtitles">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
+    <script>
+        const subtitlesData = [
+            { cn: "我们的世界充满了各种信息。", en: "Our world is full of diverse information.", duration: 3 },
+            { cn: "就像我们通过多种感官来感知事物...", en: "Just as we perceive things through multiple senses...", duration: 3 },
+            { cn: "人工智能也需要整合来自不同来源的数据。", en: "AI also needs to integrate data from different sources.", duration: 3.5 },
+            { cn: "这就是多模态融合。", en: "This is Multimodal Fusion.", duration: 3 },
+            { cn: "我们有视觉、听觉和文本等多种数据模态。", en: "We have various data modalities like visual, audio, and text.", duration: 4 },
+            { cn: "每一种模态都提供了独特视角的一部分信息。", en: "Each modality provides a piece of information from a unique perspective.", duration: 4 },
+            { cn: "融合，就是将这些分散的信息进行智能结合。", en: "Fusion is the process of intelligently combining this scattered information.", duration: 4 },
+            { cn: "通过分析和关联，AI构建出一个更完整的画面。", en: "By analyzing and correlating, the AI builds a more complete picture.", duration: 4 },
+            { cn: "从而得到一个远超单一模态的、更全面、更准确的理解。", en: "This results in a more comprehensive and accurate understanding, far beyond any single modality.", duration: 5 },
+            { cn: "这项强大的技术，是许多前沿科技的核心。", en: "This powerful technology is at the core of many cutting-edge innovations.", duration: 4 },
+            { cn: "例如自动驾驶、精准医疗诊断和智能虚拟助手。", en: "Such as autonomous driving, precise medical diagnosis, and intelligent virtual assistants.", duration: 5 },
+            { cn: "多模态融合，让AI更懂我们的世界。", en: "Multimodal Fusion, enabling AI to better understand our world.", duration: 4 },
+        ];
+
+        const cnSub = document.getElementById('subtitle-cn');
+        const enSub = document.getElementById('subtitle-en');
+        const subtitlesContainer = document.getElementById('subtitles');
+
+        const tl = gsap.timeline({ repeat: -1, repeatDelay: 5 });
+
+        function updateSubtitles(index) {
+            const data = subtitlesData[index];
+            gsap.to(subtitlesContainer, {
+                opacity: 1,
+                duration: 0.5,
+                onStart: () => {
+                    cnSub.textContent = data.cn;
+                    enSub.textContent = data.en;
+                }
+            });
+            // Schedule fade out
+            gsap.to(subtitlesContainer, {
+                opacity: 0,
+                duration: 0.5,
+                delay: data.duration - 0.5
+            });
+        }
+
+        // --- Animation Sequence ---
+
+        // 0. Initial state
+        tl.set("#main-title", { opacity: 0, y: 50 });
+        tl.set("#modalities", { opacity: 0 });
+        tl.set("#visual-modality, #audio-modality, #text-modality", { x: -200, opacity: 0 });
+        tl.set(["#visual-stream", "#audio-stream", "#text-stream"], { strokeDashoffset: 1000 });
+        tl.set("#fusion-core", { opacity: 0, scale: 0.5 });
+        tl.set("#output-group", { opacity: 0 });
+        tl.set("#output-stream", { strokeDashoffset: 1000 });
+        tl.set("#applications", { opacity: 0, y: 100 });
+
+        // 1. Intro Title
+        tl.add(() => updateSubtitles(0), "+=1");
+        tl.to("#main-title", { opacity: 1, y: 0, duration: 1.5, ease: "power2.out" });
+
+        tl.add(() => updateSubtitles(1), ">1");
+        tl.add(() => updateSubtitles(2), ">" + (subtitlesData[1].duration - 1));
+
+        // 2. Fade out title, show "This is Multimodal Fusion"
+        tl.to("#main-title", { opacity: 0, y: -50, duration: 1, ease: "power2.in" });
+        tl.add(() => updateSubtitles(3), ">-0.5");
+        tl.set("#main-title", { text: "This is Multimodal Fusion", y: 0 });
+        tl.to("#main-title text:nth-child(1)", { text: "This is Multimodal Fusion", duration: 0, immediateRender: false });
+        tl.to("#main-title text:nth-child(2)", { text: "这就是多模态融合", duration: 0, immediateRender: false });
+        tl.to("#main-title", { opacity: 1, duration: 1.5, ease: "power2.out" });
+
+        // 3. Hide title, introduce modalities
+        tl.to("#main-title", { opacity: 0, duration: 1, ease: "power2.in" }, ">2");
+        tl.add(() => updateSubtitles(4), ">-0.5");
+        tl.to("#modalities", { opacity: 1, duration: 0.5 });
+        tl.to(["#visual-modality", "#audio-modality", "#text-modality"], {
+            x: 0,
+            opacity: 1,
+            duration: 1,
+            stagger: 0.3,
+            ease: "power2.out"
+        });
+
+        // 4. Data streams flow to center
+        tl.add(() => updateSubtitles(5), ">1");
+        tl.to(["#visual-stream", "#audio-stream", "#text-stream"], {
+            strokeDashoffset: 0,
+            duration: 2,
+            ease: "power1.inOut"
+        });
+
+        // 5. Fusion core appears and activates
+        tl.to("#fusion-core", { opacity: 1, scale: 1, duration: 1, ease: "back.out(1.7)" }, ">-1");
+        tl.add(() => updateSubtitles(6), ">-0.5");
+
+        // Animate core rings
+        gsap.to("#core-ring-1", { rotation: 360, transformOrigin: "50% 50%", duration: 10, repeat: -1, ease: "none" });
+        gsap.to("#core-ring-2", { rotation: -360, transformOrigin: "50% 50%", duration: 15, repeat: -1, ease: "none" });
+        gsap.to("#core-ring-3", { rotation: 360, transformOrigin: "50% 50%", duration: 20, repeat: -1, ease: "none" });
+
+        // 6. Fusion processing animation
+        tl.to("#fusion-text", { opacity: 1, duration: 0.5 }, ">0.5");
+        tl.to("#fusion-core", { scale: 1.1, duration: 2, ease: "power1.inOut", yoyo: true, repeat: 1 });
+        tl.add(() => updateSubtitles(7), "<1");
+
+        // 7. Output stream and result
+        tl.to(["#visual-stream", "#audio-stream", "#text-stream", "#modalities", "#fusion-text"], {
+            opacity: 0,
+            duration: 1,
+            ease: "power2.in"
+        });
+        tl.add(() => updateSubtitles(8), "<");
+        tl.to("#output-group", { opacity: 1, duration: 0.1 }, ">-0.5");
+        tl.to("#output-stream", { strokeDashoffset: 0, duration: 1.5, ease: "power1.out" });
+        tl.to("#output-result", { scale: 1, duration: 1, ease: "elastic.out(1, 0.5)" }, ">-0.5");
+        tl.to(["#output-label", "#output-label-en"], { opacity: 1, duration: 1 }, ">0.5");
+
+        // 8. Fade out result, show applications
+        tl.to("#output-group", { opacity: 0, duration: 1, ease: "power2.in" }, ">3");
+        tl.to("#fusion-core", { opacity: 0, scale: 0.5, duration: 1, ease: "power2.in" }, "<");
+
+        tl.add(() => updateSubtitles(9), ">-0.5");
+        tl.to("#applications", { opacity: 1, y: 0, duration: 1, ease: "power2.out" });
+
+        // 9. Showcase applications
+        tl.from("#applications > g", { scale: 0.8, opacity: 0, stagger: 0.3, duration: 1, ease: "back.out(1.7)" });
+        tl.add(() => updateSubtitles(10), ">1");
+
+        // 10. Final message
+        tl.to("#applications", { opacity: 0, y: -100, duration: 1, ease: "power2.in" }, ">3");
+        tl.add(() => updateSubtitles(11), ">-0.5");
+        tl.set("#main-title text:nth-child(1)", { text: "Multimodal Fusion", fontSize: 100 });
+        tl.set("#main-title text:nth-child(2)", { text: "让AI更懂我们的世界", fontSize: 60 });
+        tl.to("#main-title", { opacity: 1, y: 0, duration: 1.5, ease: "power2.out" });
+
+    </script>
+</body>
+
+</html>

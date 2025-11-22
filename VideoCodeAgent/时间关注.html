@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporal Attention Explained</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-color: #5c6bc0;
+            /* Indigo */
+            --secondary-color: #4db6ac;
+            /* Teal */
+            --accent-color: #ff7043;
+            /* Coral */
+            --text-color: #495057;
+            --light-text-color: #f8f9fa;
+            --line-color: rgba(77, 182, 172, 0.5);
+            --font-family: 'Inter', sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            width: 90vw;
+            max-width: 1400px;
+            aspect-ratio: 16 / 9;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            position: relative;
+        }
+
+        #animation-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitles-zh,
+        #subtitles-en {
+            margin: 0;
+            padding: 5px 15px;
+            display: inline-block;
+            border-radius: 8px;
+        }
+
+        #subtitles-zh {
+            font-size: calc(1.2vw + 6px);
+            /* Responsive font size */
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        #subtitles-en {
+            font-size: calc(0.8vw + 5px);
+            color: #888;
+        }
+
+        /* SVG Element Styles */
+        .token {
+            transition: all 0.5s ease-in-out;
+        }
+
+        .token-circle {
+            fill: var(--primary-color);
+            stroke: #fff;
+            stroke-width: 8;
+            filter: drop-shadow(0 4px 6px rgba(92, 107, 192, 0.3));
+        }
+
+        .token-text {
+            fill: var(--light-text-color);
+            font-family: var(--font-family);
+            font-weight: 600;
+            font-size: 48px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+        }
+
+        .query-circle {
+            fill: var(--accent-color);
+            filter: drop-shadow(0 4px 8px rgba(255, 112, 67, 0.4));
+        }
+
+        .attention-line {
+            stroke: var(--line-color);
+            stroke-width: 4;
+            transition: all 0.5s ease-in-out;
+            stroke-dasharray: 10 10;
+            animation: dash 2s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -40;
+            }
+        }
+
+        .score-bar {
+            fill: var(--secondary-color);
+            transition: all 0.5s ease-in-out;
+        }
+
+        .glow-effect {
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                filter: drop-shadow(0 0 10px var(--accent-color));
+            }
+
+            to {
+                filter: drop-shadow(0 0 30px var(--accent-color));
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-wrapper">
+        <svg id="animation-container" viewBox="0 0 2560 1440" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="subtitles">
+            <p id="subtitles-zh"></p>
+            <p id="subtitles-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.getElementById('animation-container');
+        const subtitlesEl = document.getElementById('subtitles');
+        const subtitlesZh = document.getElementById('subtitles-zh');
+        const subtitlesEn = document.getElementById('subtitles-en');
+
+        const config = {
+            width: 2560,
+            height: 1440,
+            centerY: 600,
+            tokenRadius: 80,
+            tokenSpacing: 350,
+            startX: 500,
+        };
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function updateSubtitles(zh, en, duration = 500) {
+            return new Promise(async resolve => {
+                subtitlesEl.style.opacity = 0;
+                await sleep(duration);
+                subtitlesZh.textContent = zh;
+                subtitlesEn.textContent = en;
+                subtitlesEl.style.opacity = 1;
+                await sleep(duration);
+                resolve();
+            });
+        }
+
+        function createToken(id, x, y, text, type = 'token') {
+            const group = document.createElementNS(svgNS, 'g');
+            group.id = `group-${id}`;
+            group.setAttribute('class', 'token');
+            group.style.opacity = 0;
+            group.style.transform = `translate(${x}px, ${y}px) scale(0)`;
+
+            const circle = document.createElementNS(svgNS, 'circle');
+            circle.setAttribute('id', `circle-${id}`);
+            circle.setAttribute('class', `token-circle ${type}-circle`);
+            circle.setAttribute('r', config.tokenRadius);
+
+            const label = document.createElementNS(svgNS, 'text');
+            label.setAttribute('id', `text-${id}`);
+            label.setAttribute('class', 'token-text');
+            label.textContent = text;
+
+            group.appendChild(circle);
+            group.appendChild(label);
+            svg.appendChild(group);
+            return group;
+        }
+
+        function createAttentionLine(fromId, toId) {
+            const fromEl = document.getElementById(`group-${fromId}`);
+            const toEl = document.getElementById(`group-${toId}`);
+            const fromPos = getElementPosition(fromEl);
+            const toPos = getElementPosition(toEl);
+
+            const line = document.createElementNS(svgNS, 'line');
+            line.id = `line-${fromId}-${toId}`;
+            line.setAttribute('class', 'attention-line');
+            line.setAttribute('x1', fromPos.x);
+            line.setAttribute('y1', fromPos.y);
+            line.setAttribute('x2', toPos.x);
+            line.setAttribute('y2', toPos.y);
+            line.style.strokeOpacity = 0;
+            svg.insertBefore(line, svg.firstChild);
+            return line;
+        }
+
+        function getElementPosition(el) {
+            const transform = el.style.transform;
+            const [x, y] = transform.match(/translate\(([^,]+)px, ([^)]+)px\)/).slice(1).map(parseFloat);
+            return { x, y };
+        }
+
+        function createScoreBar(id, x, y, width, height) {
+            const bar = document.createElementNS(svgNS, 'rect');
+            bar.id = `bar-${id}`;
+            bar.setAttribute('class', 'score-bar');
+            bar.setAttribute('x', x - width / 2);
+            bar.setAttribute('y', y);
+            bar.setAttribute('width', width);
+            bar.setAttribute('height', 0);
+            bar.setAttribute('rx', 10);
+            bar.setAttribute('ry', 10);
+            bar.style.transformOrigin = `center ${y}px`;
+            svg.appendChild(bar);
+            return bar;
+        }
+
+        async function playAnimation() {
+            // Scene 1: Introduction - Show the sequence
+            await updateSubtitles(
+                '想象一个随时间展开的信息序列...',
+                'Imagine a sequence of information unfolding over time...'
+            );
+
+            const tokens = [];
+            const tokenLabels = ['T₁', 'T₂', 'T₃', 'T₄'];
+            for (let i = 0; i < tokenLabels.length; i++) {
+                const x = config.startX + i * config.tokenSpacing;
+                const token = createToken(`token-${i}`, x, config.centerY, tokenLabels[i]);
+                tokens.push(token);
+            }
+
+            for (const token of tokens) {
+                token.style.opacity = 1;
+                token.style.transform = `${token.style.transform.split(')')[0]}) scale(1)`;
+                await sleep(200);
+            }
+            await sleep(1500);
+
+            // Scene 2: Introduce the Query
+            await updateSubtitles(
+                '在当前时刻，我们需要根据历史信息生成一个新输出。',
+                'At the current moment, we need to generate a new output based on past information.'
+            );
+            const queryX = config.startX + 4 * config.tokenSpacing;
+            const query = createToken('query', queryX, config.centerY, 'Q', 'query');
+            query.style.opacity = 1;
+            query.style.transform = `translate(${queryX}px, ${config.centerY}px) scale(1)`;
+            document.getElementById('circle-query').classList.add('glow-effect');
+            await sleep(2000);
+
+            // Scene 3: Query "looks back"
+            await updateSubtitles(
+                '这个“查询”（Query）会回顾过去的所有信息单元...',
+                'This "Query" looks back at all past information units...'
+            );
+
+            const lines = tokens.map((_, i) => createAttentionLine(`token-${i}`, 'query'));
+            for (const line of lines) {
+                line.style.strokeOpacity = 0.5;
+                await sleep(200);
+            }
+            await sleep(2000);
+
+            // Scene 4: Calculate Scores
+            await updateSubtitles(
+                '...并为每个历史单元计算一个“相关性分数”。',
+                '...and calculates a "relevance score" for each past unit.'
+            );
+
+            const rawScores = [0.2, 0.8, 0.6, 0.3]; // Example scores
+            const bars = [];
+            for (let i = 0; i < tokens.length; i++) {
+                const tokenPos = getElementPosition(tokens[i]);
+                const bar = createScoreBar(`token-${i}`, tokenPos.x, config.centerY + 150, 100);
+                bars.push(bar);
+            }
+
+            for (let i = 0; i < bars.length; i++) {
+                bars[i].setAttribute('height', rawScores[i] * 300);
+                bars[i].setAttribute('y', config.centerY + 150);
+                lines[i].style.strokeWidth = 2 + rawScores[i] * 10;
+                await sleep(200);
+            }
+            await sleep(2000);
+
+            // Scene 5: Softmax Normalization
+            await updateSubtitles(
+                '通过Softmax函数，分数被归一化为“注意力权重”。',
+                'Scores are normalized into "attention weights" using a Softmax function.'
+            );
+
+            const expScores = rawScores.map(s => Math.exp(s));
+            const sumExpScores = expScores.reduce((a, b) => a + b, 0);
+            const attentionWeights = expScores.map(s => s / sumExpScores);
+
+            for (let i = 0; i < bars.length; i++) {
+                bars[i].setAttribute('height', attentionWeights[i] * 500); // Scale for visual effect
+                lines[i].style.strokeOpacity = 0.1 + attentionWeights[i] * 0.9;
+                lines[i].style.strokeWidth = 2 + attentionWeights[i] * 15;
+            }
+            await sleep(2000);
+
+            // Scene 6: Create Context Vector
+            await updateSubtitles(
+                '权重决定了每个历史单元的“重要性”，用于构建一个加权的“上下文向量”。',
+                'These weights determine the importance of each unit to create a weighted "context vector".'
+            );
+
+            for (let i = 0; i < tokens.length; i++) {
+                tokens[i].style.opacity = 0.2 + attentionWeights[i] * 0.8;
+            }
+
+            const contextVector = createToken('context', queryX - config.tokenSpacing / 1.5, config.centerY, 'C', 'secondary');
+
+            const movingTokens = [];
+            for (let i = 0; i < tokens.length; i++) {
+                const tokenPos = getElementPosition(tokens[i]);
+                const clone = tokens[i].cloneNode(true);
+                clone.id = `clone-${i}`;
+                svg.appendChild(clone);
+                clone.style.transition = 'transform 1s ease-in-out, opacity 1s ease-in-out';
+                clone.style.transform = `translate(${tokenPos.x}px, ${tokenPos.y}px) scale(${0.2 + attentionWeights[i]})`;
+                movingTokens.push(clone);
+            }
+
+            await sleep(100);
+
+            const contextPos = getElementPosition(contextVector);
+            for (const mt of movingTokens) {
+                mt.style.transform = `translate(${contextPos.x}px, ${contextPos.y}px) scale(0)`;
+                mt.style.opacity = 0;
+            }
+
+            await sleep(1000);
+            contextVector.style.opacity = 1;
+            contextVector.style.transform = `translate(${contextPos.x}px, ${contextPos.y}px) scale(1)`;
+            await sleep(2000);
+
+
+            // Scene 7: Generate Output
+            await updateSubtitles(
+                '最后，上下文向量和当前查询结合，生成最终的输出。',
+                'Finally, the context vector and query combine to produce the final output.'
+            );
+
+            const output = createToken('output', queryX, config.centerY, 'O₁', 'primary');
+
+            const queryPos = getElementPosition(query);
+            query.style.transform = `translate(${queryPos.x - 50}px, ${queryPos.y}px) scale(1)`;
+            contextVector.style.transform = `translate(${contextPos.x + 50}px, ${contextPos.y}px) scale(1)`;
+
+            await sleep(1000);
+
+            query.style.transform = `translate(${queryPos.x}px, ${queryPos.y}px) scale(0)`;
+            contextVector.style.transform = `translate(${queryPos.x}px, ${queryPos.y}px) scale(0)`;
+            query.style.opacity = 0;
+            contextVector.style.opacity = 0;
+
+            await sleep(500);
+            output.style.opacity = 1;
+            output.style.transform = `translate(${queryX}px, ${config.centerY}px) scale(1.2)`;
+            await sleep(200);
+            output.style.transform = `translate(${queryX}px, ${config.centerY}px) scale(1)`;
+
+            await sleep(2000);
+
+            // Scene 8: Conclusion
+            await updateSubtitles(
+                '这就是时间关注：动态聚焦于最相关的历史，以更好地理解现在。',
+                'This is Temporal Attention: dynamically focusing on the relevant past to better understand the present.'
+            );
+
+            // Fade out everything except the final title
+            const allElements = Array.from(svg.children);
+            for (const el of allElements) {
+                el.style.transition = 'opacity 1s ease-in-out';
+                el.style.opacity = 0;
+            }
+
+            await sleep(1000);
+
+            const titleZh = document.createElementNS(svgNS, 'text');
+            titleZh.textContent = '时间关注';
+            titleZh.setAttribute('x', config.width / 2);
+            titleZh.setAttribute('y', config.height / 2 - 50);
+            titleZh.setAttribute('font-size', '120');
+            titleZh.setAttribute('font-weight', '600');
+            titleZh.setAttribute('fill', 'var(--primary-color)');
+            titleZh.setAttribute('text-anchor', 'middle');
+            titleZh.style.opacity = 0;
+
+            const titleEn = document.createElementNS(svgNS, 'text');
+            titleEn.textContent = 'Temporal Attention';
+            titleEn.setAttribute('x', config.width / 2);
+            titleEn.setAttribute('y', config.height / 2 + 50);
+            titleEn.setAttribute('font-size', '70');
+            titleEn.setAttribute('fill', 'var(--text-color)');
+            titleEn.setAttribute('text-anchor', 'middle');
+            titleEn.style.opacity = 0;
+
+            svg.appendChild(titleZh);
+            svg.appendChild(titleEn);
+
+            await sleep(100);
+            titleZh.style.transition = 'opacity 1s ease-in-out';
+            titleEn.style.transition = 'opacity 1s ease-in-out';
+            titleZh.style.opacity = 1;
+            titleEn.style.opacity = 1;
+
+            await sleep(3000);
+            subtitlesEl.style.opacity = 0;
+
+            await sleep(1000);
+            // restart
+            svg.innerHTML = '';
+            playAnimation();
+        }
+
+        window.onload = playAnimation;
+    </script>
+</body>
+
+</html>

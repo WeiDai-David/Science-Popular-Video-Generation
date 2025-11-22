@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Parallelism Explained</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --font-color: #343A40;
+            --accent-color-1: #4A90E2;
+            --accent-color-2: #50E3C2;
+            --accent-color-3: #F5A623;
+            --accent-color-4: #9013FE;
+            --gpu-bg: #FFFFFF;
+            --gpu-border: #DEE2E6;
+            --bubble-color: #F1F3F5;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #wrapper {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            transform-origin: center center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+        }
+
+        .background-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(222, 226, 230, 0.5) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(222, 226, 230, 0.5) 2px, transparent 2px);
+            background-size: 80px 80px;
+            opacity: 0.5;
+        }
+
+        .title-screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .title-screen.visible {
+            opacity: 1;
+        }
+
+        .main-title {
+            font-size: 120px;
+            font-weight: 600;
+            color: var(--font-color);
+            margin: 0;
+        }
+
+        .subtitle {
+            font-size: 60px;
+            font-weight: 300;
+            color: var(--font-color);
+            opacity: 0.8;
+            margin-top: 20px;
+        }
+
+        #subtitles-container {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            padding: 0 50px;
+            box-sizing: border-box;
+            z-index: 100;
+        }
+
+        .subtitle-text {
+            font-size: 42px;
+            font-weight: 500;
+            color: #fff;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 15px 30px;
+            border-radius: 12px;
+            display: inline-block;
+            line-height: 1.5;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .subtitle-text.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .subtitle-cn {
+            display: block;
+        }
+
+        .subtitle-en {
+            display: block;
+            font-size: 32px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .gpu {
+            position: absolute;
+            width: 300px;
+            height: 500px;
+            background-color: var(--gpu-bg);
+            border: 3px solid var(--gpu-border);
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: all 1s ease;
+            opacity: 0;
+            transform: translateY(50px);
+        }
+
+        .gpu.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .gpu-label {
+            font-size: 36px;
+            font-weight: 600;
+            color: var(--font-color);
+            margin-bottom: 20px;
+        }
+
+        .model-layers {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            border-radius: 10px;
+            padding: 10px;
+            background: #F1F3F5;
+        }
+
+        .layer {
+            width: 100%;
+            height: 30px;
+            border-radius: 5px;
+            opacity: 0.7;
+        }
+
+        .data-batch {
+            position: absolute;
+            width: 120px;
+            height: 80px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: all 1s ease-in-out;
+            z-index: 10;
+        }
+
+        .gantt-chart-container {
+            position: absolute;
+            bottom: 250px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2200px;
+            height: 400px;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .gantt-chart-container.visible {
+            opacity: 1;
+        }
+
+        .gantt-axis-y {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 150px;
+        }
+
+        .gantt-axis-y .label {
+            height: 100px;
+            font-size: 36px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 20px;
+            color: #6C757D;
+        }
+
+        .gantt-grid {
+            position: absolute;
+            left: 150px;
+            top: 0;
+            width: calc(100% - 150px);
+            height: 100%;
+            background-image: repeating-linear-gradient(to right, #E9ECEF 0, #E9ECEF 2px, transparent 2px, transparent 100px);
+        }
+
+        .gantt-bar {
+            position: absolute;
+            height: 80px;
+            border-radius: 8px;
+            top: 10px;
+            /* offset */
+            transition: all 0.5s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            font-weight: bold;
+            color: white;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .bubble {
+            background-color: var(--bubble-color);
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(173, 181, 189, 0.2) 10px, rgba(173, 181, 189, 0.2) 20px);
+        }
+
+        .arrow {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 5;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="wrapper">
+        <div id="container">
+            <div class="background-grid"></div>
+
+            <div id="title-screen" class="title-screen">
+                <h1 class="main-title">流水线并行性</h1>
+                <h2 class="subtitle">Pipeline Parallelism</h2>
+            </div>
+
+            <!-- GPUs will be dynamically added here -->
+
+            <!-- Data batches will be dynamically added here -->
+
+            <div id="gantt-chart" class="gantt-chart-container">
+                <div class="gantt-axis-y">
+                    <div class="label">GPU 1</div>
+                    <div class="label">GPU 2</div>
+                    <div class="label">GPU 3</div>
+                    <div class="label">GPU 4</div>
+                </div>
+                <div class="gantt-grid"></div>
+                <!-- Gantt bars will be added here -->
+            </div>
+
+            <div id="subtitles-container">
+                <p id="subtitle-text" class="subtitle-text">
+                    <span id="subtitle-cn" class="subtitle-cn"></span>
+                    <span id="subtitle-en" class="subtitle-en"></span>
+                </p>
+            </div>
+
+            <!-- Arrows will be added here -->
+        </div>
+    </div>
+
+    <script>
+        const container = document.getElementById('container');
+        const titleScreen = document.getElementById('title-screen');
+        const subtitleText = document.getElementById('subtitle-text');
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+        const ganttChart = document.getElementById('gantt-chart');
+
+        const NUM_GPUS = 4;
+        const GPU_COLORS = ['--accent-color-1', '--accent-color-2', '--accent-color-3', '--accent-color-4'];
+        const GPU_HEX_COLORS = ['#4A90E2', '#50E3C2', '#F5A623', '#9013FE'];
+
+        const GPU_POS = [
+            { x: 380, y: 400 },
+            { x: 880, y: 400 },
+            { x: 1380, y: 400 },
+            { x: 1880, y: 400 }
+        ];
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function setSubtitle(cn, en, duration) {
+            return new Promise(async resolve => {
+                subtitleCn.textContent = cn;
+                subtitleEn.textContent = en;
+                subtitleText.classList.add('visible');
+                await sleep(duration);
+                subtitleText.classList.remove('visible');
+                await sleep(500); // fade out time
+                resolve();
+            });
+        }
+
+        function createGPU(index) {
+            const gpu = document.createElement('div');
+            gpu.className = 'gpu';
+            gpu.id = `gpu-${index}`;
+            gpu.style.left = `${GPU_POS[index].x}px`;
+            gpu.style.top = `${GPU_POS[index].y}px`;
+
+            let layersHtml = '';
+            for (let i = 0; i < 8; i++) {
+                layersHtml += `<div class="layer" style="background-color: var(${GPU_COLORS[index]})"></div>`;
+            }
+
+            gpu.innerHTML = `
+            <div class="gpu-label">GPU ${index + 1}</div>
+            <div class="model-layers">${layersHtml}</div>
+        `;
+            container.appendChild(gpu);
+            return gpu;
+        }
+
+        function createArrow(fromIndex, toIndex) {
+            const fromGpu = GPU_POS[fromIndex];
+            const toGpu = GPU_POS[toIndex];
+            const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            arrow.setAttribute('class', 'arrow');
+            arrow.id = `arrow-${fromIndex}`;
+            arrow.setAttribute('width', '200');
+            arrow.setAttribute('height', '100');
+            arrow.style.position = 'absolute';
+            arrow.style.left = `${fromGpu.x + 300}px`;
+            arrow.style.top = `${fromGpu.y + 200}px`;
+            arrow.innerHTML = `
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#ADB5BD" />
+                </marker>
+            </defs>
+            <path d="M 10 50 Q 100 0, 190 50" stroke="#ADB5BD" stroke-width="4" fill="none" marker-end="url(#arrowhead)" />
+        `;
+            container.appendChild(arrow);
+            return arrow;
+        }
+
+        function createDataBatch(id, text, color, startX, startY) {
+            const batch = document.createElement('div');
+            batch.className = 'data-batch';
+            batch.id = `batch-${id}`;
+            batch.style.backgroundColor = color;
+            batch.style.left = `${startX}px`;
+            batch.style.top = `${startY}px`;
+            batch.textContent = text;
+            container.appendChild(batch);
+            return batch;
+        }
+
+        function createGanttBar(gpuIndex, timeStep, duration, text, color, isBubble = false) {
+            const bar = document.createElement('div');
+            bar.className = 'gantt-bar';
+            if (isBubble) {
+                bar.classList.add('bubble');
+            }
+            bar.style.top = `${gpuIndex * 100 + 10}px`;
+            bar.style.left = `${150 + timeStep * 100}px`;
+            bar.style.width = `${duration * 100 - 4}px`; // -4 for margin
+            bar.style.backgroundColor = color;
+            bar.textContent = text;
+            ganttChart.appendChild(bar);
+            return bar;
+        }
+
+
+        async function startAnimation() {
+            // --- SCENE 1: Title ---
+            titleScreen.classList.add('visible');
+            await sleep(3000);
+            titleScreen.classList.remove('visible');
+            await sleep(1000);
+
+            // --- SCENE 2: The Problem ---
+            await setSubtitle(
+                "当我们训练巨大的模型时...",
+                "When we train enormous models...",
+                3000
+            );
+            await setSubtitle(
+                "一个GPU的内存可能不够用。",
+                "a single GPU's memory might not be enough.",
+                3000
+            );
+
+            // --- SCENE 3: Naive Model Parallelism ---
+            await setSubtitle(
+                "一种方法是模型并行，将模型切分到多个GPU上。",
+                "One solution is Model Parallelism, splitting the model across multiple GPUs.",
+                4000
+            );
+
+            const gpus = [];
+            for (let i = 0; i < NUM_GPUS; i++) {
+                const gpu = createGPU(i);
+                gpus.push(gpu);
+                await sleep(200);
+                gpu.classList.add('visible');
+            }
+
+            const arrows = [];
+            for (let i = 0; i < NUM_GPUS - 1; i++) {
+                arrows.push(createArrow(i, i + 1));
+            }
+
+            await sleep(1000);
+
+            // --- SCENE 4: Sequential Processing & Bubbles ---
+            await setSubtitle(
+                "但如果按顺序处理数据，当一个GPU工作时，其他GPU都在空闲等待。",
+                "But if we process data sequentially, while one GPU works, the others are idle.",
+                5000
+            );
+
+            ganttChart.classList.add('visible');
+            await sleep(1000);
+
+            const batch = createDataBatch('seq', 'D', '#228BE6', 150, 600);
+            batch.style.opacity = '1';
+
+            for (let i = 0; i < NUM_GPUS; i++) {
+                batch.style.transform = `translate(${GPU_POS[i].x - 150 + 90}px, ${GPU_POS[i].y - 600 - 100}px)`;
+                if (arrows[i - 1]) arrows[i - 1].style.opacity = '1';
+                await sleep(1000);
+                if (arrows[i - 1]) arrows[i - 1].style.opacity = '0';
+                createGanttBar(i, i * 2, 2, 'D', '#228BE6');
+                for (let j = 0; j < NUM_GPUS; j++) {
+                    if (i !== j) {
+                        createGanttBar(j, i * 2, 2, '', '', true);
+                    }
+                }
+                await sleep(1000);
+            }
+
+            batch.style.opacity = '0';
+            await sleep(1000);
+
+            await setSubtitle(
+                "这导致了大量的资源浪费，我们称之为空闲“气泡”。",
+                "This leads to significant wasted resources, which we call idle 'bubbles'.",
+                5000
+            );
+
+            await sleep(2000);
+
+            // --- SCENE 5: Introducing Pipeline Parallelism ---
+
+            // Cleanup previous scene
+            ganttChart.innerHTML = `
+            <div class="gantt-axis-y">
+                <div class="label">GPU 1</div><div class="label">GPU 2</div><div class="label">GPU 3</div><div class="label">GPU 4</div>
+            </div>
+            <div class="gantt-grid"></div>`;
+            gpus.forEach(gpu => gpu.remove());
+
+            await setSubtitle(
+                "为了解决这个问题，我们引入了流水线并行！",
+                "To solve this, we introduce Pipeline Parallelism!",
+                4000
+            );
+
+            for (let i = 0; i < NUM_GPUS; i++) {
+                const gpu = createGPU(i);
+                gpus[i] = gpu;
+                await sleep(100);
+                gpu.classList.add('visible');
+            }
+            await sleep(1000);
+
+            await setSubtitle(
+                "我们将数据批次(batch)切分为更小的微批次(micro-batch)。",
+                "We split the data batch into smaller micro-batches.",
+                4000
+            );
+
+            const microBatches = [];
+            const NUM_MICRO_BATCHES = 4;
+            for (let i = 0; i < NUM_MICRO_BATCHES; i++) {
+                const mb = createDataBatch(`mb-${i}`, `m${i + 1}`, GPU_HEX_COLORS[i], 150, 450 + i * 100);
+                microBatches.push(mb);
+                await sleep(100);
+                mb.style.opacity = '1';
+            }
+
+            await sleep(2000);
+
+            // --- SCENE 6: The Pipeline Animation ---
+            await setSubtitle(
+                "当微批次在GPU上完成计算，它会立刻被传到下一个GPU，实现并行。",
+                "When a micro-batch finishes on one GPU, it's immediately passed to the next, enabling parallelism.",
+                6000
+            );
+
+            let timeStep = 0;
+            const pipeline_duration = 2;
+
+            // This loop simulates the pipeline stages over time
+            for (let t = 0; t < NUM_GPUS + NUM_MICRO_BATCHES - 1; t++) {
+                const promises = [];
+                for (let gpu_idx = 0; gpu_idx < NUM_GPUS; gpu_idx++) {
+                    let mb_idx = t - gpu_idx;
+                    if (mb_idx >= 0 && mb_idx < NUM_MICRO_BATCHES) {
+                        // This micro-batch is active on this GPU at this time
+                        const mb = microBatches[mb_idx];
+                        const p = (async () => {
+                            // Move batch to current GPU
+                            mb.style.transform = `translate(${GPU_POS[gpu_idx].x - 150 + 90}px, ${GPU_POS[gpu_idx].y - (450 + mb_idx * 100) - 100}px)`;
+                            // Create Gantt bar
+                            createGanttBar(gpu_idx, t * pipeline_duration, pipeline_duration, `m${mb_idx + 1}`, GPU_HEX_COLORS[mb_idx]);
+                        })();
+                        promises.push(p);
+                    } else {
+                        // This GPU is idle, create a bubble
+                        createGanttBar(gpu_idx, t * pipeline_duration, pipeline_duration, ``, '', true);
+                    }
+                }
+                await Promise.all(promises);
+                await sleep(1500);
+            }
+
+            microBatches.forEach(mb => {
+                mb.style.opacity = '0';
+            });
+
+            await sleep(1000);
+
+            // --- SCENE 7: Conclusion ---
+            await setSubtitle(
+                "从时间线上看，GPU的利用率大大提高了。",
+                "Looking at the timeline, GPU utilization is significantly improved.",
+                5000
+            );
+
+            await setSubtitle(
+                "虽然在流水线启动和结束时仍有小的“气泡”...",
+                "Although there are still small 'bubbles' at the start-up and wind-down of the pipeline...",
+                5000
+            );
+
+            await setSubtitle(
+                "...但总体效率远超朴素的模型并行。这就是流水线并行的魅力！",
+                "...the overall efficiency far exceeds naive model parallelism. This is the power of Pipeline Parallelism!",
+                6000
+            );
+
+            // --- SCENE 8: Fade out ---
+            await sleep(1000);
+            container.style.transition = 'opacity 2s ease';
+            container.style.opacity = '0';
+            await sleep(2000);
+            location.reload();
+        }
+
+        // Auto-resize logic
+        function resizeContainer() {
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+
+            const scaleX = screenWidth / containerWidth;
+            const scaleY = screenHeight / containerHeight;
+
+            const scale = Math.min(scaleX, scaleY);
+
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('load', () => {
+            resizeContainer();
+            startAnimation();
+        });
+        window.addEventListener('resize', resizeContainer);
+
+    </script>
+</body>
+
+</html>

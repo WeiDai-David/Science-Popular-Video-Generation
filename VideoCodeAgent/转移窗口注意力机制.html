@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shifted Window Attention Explained</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-text: #343a40;
+            --secondary-text: #6c757d;
+            --accent-color-1: #748ffc;
+            --accent-color-2: #4dabf7;
+            --accent-color-3: #63e6be;
+            --accent-color-mask: #ff8787;
+            --border-color: #dee2e6;
+            --shadow-color: rgba(0, 0, 0, 0.05);
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px var(--shadow-color);
+            transform-origin: center center;
+            overflow: hidden;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitles.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn {
+            font-size: 36px;
+            color: var(--primary-text);
+            font-weight: 500;
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        #subtitle-en {
+            font-size: 24px;
+            color: var(--secondary-text);
+            margin-top: 8px;
+        }
+
+        /* Animation Classes */
+        .fade-in {
+            animation: fadeIn 0.8s ease-in-out forwards;
+        }
+
+        .fade-out {
+            animation: fadeOut 0.8s ease-in-out forwards;
+        }
+
+        .slide-in-up {
+            animation: slideInUp 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .slide-out-down {
+            animation: slideOutDown 0.8s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOutDown {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+        }
+
+        /* SVG Element Styles */
+        .patch {
+            transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+            stroke: var(--border-color);
+            stroke-width: 1.5;
+        }
+
+        .window-boundary {
+            fill: none;
+            stroke: var(--accent-color-1);
+            stroke-width: 6;
+            stroke-dasharray: 20 10;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .attention-line {
+            stroke-width: 2;
+            opacity: 0.6;
+            stroke-linecap: round;
+        }
+
+        .title-text {
+            font-size: 100px;
+            font-weight: 600;
+            fill: var(--primary-text);
+            text-anchor: middle;
+        }
+
+        .subtitle-text {
+            font-size: 50px;
+            font-weight: 400;
+            fill: var(--secondary-text);
+            text-anchor: middle;
+        }
+
+        .mask {
+            fill: var(--accent-color-mask);
+            fill-opacity: 0.3;
+            stroke: var(--accent-color-mask);
+            stroke-width: 3;
+            stroke-dasharray: 10 5;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .shifted-window-boundary {
+            fill: none;
+            stroke: var(--accent-color-3);
+            stroke-width: 6;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <svg id="canvas" viewBox="0 0 2560 1440"></svg>
+        <div id="subtitles">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const SVG_NS = "http://www.w3.org/2000/svg";
+        const canvas = document.getElementById('canvas');
+        const subtitles = document.getElementById('subtitles');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        const CONFIG = {
+            width: 2560,
+            height: 1440,
+            gridSize: 8,
+            patchSize: 100,
+            gap: 10,
+            windowPatchSize: 4,
+        };
+
+        const totalPatchSize = CONFIG.patchSize + CONFIG.gap;
+        const gridWidth = CONFIG.gridSize * totalPatchSize - CONFIG.gap;
+        const gridHeight = CONFIG.gridSize * totalPatchSize - CONFIG.gap;
+        const startX = (CONFIG.width - gridWidth) / 2;
+        const startY = (CONFIG.height - gridHeight) / 2 - 100;
+        const windowPixelSize = CONFIG.windowPatchSize * totalPatchSize - CONFIG.gap;
+
+        const patches = [];
+        const patchElements = [];
+
+        function createSVGElement(tag, attributes) {
+            const el = document.createElementNS(SVG_NS, tag);
+            for (const key in attributes) {
+                el.setAttribute(key, attributes[key]);
+            }
+            return el;
+        }
+
+        function updateSubtitles(cn, en, duration) {
+            return new Promise(resolve => {
+                subtitles.classList.remove('visible');
+                setTimeout(() => {
+                    subtitleCN.innerHTML = cn;
+                    subtitleEN.innerHTML = en;
+                    subtitles.classList.add('visible');
+                    setTimeout(() => {
+                        subtitles.classList.remove('visible');
+                        setTimeout(resolve, 500);
+                    }, duration);
+                }, 500);
+            });
+        }
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function drawGrid() {
+            const g = createSVGElement('g', { id: 'patch-grid' });
+            for (let i = 0; i < CONFIG.gridSize; i++) {
+                for (let j = 0; j < CONFIG.gridSize; j++) {
+                    const x = startX + j * totalPatchSize;
+                    const y = startY + i * totalPatchSize;
+                    const patch = {
+                        id: `patch-${i}-${j}`,
+                        x, y, row: i, col: j
+                    };
+                    patches.push(patch);
+
+                    const rect = createSVGElement('rect', {
+                        id: patch.id,
+                        x: x,
+                        y: y,
+                        width: CONFIG.patchSize,
+                        height: CONFIG.patchSize,
+                        rx: 10,
+                        ry: 10,
+                        fill: `url(#patch-grad-${(i + j) % 4})`,
+                        class: 'patch',
+                        opacity: 0
+                    });
+                    patchElements.push(rect);
+                    g.appendChild(rect);
+                }
+            }
+            canvas.appendChild(g);
+        }
+
+        function createGradients() {
+            const defs = createSVGElement('defs');
+            const colors = [
+                ['#a8c0ff', '#3f2b96'],
+                ['#d4fc79', '#96e6a1'],
+                ['#fbc2eb', '#a6c1ee'],
+                ['#84fab0', '#8fd3f4']
+            ];
+            const baseColors = ['#c4d3ff', '#e5fccb', '#f8d9f4', '#c5f3e7'];
+
+            for (let i = 0; i < 4; i++) {
+                const gradient = createSVGElement('linearGradient', {
+                    id: `patch-grad-${i}`,
+                    x1: '0%', y1: '0%', x2: '100%', y2: '100%'
+                });
+                gradient.innerHTML = `
+                    <stop offset="0%" style="stop-color:${colors[i][0]}" />
+                    <stop offset="100%" style="stop-color:${colors[i][1]}" />
+                `;
+                defs.appendChild(gradient);
+
+                const basePatch = createSVGElement('rect', {
+                    id: `base-patch-${i}`,
+                    width: CONFIG.patchSize,
+                    height: CONFIG.patchSize,
+                    rx: 10, ry: 10,
+                    fill: baseColors[i]
+                });
+                defs.appendChild(basePatch);
+            }
+            canvas.appendChild(defs);
+        }
+
+        async function showTitle() {
+            const title = createSVGElement('text', {
+                id: 'main-title',
+                x: CONFIG.width / 2,
+                y: CONFIG.height / 2 - 50,
+                class: 'title-text',
+                opacity: 0,
+            });
+            title.textContent = 'Shifted Window Attention';
+            canvas.appendChild(title);
+
+            const subtitle = createSVGElement('text', {
+                id: 'main-subtitle',
+                x: CONFIG.width / 2,
+                y: CONFIG.height / 2 + 50,
+                class: 'subtitle-text',
+                opacity: 0,
+            });
+            subtitle.textContent = '转移窗口注意力机制';
+            canvas.appendChild(subtitle);
+
+            title.classList.add('slide-in-up');
+            subtitle.classList.add('slide-in-up');
+            await sleep(2500);
+            title.classList.replace('slide-in-up', 'fade-out');
+            subtitle.classList.replace('slide-in-up', 'fade-out');
+            await sleep(800);
+            title.remove();
+            subtitle.remove();
+        }
+
+        async function showInitialGrid() {
+            patchElements.forEach((p, i) => {
+                setTimeout(() => {
+                    p.style.opacity = 1;
+                    p.style.transform = 'scale(1)';
+                }, i * 5);
+            });
+            await updateSubtitles(
+                '首先，我们将图片分割成一个个小的图像块 (Patch)。',
+                'First, we divide the image into small patches.',
+                4000
+            );
+        }
+
+        async function problemOfGlobalAttention() {
+            const attentionGroup = createSVGElement('g', { id: 'global-attention-group' });
+            canvas.appendChild(attentionGroup);
+
+            const sourcePatch = patches.find(p => p.row === 3 && p.col === 3);
+            const sourceEl = document.getElementById(sourcePatch.id);
+            sourceEl.style.fill = 'var(--accent-color-mask)';
+
+            const lines = [];
+            for (let i = 0; i < CONFIG.gridSize; i += 1) {
+                for (let j = 0; j < CONFIG.gridSize; j += 1) {
+                    if (i === 3 && j === 3) continue;
+                    const targetPatch = patches.find(p => p.row === i && p.col === j);
+                    const line = createSVGElement('line', {
+                        x1: sourcePatch.x + CONFIG.patchSize / 2,
+                        y1: sourcePatch.y + CONFIG.patchSize / 2,
+                        x2: targetPatch.x + CONFIG.patchSize / 2,
+                        y2: targetPatch.y + CONFIG.patchSize / 2,
+                        stroke: `var(--primary-text)`,
+                        'stroke-width': 1.5,
+                        opacity: 0,
+                        class: 'attention-line'
+                    });
+                    lines.push(line);
+                    attentionGroup.appendChild(line);
+                }
+            }
+
+            await updateSubtitles(
+                '在标准的Vision Transformer中，每个Patch需要和所有其他Patch计算注意力。',
+                'In a standard Vision Transformer, each patch calculates attention with all other patches.',
+                4500
+            );
+
+            lines.forEach((line, i) => {
+                setTimeout(() => {
+                    line.style.opacity = 0.3;
+                }, i * 10);
+            });
+
+            await updateSubtitles(
+                '对于高分辨率图像，这种全局计算的复杂度非常高。',
+                'For high-resolution images, this global computation is extremely complex.',
+                4500
+            );
+
+            attentionGroup.classList.add('fade-out');
+            sourceEl.style.fill = `url(#patch-grad-${(sourcePatch.row + sourcePatch.col) % 4})`;
+            await sleep(800);
+            attentionGroup.remove();
+        }
+
+        async function introduceWindows() {
+            const windowGroup = createSVGElement('g', { id: 'window-group' });
+            canvas.appendChild(windowGroup);
+            const numWindows = CONFIG.gridSize / CONFIG.windowPatchSize;
+
+            for (let i = 0; i < numWindows; i++) {
+                for (let j = 0; j < numWindows; j++) {
+                    const rect = createSVGElement('rect', {
+                        x: startX + j * windowPixelSize - CONFIG.gap / 2,
+                        y: startY + i * windowPixelSize - CONFIG.gap / 2,
+                        width: windowPixelSize + CONFIG.gap,
+                        height: windowPixelSize + CONFIG.gap,
+                        class: 'window-boundary',
+                        rx: 15, ry: 15
+                    });
+                    windowGroup.appendChild(rect);
+                    await sleep(100);
+                    rect.style.opacity = 1;
+                }
+            }
+
+            await updateSubtitles(
+                '为了降低计算量，Swin Transformer引入了窗口 (Window) 的概念。',
+                'To reduce complexity, Swin Transformer introduces the concept of Windows.',
+                4500
+            );
+
+            await updateSubtitles(
+                '注意力计算只在每个窗口内部进行。',
+                'Attention is calculated only within each local window.',
+                4000
+            );
+
+            const attentionGroup = createSVGElement('g', { id: 'window-attention-group' });
+            canvas.appendChild(attentionGroup);
+
+            for (let wi = 0; wi < numWindows; wi++) {
+                for (let wj = 0; wj < numWindows; wj++) {
+                    const windowPatches = patches.filter(p =>
+                        Math.floor(p.row / CONFIG.windowPatchSize) === wi &&
+                        Math.floor(p.col / CONFIG.windowPatchSize) === wj
+                    );
+                    for (let i = 0; i < windowPatches.length; i++) {
+                        for (let j = i + 1; j < windowPatches.length; j++) {
+                            const p1 = windowPatches[i];
+                            const p2 = windowPatches[j];
+                            const line = createSVGElement('line', {
+                                x1: p1.x + CONFIG.patchSize / 2,
+                                y1: p1.y + CONFIG.patchSize / 2,
+                                x2: p2.x + CONFIG.patchSize / 2,
+                                y2: p2.y + CONFIG.patchSize / 2,
+                                stroke: `var(--accent-color-2)`,
+                                class: 'attention-line',
+                                opacity: 0
+                            });
+                            attentionGroup.appendChild(line);
+                            setTimeout(() => line.style.opacity = 0.5, (wi * numWindows + wj) * 200 + Math.random() * 500);
+                        }
+                    }
+                }
+            }
+
+            await updateSubtitles(
+                '这大大减少了计算量，但窗口之间无法进行信息交互。',
+                'This greatly reduces computation, but prevents information exchange between windows.',
+                5000
+            );
+
+            attentionGroup.classList.add('fade-out');
+            windowGroup.classList.add('fade-out');
+            await sleep(800);
+            attentionGroup.remove();
+            windowGroup.remove();
+        }
+
+        async function performShift() {
+            await updateSubtitles(
+                '为了解决这个问题，Swin Transformer的核心思想来了：转移窗口 (Shifted Window)。',
+                'To solve this, here comes the core idea of Swin Transformer: Shifted Windows.',
+                5000
+            );
+
+            const shiftAmount = CONFIG.windowPatchSize / 2 * totalPatchSize;
+
+            patchElements.forEach(p => {
+                const currentX = parseFloat(p.getAttribute('x'));
+                const currentY = parseFloat(p.getAttribute('y'));
+                p.setAttribute('x', currentX + shiftAmount);
+                p.setAttribute('y', currentY + shiftAmount);
+            });
+
+            await updateSubtitles(
+                '在下一个Transformer Block中，我们将窗口网格整体移动半个窗口的大小。',
+                'In the next Transformer block, we shift the entire window grid by half a window\'s size.',
+                5000
+            );
+
+            const shiftedWindowGroup = createSVGElement('g', { id: 'shifted-window-group' });
+            canvas.appendChild(shiftedWindowGroup);
+            const numWindows = CONFIG.gridSize / CONFIG.windowPatchSize;
+
+            for (let i = -1; i < numWindows; i++) {
+                for (let j = -1; j < numWindows; j++) {
+                    const rect = createSVGElement('rect', {
+                        x: startX + j * windowPixelSize - CONFIG.gap / 2 + shiftAmount,
+                        y: startY + i * windowPixelSize - CONFIG.gap / 2 + shiftAmount,
+                        width: windowPixelSize + CONFIG.gap,
+                        height: windowPixelSize + CONFIG.gap,
+                        class: 'shifted-window-boundary',
+                        rx: 15, ry: 15
+                    });
+                    shiftedWindowGroup.appendChild(rect);
+                    rect.style.opacity = 1;
+                }
+            }
+
+            await updateSubtitles(
+                '这样，就形成了新的窗口。之前位于不同窗口边界的Patch，现在被分到了同一个窗口内。',
+                'This forms new windows. Patches previously at the borders of different windows are now grouped together.',
+                6000
+            );
+
+            shiftedWindowGroup.classList.add('fade-out');
+            await sleep(800);
+            shiftedWindowGroup.remove();
+        }
+
+        async function cyclicShiftAndMask() {
+            await updateSubtitles(
+                '但这样产生了不连续的窗口。一个高效的解决方法是循环移位 (Cyclic Shift)。',
+                'But this creates disconnected windows. An efficient solution is the Cyclic Shift.',
+                5000
+            );
+
+            const shiftAmount = (CONFIG.windowPatchSize / 2);
+
+            patchElements.forEach(el => {
+                const id = el.id.split('-');
+                const row = parseInt(id[1]);
+                const col = parseInt(id[2]);
+
+                const newRow = (row - shiftAmount + CONFIG.gridSize) % CONFIG.gridSize;
+                const newCol = (col - shiftAmount + CONFIG.gridSize) % CONFIG.gridSize;
+
+                const newPos = patches.find(p => p.row === newRow && p.col === newCol);
+                el.setAttribute('x', newPos.x);
+                el.setAttribute('y', newPos.y);
+            });
+
+            await updateSubtitles(
+                '我们将左上角移出去的部分，填补到右下角的空白区域。',
+                'We move the parts shifted out from the top-left to fill the empty area at the bottom-right.',
+                5000
+            );
+
+            const windowGroup = createSVGElement('g', { id: 'cyclic-window-group' });
+            canvas.appendChild(windowGroup);
+            const numWindows = CONFIG.gridSize / CONFIG.windowPatchSize;
+            for (let i = 0; i < numWindows; i++) {
+                for (let j = 0; j < numWindows; j++) {
+                    const rect = createSVGElement('rect', {
+                        x: startX + j * windowPixelSize - CONFIG.gap / 2,
+                        y: startY + i * windowPixelSize - CONFIG.gap / 2,
+                        width: windowPixelSize + CONFIG.gap,
+                        height: windowPixelSize + CONFIG.gap,
+                        class: 'window-boundary',
+                        rx: 15, ry: 15
+                    });
+                    windowGroup.appendChild(rect);
+                    rect.style.opacity = 1;
+                }
+            }
+
+            await updateSubtitles(
+                '这样，我们又得到了规则的窗口，可以高效地进行并行计算。',
+                'Now we have regular windows again, allowing for efficient parallel computation.',
+                5000
+            );
+
+            const maskGroup = createSVGElement('g', { id: 'mask-group' });
+            canvas.appendChild(maskGroup);
+
+            const maskPatches = patches.filter(p => {
+                const w_row = Math.floor(p.row / CONFIG.windowPatchSize);
+                const w_col = Math.floor(p.col / CONFIG.windowPatchSize);
+                if (w_row === 0 && w_col > 0) return true; // Top mask area
+                if (w_col === 0 && w_row > 0) return true; // Left mask area
+                return false;
+            });
+
+            maskPatches.forEach(p => {
+                const rect = createSVGElement('rect', {
+                    x: p.x, y: p.y,
+                    width: CONFIG.patchSize,
+                    height: CONFIG.patchSize,
+                    rx: 10, ry: 10,
+                    class: 'mask'
+                });
+                maskGroup.appendChild(rect);
+                rect.style.opacity = 1;
+            });
+
+            await updateSubtitles(
+                '但需要一个注意力掩码 (Attention Mask)，来阻止那些本不相邻的区域进行信息交互。',
+                'However, an attention mask is needed to prevent information exchange between originally non-adjacent areas.',
+                6000
+            );
+
+            await updateSubtitles(
+                '计算完成后，我们需要将Patch移回原来的位置。',
+                'After computation, we need to shift the patches back to their original positions.',
+                4000
+            );
+
+            maskGroup.classList.add('fade-out');
+            windowGroup.classList.add('fade-out');
+            await sleep(800);
+            maskGroup.remove();
+            windowGroup.remove();
+
+            // Reverse cyclic shift
+            patchElements.forEach(el => {
+                const id = el.id.split('-');
+                const row = parseInt(id[1]);
+                const col = parseInt(id[2]);
+                const originalPos = patches.find(p => p.row === row && p.col === col);
+                const xWithShift = originalPos.x + shiftAmount * totalPatchSize;
+                const yWithShift = originalPos.y + shiftAmount * totalPatchSize;
+                el.setAttribute('x', xWithShift);
+                el.setAttribute('y', yWithShift);
+            });
+            await sleep(1000);
+
+            // Reverse initial shift
+            patchElements.forEach(el => {
+                const id = el.id.split('-');
+                const row = parseInt(id[1]);
+                const col = parseInt(id[2]);
+                const originalPos = patches.find(p => p.row === row && p.col === col);
+                el.setAttribute('x', originalPos.x);
+                el.setAttribute('y', originalPos.y);
+            });
+            await sleep(1000);
+        }
+
+        async function conclusion() {
+            const patchGrid = document.getElementById('patch-grid');
+            patchGrid.classList.add('fade-out');
+            await sleep(800);
+            patchGrid.remove();
+
+            const conclusionGroup = createSVGElement('g', { id: 'conclusion-group', opacity: 0 });
+            canvas.appendChild(conclusionGroup);
+
+            const text1 = createSVGElement('text', {
+                x: CONFIG.width / 2, y: 350,
+                'text-anchor': 'middle', 'font-size': '60px', fill: 'var(--primary-text)',
+            });
+            text1.textContent = '通过在连续的Transformer Block中交替使用';
+            conclusionGroup.appendChild(text1);
+
+            const text2 = createSVGElement('text', {
+                x: CONFIG.width / 2 - 300, y: 500,
+                'text-anchor': 'middle', 'font-size': '50px', fill: 'var(--accent-color-1)',
+            });
+            text2.textContent = '常规窗口 (W-MSA)';
+            conclusionGroup.appendChild(text2);
+
+            const text3 = createSVGElement('text', {
+                x: CONFIG.width / 2, y: 500,
+                'text-anchor': 'middle', 'font-size': '50px', fill: 'var(--primary-text)',
+            });
+            text3.textContent = '和';
+            conclusionGroup.appendChild(text3);
+
+            const text4 = createSVGElement('text', {
+                x: CONFIG.width / 2 + 300, y: 500,
+                'text-anchor': 'middle', 'font-size': '50px', fill: 'var(--accent-color-3)',
+            });
+            text4.textContent = '转移窗口 (SW-MSA)';
+            conclusionGroup.appendChild(text4);
+
+            // Visual representation
+            const rectWMSA = createSVGElement('rect', {
+                x: CONFIG.width / 2 - 550, y: 650, width: 400, height: 200, rx: 20,
+                fill: 'rgba(116, 143, 252, 0.1)', stroke: 'var(--accent-color-1)', 'stroke-width': 4
+            });
+            conclusionGroup.appendChild(rectWMSA);
+            const textWMSA = createSVGElement('text', {
+                x: CONFIG.width / 2 - 350, y: 765, 'text-anchor': 'middle', 'font-size': '40px', fill: 'var(--accent-color-1)'
+            });
+            textWMSA.textContent = 'Layer L (W-MSA)';
+            conclusionGroup.appendChild(textWMSA);
+
+            const rectSWMSA = createSVGElement('rect', {
+                x: CONFIG.width / 2 + 150, y: 650, width: 400, height: 200, rx: 20,
+                fill: 'rgba(99, 230, 190, 0.1)', stroke: 'var(--accent-color-3)', 'stroke-width': 4
+            });
+            conclusionGroup.appendChild(rectSWMSA);
+            const textSWMSA = createSVGElement('text', {
+                x: CONFIG.width / 2 + 350, y: 765, 'text-anchor': 'middle', 'font-size': '40px', fill: 'var(--accent-color-3)'
+            });
+            textSWMSA.textContent = 'Layer L+1 (SW-MSA)';
+            conclusionGroup.appendChild(textSWMSA);
+
+            const arrow = createSVGElement('path', {
+                d: `M ${CONFIG.width / 2 - 130} 750 L ${CONFIG.width / 2 + 130} 750`,
+                stroke: 'var(--secondary-text)', 'stroke-width': 5,
+                'marker-end': 'url(#arrowhead)'
+            });
+            const defs = createSVGElement('defs');
+            defs.innerHTML = `
+                <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--secondary-text)" />
+                </marker>
+            `;
+            canvas.appendChild(defs);
+            conclusionGroup.appendChild(arrow);
+
+            const textFinal = createSVGElement('text', {
+                x: CONFIG.width / 2, y: 1000,
+                'text-anchor': 'middle', 'font-size': '70px', fill: 'var(--primary-text)', 'font-weight': 500
+            });
+            textFinal.textContent = 'Swin Transformer实现了高效计算和全局信息交互的统一。';
+            conclusionGroup.appendChild(textFinal);
+
+            conclusionGroup.classList.add('fade-in');
+
+            await updateSubtitles(
+                '通过交替使用这两种机制，Swin Transformer既保持了计算高效性，又实现了跨窗口的信息流动，拥有了全局感受野。',
+                'By alternating these two mechanisms, Swin Transformer maintains efficiency while enabling cross-window information flow, achieving a global receptive field.',
+                8000
+            );
+        }
+
+        async function main() {
+            // Initial setup
+            createGradients();
+            drawGrid();
+
+            // Handle responsive scaling
+            const container = document.getElementById('container');
+            function resize() {
+                const scale = Math.min(window.innerWidth / CONFIG.width, window.innerHeight / CONFIG.height);
+                container.style.transform = `scale(${scale})`;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            // Animation sequence
+            await showTitle();
+            await showInitialGrid();
+            await problemOfGlobalAttention();
+            await introduceWindows();
+            await performShift();
+            await cyclicShiftAndMask();
+            await conclusion();
+        }
+
+        window.onload = main;
+    </script>
+
+</body>
+
+</html>

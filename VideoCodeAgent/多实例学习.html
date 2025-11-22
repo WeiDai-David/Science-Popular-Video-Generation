@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多实例学习动画 | Animation for Multiple Instance Learning</title>
+    <style>
+        :root {
+            --bg-color: #f7f9fc;
+            --primary-color: #4a90e2;
+            --secondary-color: #50e3c2;
+            --negative-color: #f5a623;
+            --text-color: #333;
+            --light-text-color: #555;
+            --container-shadow: rgba(0, 0, 0, 0.08);
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            width: 100vw;
+            height: 56.25vw;
+            /* 16:9 Aspect Ratio */
+            max-width: 2560px;
+            max-height: 1440px;
+            position: relative;
+            box-shadow: 0 10px 30px var(--container-shadow);
+            background: #fff;
+            border-radius: 12px;
+        }
+
+        #svg-canvas {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .subtitle-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 15px var(--container-shadow);
+            pointer-events: none;
+        }
+
+        .subtitle-cn {
+            font-size: 28px;
+            color: var(--text-color);
+            margin: 0 0 8px 0;
+            font-weight: 600;
+        }
+
+        .subtitle-en {
+            font-size: 20px;
+            color: var(--light-text-color);
+            margin: 0;
+        }
+
+        /* SVG Element Styles */
+        .instance-circle {
+            fill: #d8d8d8;
+        }
+
+        .instance-star {
+            fill: var(--secondary-color);
+        }
+
+        .bag {
+            fill: var(--primary-color);
+            fill-opacity: 0.1;
+            stroke: var(--primary-color);
+            stroke-width: 3;
+            rx: 20;
+            ry: 20;
+        }
+
+        .label-positive {
+            fill: var(--secondary-color);
+        }
+
+        .label-negative {
+            fill: var(--negative-color);
+        }
+
+        .model-box {
+            fill: #fff;
+            stroke: #ccc;
+            stroke-width: 3;
+            rx: 15;
+            ry: 15;
+        }
+
+        .model-text {
+            font-size: 40px;
+            font-weight: bold;
+            fill: var(--text-color);
+        }
+
+        .concept-text {
+            font-size: 50px;
+            fill: var(--text-color);
+            font-weight: 300;
+        }
+
+        .title-text {
+            font-size: 80px;
+            fill: var(--text-color);
+            font-weight: 600;
+        }
+
+        .arrow {
+            stroke: #aaa;
+            stroke-width: 5;
+            marker-end: url(#arrowhead);
+        }
+
+        .data-flow-arrow {
+            stroke: var(--primary-color);
+            stroke-opacity: 0.6;
+            stroke-width: 8;
+            marker-end: url(#arrowhead-data);
+            stroke-dasharray: 20 15;
+        }
+
+        .magnifying-glass-body {
+            fill: none;
+            stroke: #a0a0a0;
+            stroke-width: 15;
+        }
+
+        .magnifying-glass-handle {
+            fill: #a0a0a0;
+        }
+
+        .wsi-bg {
+            fill: #fde9ea;
+        }
+
+        .wsi-cells-normal {
+            fill: #f9c5cb;
+        }
+
+        .wsi-cells-positive {
+            fill: #d90429;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-wrapper">
+        <svg id="svg-canvas" viewBox="0 0 2560 1440">
+            <!-- Arrowhead Definitions -->
+            <defs>
+                <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6"
+                    orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#aaa" />
+                </marker>
+                <marker id="arrowhead-data" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6"
+                    orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill-opacity="0.6" fill-rule="evenodd"
+                        fill="var(--primary-color)" />
+                </marker>
+            </defs>
+
+            <!-- Scene 0: Title -->
+            <g id="title-group" opacity="0">
+                <text x="1280" y="650" text-anchor="middle" class="title-text">多实例学习</text>
+                <text x="1280" y="750" text-anchor="middle" class="concept-text"
+                    style="font-size: 40px; fill: var(--light-text-color);">Multiple Instance Learning</text>
+            </g>
+
+            <!-- Scene 1: Traditional Supervised Learning -->
+            <g id="s1-group" opacity="0">
+                <path id="s1-star" class="instance-star" transform="translate(400, 720)"
+                    d="M0 -50 L11.76 -15.45 L47.55 -15.45 L19.02 7.64 L30.9 40.45 L0 20 L-30.9 40.45 L-19.02 7.64 L-47.55 -15.45 L-11.76 -15.45 Z" />
+                <circle id="s1-circle" class="instance-circle" cx="450" cy="720" r="40" />
+
+                <rect class="model-box" x="1180" y="620" width="200" height="200"></rect>
+                <text class="model-text" x="1280" y="735" text-anchor="middle">分类器</text>
+
+                <path id="s1-arrow1" class="arrow" d="M550 720 L 1150 720" />
+                <path id="s1-arrow2" class="arrow" d="M550 720 L 1150 720" />
+
+                <g id="s1-label-pos" transform="translate(1550, 720) scale(1.5)">
+                    <path class="label-positive" d="M-28.5,2.5 L-10.5,20.5 L28.5,-18.5" stroke="var(--secondary-color)"
+                        stroke-width="8" fill="none" stroke-linecap="round" />
+                </g>
+                <g id="s1-label-neg" transform="translate(1550, 720) scale(1.5)">
+                    <path class="label-negative" d="M-20,-20 L20,20 M20,-20 L-20,20" stroke="var(--negative-color)"
+                        stroke-width="8" fill="none" stroke-linecap="round" />
+                </g>
+            </g>
+
+            <!-- Scene 2 & 3: Multiple Instance Learning Concept -->
+            <g id="s2-bags-group">
+                <!-- Negative Bag -->
+                <g id="s2-neg-bag-group" opacity="0">
+                    <rect id="s2-neg-bag" class="bag" x="350" y="500" width="600" height="440" />
+                    <circle class="instance-circle" id="s2-neg-c1" cx="450" cy="100" r="30" />
+                    <circle class="instance-circle" id="s2-neg-c2" cx="550" cy="100" r="30" />
+                    <circle class="instance-circle" id="s2-neg-c3" cx="650" cy="100" r="30" />
+                    <circle class="instance-circle" id="s2-neg-c4" cx="750" cy="100" r="30" />
+                    <g id="s2-neg-label" transform="translate(650, 400) scale(2)" opacity="0">
+                        <path class="label-negative" d="M-20,-20 L20,20 M20,-20 L-20,20" stroke="var(--negative-color)"
+                            stroke-width="8" fill="none" stroke-linecap="round" />
+                        <text class="model-text" x="70" y="10" text-anchor="start"
+                            fill="var(--negative-color)">负包</text>
+                    </g>
+                </g>
+                <!-- Positive Bag -->
+                <g id="s2-pos-bag-group" opacity="0">
+                    <rect id="s2-pos-bag" class="bag" x="1610" y="500" width="600" height="440" />
+                    <circle class="instance-circle" id="s2-pos-c1" cx="1710" cy="100" r="30" />
+                    <circle class="instance-circle" id="s2-pos-c2" cx="1810" cy="100" r="30" />
+                    <path class="instance-star" id="s2-pos-s1" transform="translate(1960, 100) scale(0.7)"
+                        d="M0 -50 L11.76 -15.45 L47.55 -15.45 L19.02 7.64 L30.9 40.45 L0 20 L-30.9 40.45 L-19.02 7.64 L-47.55 -15.45 L-11.76 -15.45 Z" />
+                    <circle class="instance-circle" id="s2-pos-c3" cx="2110" cy="100" r="30" />
+                    <g id="s2-pos-label" transform="translate(1910, 400) scale(2)" opacity="0">
+                        <path class="label-positive" d="M-28.5,2.5 L-10.5,20.5 L28.5,-18.5"
+                            stroke="var(--secondary-color)" stroke-width="8" fill="none" stroke-linecap="round" />
+                        <text class="model-text" x="70" y="10" text-anchor="start"
+                            fill="var(--secondary-color)">正包</text>
+                    </g>
+                </g>
+            </g>
+
+            <!-- Scene 4: Learning Process -->
+            <g id="s4-learning-group" opacity="0">
+                <rect class="model-box" x="1130" y="520" width="300" height="400"></rect>
+                <text class="model-text" x="1280" y="700" text-anchor="middle">MIL 模型</text>
+                <text class="model-text" x="1280" y="780" text-anchor="middle"
+                    style="font-size: 30px; fill: var(--light-text-color)">(MIL Model)</text>
+                <path class="data-flow-arrow" id="s4-arrow-neg" d="M950 720 L 1130 720" opacity="0" />
+                <path class="data-flow-arrow" id="s4-arrow-pos" d="M1610 720 L 1430 720" opacity="0" />
+            </g>
+
+            <!-- Scene 5: Prediction -->
+            <g id="s5-prediction-group" opacity="0">
+                <g id="s5-new-bag-group">
+                    <rect id="s5-new-bag" class="bag" x="350" y="500" width="600" height="440" />
+                    <circle class="instance-circle" cx="480" cy="650" r="30" />
+                    <circle class="instance-circle" cx="600" cy="780" r="30" />
+                    <path id="s5-hidden-star" class="instance-star" transform="translate(750, 680) scale(0.7)"
+                        d="M0 -50 L11.76 -15.45 L47.55 -15.45 L19.02 7.64 L30.9 40.45 L0 20 L-30.9 40.45 L-19.02 7.64 L-47.55 -15.45 L-11.76 -15.45 Z" />
+                    <circle class="instance-circle" cx="820" cy="580" r="30" />
+                    <text id="s5-question-mark" x="650" y="400" text-anchor="middle" font-size="100"
+                        fill="var(--primary-color)">?</text>
+                </g>
+                <path class="data-flow-arrow" d="M950 720 L 1130 720" />
+                <rect class="model-box" x="1130" y="520" width="300" height="400"></rect>
+                <text class="model-text" x="1280" y="700" text-anchor="middle">MIL 模型</text>
+
+                <g id="s5-result-group" opacity="0" transform="translate(1800, 720)">
+                    <g id="s5-result-label" transform="scale(2.5)">
+                        <path class="label-positive" d="M-28.5,2.5 L-10.5,20.5 L28.5,-18.5"
+                            stroke="var(--secondary-color)" stroke-width="8" fill="none" stroke-linecap="round" />
+                    </g>
+                    <text class="model-text" x="100" y="15" text-anchor="start" fill="var(--secondary-color)">预测:
+                        正包</text>
+                </g>
+
+                <g id="s5-star-highlight" opacity="0">
+                    <path class="instance-star" stroke="var(--secondary-color)" stroke-width="10" fill="none"
+                        transform="translate(750, 680) scale(0.85)"
+                        d="M0 -50 L11.76 -15.45 L47.55 -15.45 L19.02 7.64 L30.9 40.45 L0 20 L-30.9 40.45 L-19.02 7.64 L-47.55 -15.45 L-11.76 -15.45 Z" />
+                </g>
+            </g>
+
+            <!-- Scene 6: Real World Example -->
+            <g id="s6-wsi-group" opacity="0">
+                <text x="1280" y="250" text-anchor="middle" class="concept-text" style="font-size: 60px;">真实世界案例:
+                    病理图像分析</text>
+                <rect x="580" y="400" width="1400" height="800" rx="20" ry="20" class="wsi-bg" />
+                <!-- Normal cells -->
+                <circle class="wsi-cells-normal" cx="700" cy="600" r="10" />
+                <circle class="wsi-cells-normal" cx="850" cy="800" r="15" />
+                <circle class="wsi-cells-normal" cx="1000" cy="550" r="8" />
+                <circle class="wsi-cells-normal" cx="1200" cy="1000" r="12" />
+                <circle class="wsi-cells-normal" cx="1400" cy="700" r="20" />
+                <circle class="wsi-cells-normal" cx="1600" cy="900" r="10" />
+                <circle class="wsi-cells-normal" cx="1800" cy="650" r="18" />
+
+                <!-- Positive cells -->
+                <g id="s6-positive-cluster">
+                    <circle class="wsi-cells-positive" cx="1550" cy="550" r="12" />
+                    <circle class="wsi-cells-positive" cx="1580" cy="580" r="15" />
+                    <circle class="wsi-cells-positive" cx="1620" cy="540" r="10" />
+                    <circle class="wsi-cells-positive" cx="1600" cy="510" r="8" />
+                </g>
+
+                <g id="s6-magnifying-glass" transform="translate(800, 700)">
+                    <circle cx="0" cy="0" r="150" class="magnifying-glass-body" />
+                    <rect x="-20" y="140" width="40" height="150" rx="10" ry="10" class="magnifying-glass-handle"
+                        transform="rotate(45)" />
+                </g>
+            </g>
+
+            <!-- Scene 7: Summary -->
+            <g id="s7-summary-group" opacity="0">
+                <text x="1280" y="300" text-anchor="middle" class="title-text">核心思想总结</text>
+                <text id="s7-line1" x="1280" y="500" text-anchor="middle" class="concept-text">1. 数据以“包” (Bag)
+                    的形式存在，每个包包含多个“实例” (Instance)。</text>
+                <text id="s7-line2" x="1280" y="650" text-anchor="middle" class="concept-text">2.
+                    “正包”中至少有一个是“正实例”。</text>
+                <text id="s7-line3" x="1280" y="800" text-anchor="middle" class="concept-text">3.
+                    “负包”中所有实例都是“负实例”。</text>
+                <text id="s7-line4" x="1280" y="950" text-anchor="middle" class="concept-text">4. 目标:
+                    训练模型，不仅能分类包，还能找出关键的正实例。</text>
+            </g>
+
+        </svg>
+
+        <div class="subtitle-container">
+            <p class="subtitle-cn" id="subtitle-cn"></p>
+            <p class="subtitle-en" id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        const cn = document.getElementById('subtitle-cn');
+        const en = document.getElementById('subtitle-en');
+        const tl = gsap.timeline({ delay: 1 });
+
+        function updateSubtitles(chinese, english) {
+            cn.innerHTML = chinese;
+            en.innerHTML = english;
+        }
+
+        // --- Animation Sequence ---
+
+        // Scene 0: Title
+        tl.to("#title-group", { opacity: 1, duration: 1.5, ease: "power2.inOut" })
+            .call(updateSubtitles, ["让我们从一个大家熟悉的概念开始。", "Let's start with a concept we're all familiar with."], ">")
+            .to("#title-group", { opacity: 0, duration: 1, ease: "power2.inOut" }, "+=2");
+
+        // Scene 1: Traditional Supervised Learning
+        tl.addLabel("scene1")
+            .call(updateSubtitles, ["在传统的监督学习中，每个样本都有一个明确的标签。", "In traditional supervised learning, every single sample has a clear label."], "scene1")
+            .to("#s1-group", { opacity: 1, duration: 0.5 })
+            .from("#s1-star", { x: -300, opacity: 0, duration: 1, ease: "power2.out" })
+            .from("#s1-arrow1", { scaleX: 0, transformOrigin: "left", duration: 1, ease: "power2.out" }, "<0.5")
+            .from("#s1-label-pos", { x: 100, opacity: 0, duration: 1, ease: "power2.out" }, "<0.5")
+            .call(updateSubtitles, ["比如，这张图被标记为“正类”。", "For example, this image is labeled as 'positive'."], ">+=1")
+            .to(["#s1-star", "#s1-arrow1", "#s1-label-pos"], { opacity: 0, duration: 1, ease: "power2.inOut" }, "+=2")
+
+            .from("#s1-circle", { x: -300, opacity: 0, duration: 1, ease: "power2.out" })
+            .from("#s1-arrow2", { scaleX: 0, transformOrigin: "left", duration: 1, ease: "power2.out" }, "<0.5")
+            .from("#s1-label-neg", { x: 100, opacity: 0, duration: 1, ease: "power2.out" }, "<0.5")
+            .call(updateSubtitles, ["而这张图被标记为“负类”。一对一，非常直接。", "And this one is labeled as 'negative'. It's a direct one-to-one mapping."], ">")
+            .to("#s1-group", { opacity: 0, duration: 1, ease: "power2.inOut" }, "+=2.5");
+
+        // Scene 2 & 3: MIL Introduction
+        tl.addLabel("scene2")
+            .call(updateSubtitles, ["但如果情况变了呢？我们只有一堆样本的“集体标签”。", "But what if things change? What if we only have a 'group label' for a set of samples?"], "scene2")
+            .to("#s2-neg-bag-group", { opacity: 1, duration: 1 })
+            .from("#s2-neg-bag", { scale: 0.8, opacity: 0, transformOrigin: "center", duration: 1, ease: "back.out(1.7)" }, "<")
+            .call(updateSubtitles, ["这个“集体”我们称之为“包” (Bag)。", "We call this 'group' a 'Bag'."], ">")
+            .staggerFromTo(["#s2-neg-c1", "#s2-neg-c2", "#s2-neg-c3", "#s2-neg-c4"], 1, { y: -500, opacity: 0 }, { y: gsap.utils.random(600, 800), x: gsap.utils.random(450, 850), opacity: 1, ease: "bounce.out" }, 0.2, "+=1")
+            .call(updateSubtitles, ["如果一个包里所有的“实例” (Instance) 都是负的...", "If all 'instances' within a bag are negative..."], ">+=1")
+            .to("#s2-neg-label", { opacity: 1, scale: 2, duration: 0.5, ease: "back.out(1.7)" }, "+=1")
+            .call(updateSubtitles, ["那么这个包就是“负包”。这很明确。", "Then the bag is a 'negative bag'. This is straightforward."], ">")
+
+            .to("#s2-pos-bag-group", { opacity: 1, duration: 1 }, "+=2")
+            .from("#s2-pos-bag", { scale: 0.8, opacity: 0, transformOrigin: "center", duration: 1, ease: "back.out(1.7)" }, "<")
+            .call(updateSubtitles, ["但有趣的地方来了。对于“正包”...", "But here comes the interesting part. For a 'positive bag'..."], ">")
+            .staggerFromTo(["#s2-pos-c1", "#s2-pos-c2", "#s2-pos-s1", "#s2-pos-c3"], 1, { y: -500, opacity: 0 }, { y: gsap.utils.random(600, 800), x: (i) => 1710 + i * 140 + gsap.utils.random(-30, 30), opacity: 1, ease: "bounce.out" }, 0.2, "+=1")
+            .call(updateSubtitles, ["...它的定义是：包里“至少包含一个”正实例。", "...it's defined as a bag containing 'at least one' positive instance."], ">+=1")
+            .to("#s2-pos-s1", { scale: 1, duration: 0.3, repeat: 3, yoyo: true, ease: "power1.inOut" }, ">")
+            .to("#s2-pos-label", { opacity: 1, scale: 2, duration: 0.5, ease: "back.out(1.7)" }, "+=1")
+            .call(updateSubtitles, ["这就是多实例学习的核心假设。", "This is the core assumption of Multiple Instance Learning."], ">");
+
+        // Scene 4: Learning Process
+        tl.addLabel("scene4", "+=3")
+            .to("#s4-learning-group", { opacity: 1, duration: 1 }, "scene4")
+            .call(updateSubtitles, ["我们的任务，就是让模型从这些带标签的“包”中学习。", "Our task is to train a model to learn from these labeled bags."], "<")
+            .to(["#s2-neg-bag-group", "#s2-pos-bag-group"], { scale: 0.5, transformOrigin: "center", duration: 1.5, ease: "power2.inOut" }, ">")
+            .to("#s2-neg-bag-group", { x: -300, duration: 1.5, ease: "power2.inOut" }, "<")
+            .to("#s2-pos-bag-group", { x: -300, duration: 1.5, ease: "power2.inOut" }, "<")
+            .to(["#s4-arrow-neg", "#s4-arrow-pos"], { opacity: 1, duration: 1 }, ">-0.5")
+            .call(updateSubtitles, ["模型不知道哪个实例是关键，但它必须找出规律。", "The model doesn't know which instance is the key, but it must figure out the pattern."], ">")
+            .to("#s4-learning-group, #s2-bags-group", { opacity: 0, duration: 1 }, "+=3");
+
+        // Scene 5: Prediction
+        tl.addLabel("scene5")
+            .to("#s5-prediction-group", { opacity: 1, duration: 1 }, "scene5")
+            .call(updateSubtitles, ["学习完成后，我们给模型一个未知的“包”。", "After training, we give the model a new, unseen bag."], "<")
+            .from("#s5-new-bag-group", { x: -500, opacity: 0, duration: 1.5, ease: "power2.out" }, ">")
+            .call(updateSubtitles, ["模型需要判断，这个包是正的还是负的？", "The model needs to predict: is this bag positive or negative?"], ">+=2")
+            .to("#s5-question-mark", { opacity: 0, duration: 0.5 }, "+=1")
+            .to("#s5-result-group", { opacity: 1, duration: 1, ease: "power2.out" }, ">")
+            .call(updateSubtitles, ["它成功预测出这是一个“正包”！", "It successfully predicts this is a 'positive bag'!"], ">")
+            .call(updateSubtitles, ["更棒的是，许多MIL模型还能定位出那个关键的正实例。", "Even better, many MIL models can also locate the key positive instance."], "+=2.5")
+            .to("#s5-star-highlight", { opacity: 1, duration: 0.5, repeat: 3, yoyo: true }, ">")
+            .to("#s5-prediction-group", { opacity: 0, duration: 1 }, "+=2");
+
+        // Scene 6: Real World Example
+        tl.addLabel("scene6")
+            .to("#s6-wsi-group", { opacity: 1, duration: 1 }, "scene6")
+            .call(updateSubtitles, ["一个典型的应用是数字病理学。", "A classic application is in digital pathology."], "<")
+            .call(updateSubtitles, ["整张病理切片是一个“包”，而微小的细胞区域是“实例”。", "A whole-slide image is a 'bag', and the tiny cell regions are 'instances'."], "+=3")
+            .call(updateSubtitles, ["只要切片中存在任何癌细胞（正实例），整张切片（包）就被标记为“阳性”。", "If any cancer cells (positive instances) exist, the entire slide (bag) is labeled 'positive'."], "+=3")
+            .to("#s6-magnifying-glass", { x: 1600, y: 550, scale: 1.5, duration: 4, ease: "sine.inOut" }, ">")
+            .to("#s6-positive-cluster", { scale: 1.5, transformOrigin: "center", duration: 0.5, repeat: 3, yoyo: true, ease: "power1.inOut" }, ">-1")
+            .call(updateSubtitles, ["MIL帮助我们从海量数据中自动定位病灶区域。", "MIL helps us automatically pinpoint lesion areas from massive amounts of data."], ">")
+            .to("#s6-wsi-group", { opacity: 0, duration: 1 }, "+=3");
+
+        // Scene 7: Summary
+        tl.addLabel("scene7")
+            .to("#s7-summary-group", { opacity: 1, duration: 1 }, "scene7")
+            .call(updateSubtitles, ["", ""], "<")
+            .from("#s7-line1", { opacity: 0, y: 30, duration: 1 }, ">0.5")
+            .from("#s7-line2", { opacity: 0, y: 30, duration: 1 }, ">1")
+            .from("#s7-line3", { opacity: 0, y: 30, duration: 1 }, ">1")
+            .from("#s7-line4", { opacity: 0, y: 30, duration: 1 }, ">1");
+
+    </script>
+</body>
+
+</html>

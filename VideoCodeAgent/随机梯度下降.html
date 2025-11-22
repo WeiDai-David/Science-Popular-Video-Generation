@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stochastic Gradient Descent Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #F0F4F8;
+            --text-color: #34495E;
+            --accent-color-1: #5DADE2;
+            --accent-color-2: #48C9B0;
+            --accent-color-3: #FAD7A0;
+            --accent-color-4: #E74C3C;
+            --accent-color-5: #ECF0F1;
+            --path-color: rgba(243, 156, 18, 0.6);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Nunito Sans', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            position: relative;
+            width: 90vw;
+            max-width: 1440px;
+            /* Limit max width for extremely large screens */
+            aspect-ratio: 16 / 9;
+            background-color: #FFFFFF;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        #svg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Landscape elements */
+        .mountain {
+            transition: opacity 1s ease-in-out;
+        }
+
+        /* Data points */
+        .data-point {
+            fill: var(--accent-color-1);
+            opacity: 0;
+            transition: opacity 0.5s ease, r 0.3s ease, fill 0.3s ease;
+        }
+
+        .data-point.visible {
+            opacity: 0.5;
+        }
+
+        .data-point.highlighted {
+            opacity: 1;
+            fill: var(--accent-color-4);
+            r: 8;
+        }
+
+        /* The 'ball' representing our model parameters */
+        #ball {
+            fill: url(#ball-gradient);
+            stroke: white;
+            stroke-width: 3;
+            filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.15));
+            transition: transform 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+
+        /* Gradient arrow */
+        #gradient-arrow {
+            stroke-width: 5;
+            stroke-linecap: round;
+            opacity: 0;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            transform-origin: 0% 50%;
+        }
+
+        /* Path trace */
+        #path-trace {
+            fill: none;
+            stroke: var(--path-color);
+            stroke-width: 4;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            transition: stroke-dashoffset 2s ease-out;
+        }
+
+        /* Text Elements */
+        .title-text {
+            font-size: 50px;
+            font-weight: 700;
+            fill: var(--text-color);
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+        }
+
+        #subtitle-zh {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        #subtitle-en {
+            font-size: 18px;
+            color: #566573;
+            margin: 5px 0 0 0;
+        }
+
+        /* Helper classes for JS control */
+        .visible {
+            opacity: 1 !important;
+        }
+
+        .hidden {
+            opacity: 0 !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="svg-canvas" viewBox="0 0 2560 1440" preserveAspectRatio="xMidYMid meet">
+            <!-- Define gradients and filters -->
+            <defs>
+                <radialGradient id="ball-gradient" cx="0.3" cy="0.3" r="0.7">
+                    <stop offset="0%" stop-color="#FAD7A0" />
+                    <stop offset="100%" stop-color="#F39C12" />
+                </radialGradient>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" />
+                </marker>
+            </defs>
+
+            <!-- Background Landscape -->
+            <g id="landscape">
+                <path class="mountain" id="mountain3"
+                    d="M -10,1450 C 400,1300 600,1000 900,1150 C 1200,1300 1500,1050 1800,1200 C 2100,1350 2300,1200 2570,1350 L 2570,1450 Z"
+                    fill="#D6EAF8" />
+                <path class="mountain" id="mountain2"
+                    d="M -10,1450 C 300,1200 500,950 850,1100 C 1200,1250 1600,900 1900,1050 C 2200,1200 2400,1100 2570,1250 L 2570,1450 Z"
+                    fill="#AED6F1" />
+                <path class="mountain" id="mountain1"
+                    d="M -10,1450 C 400,1100 600,850 950,1000 C 1300,1150 1700,800 2000,950 C 2300,1100 2500,950 2570,1100 L 2570,1450 Z"
+                    fill="#85C1E9" />
+            </g>
+
+            <!-- Goal (Lowest point) -->
+            <g id="goal" transform="translate(1850, 880)" opacity="0">
+                <circle cx="0" cy="0" r="40" fill="#48C9B0" opacity="0.3" />
+                <circle cx="0" cy="0" r="25" fill="#48C9B0" opacity="0.6" />
+                <circle cx="0" cy="0" r="10" fill="white" />
+            </g>
+
+            <!-- Data Points Container -->
+            <g id="data-points-container"></g>
+
+            <!-- Path Trace -->
+            <polyline id="path-trace" points=""></polyline>
+
+            <!-- Gradient Arrow -->
+            <line id="gradient-arrow" x1="0" y1="0" x2="150" y2="0" marker-end="url(#arrowhead)" />
+
+            <!-- Ball -->
+            <circle id="ball" cx="0" cy="0" r="25" transform="translate(600, 450)" opacity="0" />
+
+            <!-- Titles -->
+            <text x="1280" y="650" text-anchor="middle" class="title-text" id="main-title">Stochastic Gradient
+                Descent</text>
+            <text x="1280" y="750" text-anchor="middle" class="title-text" id="sub-title">随机梯度下降</text>
+        </svg>
+
+        <div id="subtitles">
+            <p id="subtitle-zh"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const ball = document.getElementById('ball');
+        const subtitles = document.getElementById('subtitles');
+        const subtitleZh = document.getElementById('subtitle-zh');
+        const subtitleEn = document.getElementById('subtitle-en');
+        const mainTitle = document.getElementById('main-title');
+        const subTitle = document.getElementById('sub-title');
+        const landscape = document.getElementById('landscape');
+        const dataPointsContainer = document.getElementById('data-points-container');
+        const goal = document.getElementById('goal');
+        const gradientArrow = document.getElementById('gradient-arrow');
+        const pathTrace = document.getElementById('path-trace');
+
+        // Animation configuration
+        const START_POS = { x: 600, y: 450 };
+        const GOAL_POS = { x: 1850, y: 880 };
+        const NUM_DATA_POINTS = 50;
+
+        // Subtitle Data
+        const NARRATION = [
+            { zh: "想象一下，我们的目标是在这片复杂的“损失函数”山脉中找到最低点。", en: "Imagine our goal is to find the lowest point in this complex 'loss function' mountain range." },
+            { zh: "这个最低点，就是我们模型的最优解。", en: "This lowest point represents the optimal solution for our model." },
+            { zh: "一种直接的方法是“批量梯度下降”，它会审视所有数据点...", en: "One direct method is 'Batch Gradient Descent', which considers all data points..." },
+            { zh: "...然后计算出一个最准确的下降方向。方向虽准，但计算量巨大，非常耗时。", en: "...to calculate the most accurate direction to descend. It's precise, but computationally very expensive." },
+            { zh: "现在，我们引入一种更聪明的方法：随机梯度下降 (SGD)。", en: "Now, let's introduce a smarter approach: Stochastic Gradient Descent (SGD)." },
+            { zh: "SGD 不再观察所有数据，而是每次只随机选择一个数据点。", en: "Instead of looking at all the data, SGD randomly picks just one data point at a time." },
+            { zh: "基于这个单一的数据点，我们估算一个下降方向并迈出一步。", en: "Based on this single point, we estimate a direction and take a step." },
+            { zh: "这一步可能不是全局最优的，路径看起来有些摇晃。", en: "This step might not be globally optimal, making the path seem a bit wobbly." },
+            { zh: "但我们重复这个过程：随机选点，计算，迈步...", en: "But we repeat this process: randomly pick a point, calculate, and take a step..." },
+            { zh: "通过大量、快速的迭代，我们正稳步地向着最低点前进。", en: "Through many rapid iterations, we steadily progress towards the minimum." },
+            { zh: "虽然过程曲折，但SGD以极高的效率，最终将我们带到目标附近。", en: "Despite the winding path, SGD guides us near our goal with great efficiency." },
+            { zh: "这就是随机梯度下降的魅力：快速、高效，是训练现代复杂模型的关键。", en: "This is the power of Stochastic Gradient Descent: fast, efficient, and key to training modern complex models." },
+        ];
+
+        // Utility function for delay
+        const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
+        // Function to update subtitles
+        function updateSubtitles(index) {
+            subtitles.classList.add('visible');
+            subtitleZh.textContent = NARRATION[index].zh;
+            subtitleEn.textContent = NARRATION[index].en;
+        }
+
+        // Function to hide subtitles
+        function hideSubtitles() {
+            subtitles.classList.remove('visible');
+        }
+
+        // Generate data points randomly on the landscape
+        let dataPoints = [];
+        function generateDataPoints() {
+            for (let i = 0; i < NUM_DATA_POINTS; i++) {
+                const point = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                const x = 500 + Math.random() * 1600;
+                const y = 400 + Math.random() * 600;
+                point.setAttribute('class', 'data-point');
+                point.setAttribute('cx', x);
+                point.setAttribute('cy', y);
+                point.setAttribute('r', 5);
+                dataPointsContainer.appendChild(point);
+                dataPoints.push({ el: point, x, y });
+            }
+        }
+
+        function setTransform(el, { x, y, angle = 0, scale = 1 }) {
+            el.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) scale(${scale})`;
+        }
+
+        // Main animation sequence
+        async function playAnimation() {
+            // --- SCENE 0: Intro Titles ---
+            await sleep(500);
+            mainTitle.classList.add('visible');
+            subTitle.classList.add('visible');
+            await sleep(3500);
+            mainTitle.classList.remove('visible');
+            subTitle.classList.remove('visible');
+
+            // --- SCENE 1: The Goal ---
+            await sleep(1000);
+            ball.style.transform = `translate(${START_POS.x}px, ${START_POS.y}px)`;
+            ball.classList.add('visible');
+            landscape.classList.add('visible');
+            updateSubtitles(0);
+            await sleep(4000);
+            goal.classList.add('visible');
+            updateSubtitles(1);
+            await sleep(4000);
+
+            // --- SCENE 2: Batch Gradient Descent ---
+            hideSubtitles();
+            await sleep(800);
+            updateSubtitles(2);
+            generateDataPoints();
+            await sleep(500);
+            dataPoints.forEach(p => p.el.classList.add('visible'));
+            await sleep(3500);
+
+            // Animate BGD arrow
+            const angleBGD = Math.atan2(GOAL_POS.y - START_POS.y, GOAL_POS.x - START_POS.x) * 180 / Math.PI;
+            gradientArrow.style.stroke = 'var(--accent-color-2)';
+            gradientArrow.setAttribute('marker-end', 'url(#arrowhead)');
+            gradientArrow.style.transform = `translate(${START_POS.x}px, ${START_POS.y}px) rotate(${angleBGD}deg)`;
+            gradientArrow.style.transition = 'opacity 0.4s ease, transform 0.4s ease, stroke-width 0.4s ease';
+            gradientArrow.style.strokeWidth = '10';
+            gradientArrow.classList.add('visible');
+
+            updateSubtitles(3);
+            await sleep(2000);
+
+            // Move with BGD
+            const nextPosBGD = {
+                x: START_POS.x + (GOAL_POS.x - START_POS.x) * 0.15,
+                y: START_POS.y + (GOAL_POS.y - START_POS.y) * 0.15
+            };
+            ball.style.transform = `translate(${nextPosBGD.x}px, ${nextPosBGD.y}px)`;
+            pathTrace.setAttribute('points', `${START_POS.x},${START_POS.y} ${nextPosBGD.x},${nextPosBGD.y}`);
+            pathTrace.style.strokeDashoffset = 0;
+
+            await sleep(2500);
+            gradientArrow.classList.remove('visible');
+            pathTrace.style.opacity = '0.3'; // Fade out the BGD path
+            dataPoints.forEach(p => p.el.classList.remove('visible'));
+
+            // Reset for SGD
+            ball.style.transition = 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)'; // Faster steps for SGD
+            ball.style.transform = `translate(${START_POS.x}px, ${START_POS.y}px)`;
+
+            await sleep(1000);
+
+            // --- SCENE 3: Introducing SGD ---
+            hideSubtitles();
+            await sleep(800);
+            updateSubtitles(4);
+            await sleep(4000);
+
+            updateSubtitles(5);
+            dataPoints.forEach(p => p.el.classList.add('visible'));
+            await sleep(1000);
+
+            // --- SCENE 4: SGD in Action ---
+            let currentPos = { ...START_POS };
+            let pathPoints = `${currentPos.x},${currentPos.y}`;
+            pathTrace.setAttribute('points', pathPoints);
+            pathTrace.style.opacity = '1';
+            pathTrace.style.transition = 'none';
+
+            gradientArrow.style.stroke = 'var(--accent-color-4)';
+            gradientArrow.style.strokeWidth = '5';
+
+            for (let i = 0; i < 15; i++) {
+                // Pick a random point
+                const randomPoint = dataPoints[Math.floor(Math.random() * dataPoints.length)];
+                randomPoint.el.classList.add('highlighted');
+
+                if (i === 0) {
+                    await sleep(500);
+                    updateSubtitles(6);
+                } else if (i === 3) {
+                    updateSubtitles(7);
+                } else if (i === 6) {
+                    updateSubtitles(8);
+                } else if (i === 10) {
+                    updateSubtitles(9);
+                }
+
+                // Calculate noisy gradient
+                let idealAngleRad = Math.atan2(GOAL_POS.y - currentPos.y, GOAL_POS.x - currentPos.x);
+                let noise = (Math.random() - 0.5) * 1.5; // Add significant noise
+                let stepAngleRad = idealAngleRad + noise;
+                let stepAngleDeg = stepAngleRad * 180 / Math.PI;
+
+                // Show arrow
+                gradientArrow.style.transform = `translate(${currentPos.x}px, ${currentPos.y}px) rotate(${stepAngleDeg}deg)`;
+                gradientArrow.classList.add('visible');
+                await sleep(300);
+
+                // Take a step
+                const stepLength = 80 + Math.random() * 40;
+                currentPos.x += Math.cos(stepAngleRad) * stepLength;
+                currentPos.y += Math.sin(stepAngleRad) * stepLength;
+
+                ball.style.transform = `translate(${currentPos.x}px, ${currentPos.y}px)`;
+
+                // Update path
+                pathPoints += ` ${currentPos.x},${currentPos.y}`;
+                pathTrace.setAttribute('points', pathPoints);
+
+                gradientArrow.classList.remove('visible');
+                await sleep(500);
+                randomPoint.el.classList.remove('highlighted');
+                await sleep(100);
+            }
+
+            // --- SCENE 5: Conclusion ---
+            hideSubtitles();
+            await sleep(500);
+
+            updateSubtitles(10);
+            ball.style.transition = 'transform 2s cubic-bezier(0.65, 0, 0.35, 1)';
+            ball.style.transform = `translate(${GOAL_POS.x}px, ${GOAL_POS.y}px)`;
+
+            pathPoints += ` ${GOAL_POS.x},${GOAL_POS.y}`;
+            pathTrace.setAttribute('points', pathPoints);
+            await sleep(2500);
+
+            updateSubtitles(11);
+            await sleep(5000);
+
+            // Fade out
+            hideSubtitles();
+            ball.classList.remove('visible');
+            goal.classList.remove('visible');
+            pathTrace.style.opacity = 0;
+            dataPoints.forEach(p => p.el.classList.remove('visible'));
+
+            await sleep(1000);
+            // Loop animation
+            playAnimation();
+        }
+
+        window.onload = playAnimation;
+
+    </script>
+</body>
+
+</html>

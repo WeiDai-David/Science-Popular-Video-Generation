@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multimodal Tokenizer Explained</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --text-color: #4A4A4A;
+            --accent-color: #F5A623;
+            --light-gray: #E9ECEF;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #E0E5EC;
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: var(--container-width);
+            height: var(--container-height);
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            transform-origin: center center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Scaling for different viewports */
+        @media (max-width: 2560px) {
+            #animation-container {
+                transform: scale(calc(100vw / var(--container-width)));
+            }
+        }
+
+        @media (max-height: 1440px) {
+            #animation-container {
+                transform: scale(calc(100vh / var(--container-height)));
+            }
+        }
+
+        @media (max-width: 2560px) and (max-height: 1440px) {
+            #animation-container {
+                transform: scale(min(calc(100vw / var(--container-width)), calc(100vh / var(--container-height))));
+            }
+        }
+
+
+        .element {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+            will-change: transform, opacity;
+        }
+
+        .visible {
+            opacity: 1;
+        }
+
+        /* Background decorative elements */
+        .bg-shapes {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .bg-shapes div {
+            position: absolute;
+            border-radius: 50%;
+            background-color: rgba(74, 144, 226, 0.05);
+            animation: float 20s infinite ease-in-out alternate;
+        }
+
+        .bg-shapes .shape1 {
+            width: 400px;
+            height: 400px;
+            top: 10%;
+            left: 5%;
+            animation-duration: 25s;
+        }
+
+        .bg-shapes .shape2 {
+            width: 250px;
+            height: 250px;
+            top: 70%;
+            left: 80%;
+            animation-duration: 18s;
+        }
+
+        .bg-shapes .shape3 {
+            width: 150px;
+            height: 150px;
+            top: 20%;
+            left: 90%;
+            animation-duration: 22s;
+        }
+
+        .bg-shapes .shape4 {
+            width: 300px;
+            height: 300px;
+            bottom: 5%;
+            left: 30%;
+            animation-duration: 20s;
+        }
+
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            100% {
+                transform: translateY(-50px) rotate(45deg);
+            }
+        }
+
+        /* Title Screen */
+        #title-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #main-title {
+            font-size: 120px;
+            font-weight: 600;
+            color: var(--primary-color);
+            transform: translateY(-50px);
+        }
+
+        #sub-title {
+            font-size: 60px;
+            font-weight: 300;
+            color: var(--text-color);
+            transform: translateY(50px);
+        }
+
+        /* Subtitles */
+        #subtitles {
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            z-index: 100;
+        }
+
+        #subtitle-cn {
+            font-size: 42px;
+            font-weight: 400;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            font-weight: 300;
+            color: #777;
+        }
+
+        /* Scene 1: Inputs */
+        #input-text,
+        #input-image {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            padding: 40px;
+        }
+
+        #input-text {
+            top: 400px;
+            left: 400px;
+            width: 600px;
+            height: 400px;
+            transform: scale(0.8);
+        }
+
+        #input-image {
+            top: 400px;
+            right: 400px;
+            width: 600px;
+            height: 400px;
+            transform: scale(0.8);
+        }
+
+        .input-label {
+            font-size: 36px;
+            color: var(--text-color);
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        #text-content {
+            font-size: 48px;
+            color: var(--primary-color);
+        }
+
+        #image-content {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* Dashed lines connecting inputs to center */
+        .line {
+            position: absolute;
+            stroke: var(--light-gray);
+            stroke-width: 8;
+            stroke-dasharray: 20 20;
+            stroke-linecap: round;
+            fill: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            stroke-dashoffset: 1000;
+            animation: dash 2s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* Scene 2: Tokenizers */
+        #text-tokenizer,
+        #image-tokenizer {
+            width: 400px;
+            height: 250px;
+            border: 5px solid var(--light-gray);
+            border-radius: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        #text-tokenizer {
+            top: 700px;
+            left: 750px;
+        }
+
+        #image-tokenizer {
+            top: 700px;
+            right: 750px;
+        }
+
+        .tokenizer-title {
+            font-size: 40px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-top: 20px;
+        }
+
+        /* Tokens */
+        .token {
+            width: 100px;
+            height: 60px;
+            border-radius: 10px;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: 600;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .text-token {
+            background-color: var(--primary-color);
+        }
+
+        .image-token {
+            background-color: var(--secondary-color);
+        }
+
+        .special-token {
+            background-color: var(--accent-color);
+        }
+
+        #text-tokens-container,
+        #image-tokens-container {
+            display: flex;
+            gap: 15px;
+        }
+
+        #text-tokens-container {
+            top: 1100px;
+            left: 580px;
+        }
+
+        #image-tokens-container {
+            top: 1100px;
+            right: 400px;
+        }
+
+        /* Image Patching Animation */
+        #image-patches {
+            top: 720px;
+            right: 420px;
+            width: 250px;
+            height: 250px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        .patch {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cstyle%3E.st0%7Bfill:%23F5A623;%7D .st1%7Bfill:%23FFFFFF;%7D%3C/style%3E%3Ccircle class='st0' cx='50' cy='50' r='48'/%3E%3Cpath class='st1' d='M68.8 25.1c-2.5-2.5-5.8-3.9-9.4-3.9s-6.9 1.4-9.4 3.9L50 25.1l-2.9-2.9c-5.2-5.2-13.6-5.2-18.8 0s-5.2 13.6 0 18.8l2.9 2.9L25 50l6.2 6.2 18.8 18.8 2.9 2.9c2.5 2.5 5.8 3.9 9.4 3.9s6.9-1.4 9.4-3.9c5.2-5.2 5.2-13.6 0-18.8L53.8 50l15-15c5.2-5.2 5.2-13.7 0-18.9z'/%3E%3Cpath class='st0' d='M31.2 43.8c-2.5-2.5-5.8-3.9-9.4-3.9s-6.9 1.4-9.4 3.9c-5.2 5.2-5.2 13.6 0 18.8L25 75l18.8-18.8L31.2 43.8z'/%3E%3C/svg%3E");
+            background-size: 400% 400%;
+            /* zoom in to show parts of the cat */
+            transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+        }
+
+        /* Scene 3: Unification */
+        #unified-sequence-container {
+            bottom: 150px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            padding: 20px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            border: 3px solid var(--light-gray);
+        }
+
+        /* Scene 4: AI Model */
+        #ai-model {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            width: 800px;
+            height: 600px;
+        }
+
+        .node {
+            fill: var(--primary-color);
+            stroke: white;
+            stroke-width: 8;
+            transition: fill 0.5s ease;
+        }
+
+        .node.active {
+            fill: var(--accent-color);
+        }
+
+        .connection {
+            stroke: var(--light-gray);
+            stroke-width: 4;
+            opacity: 0.5;
+        }
+
+        #model-output {
+            top: 1050px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1200px;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            font-size: 48px;
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        /* Final Scene */
+        #final-summary {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        #final-title {
+            font-size: 80px;
+            color: var(--primary-color);
+            margin-bottom: 40px;
+        }
+
+        #final-text {
+            font-size: 48px;
+            color: var(--text-color);
+            text-align: center;
+            max-width: 70%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+        <div class="bg-shapes">
+            <div class="shape1"></div>
+            <div class="shape2"></div>
+            <div class="shape3"></div>
+            <div class="shape4"></div>
+        </div>
+
+        <!-- Title Card -->
+        <div id="title-card" class="element">
+            <div id="main-title">Multimodal Tokenizer</div>
+            <div id="sub-title">多模态分词器</div>
+        </div>
+
+        <!-- Scene 1: Inputs -->
+        <div id="input-text" class="element">
+            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                style="color: var(--primary-color);">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <div id="text-content">"A cute cat"</div>
+            <div class="input-label">文本 Text</div>
+        </div>
+        <div id="input-image" class="element">
+            <svg id="image-content" viewBox="0 0 100 100">
+                <style>
+                    .st0 {
+                        fill: #F5A623;
+                    }
+
+                    .st1 {
+                        fill: #FFFFFF;
+                    }
+                </style>
+                <path class="st0"
+                    d="M85,20H15c-2.8,0-5,2.2-5,5v50c0,2.8,2.2,5,5,5h70c2.8,0,5-2.2,5-5V25C90,22.2,87.8,20,85,20z" />
+                <path class="st1"
+                    d="M68.8,35.1c-2.5-2.5-5.8-3.9-9.4-3.9s-6.9,1.4-9.4,3.9L50,35.1l-2.9-2.9c-5.2-5.2-13.6-5.2-18.8,0 s-5.2,13.6,0,18.8l2.9,2.9L25,60l6.2,6.2l18.8,18.8l2.9,2.9c2.5,2.5,5.8,3.9,9.4,3.9s6.9-1.4,9.4-3.9c5.2-5.2,5.2-13.6,0-18.8 L53.8,60l15-15C74,48.8,74,40.3,68.8,35.1z" />
+                <path class="st0"
+                    d="M31.2,53.8c-2.5-2.5-5.8-3.9-9.4-3.9s-6.9,1.4-9.4,3.9c-5.2,5.2-5.2,13.6,0,18.8L25,85l18.8-18.8L31.2,53.8z" />
+            </svg>
+            <div class="input-label">图像 Image</div>
+        </div>
+
+        <!-- Scene 2: Processing -->
+        <svg width="2560" height="1440" style="position:absolute; top:0; left:0; z-index: 5;">
+            <path id="line-text" class="line" d="M 700 800 C 700 900, 950 900, 950 825" />
+            <path id="line-image" class="line" d="M 1860 800 C 1860 900, 1610 900, 1610 825" />
+        </svg>
+
+        <div id="text-tokenizer" class="element">
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                style="color:var(--primary-color)">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                </path>
+            </svg>
+            <div class="tokenizer-title">Text Tokenizer</div>
+        </div>
+        <div id="image-tokenizer" class="element">
+            <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                style="color:var(--secondary-color)">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="12" y1="3" x2="12" y2="21"></line>
+            </svg>
+            <div class="tokenizer-title">Image Encoder</div>
+        </div>
+
+        <div id="text-tokens-container" class="element">
+            <div class="token text-token" style="transform: scale(0);">A</div>
+            <div class="token text-token" style="transform: scale(0);">cute</div>
+            <div class="token text-token" style="transform: scale(0);">cat</div>
+        </div>
+
+        <div id="image-patches" class="element"></div>
+        <div id="image-tokens-container" class="element"></div>
+
+        <!-- Scene 3: Unification -->
+        <div id="unified-sequence-container" class="element"></div>
+
+        <!-- Scene 4: AI Model -->
+        <svg id="ai-model" class="element" viewBox="0 0 800 600">
+            <!-- Connections -->
+            <g class="connections">
+                <line class="connection" x1="150" y1="150" x2="400" y2="100" />
+                <line class="connection" x1="150" y1="150" x2="400" y2="200" />
+                <line class="connection" x1="150" y1="150" x2="400" y2="300" />
+                <line class="connection" x1="150" y1="150" x2="400" y2="400" />
+                <line class="connection" x1="150" y1="150" x2="400" y2="500" />
+                <line class="connection" x1="150" y1="300" x2="400" y2="100" />
+                <line class="connection" x1="150" y1="300" x2="400" y2="200" />
+                <line class="connection" x1="150" y1="300" x2="400" y2="300" />
+                <line class="connection" x1="150" y1="300" x2="400" y2="400" />
+                <line class="connection" x1="150" y1="300" x2="400" y2="500" />
+                <line class="connection" x1="150" y1="450" x2="400" y2="100" />
+                <line class="connection" x1="150" y1="450" x2="400" y2="200" />
+                <line class="connection" x1="150" y1="450" x2="400" y2="300" />
+                <line class="connection" x1="150" y1="450" x2="400" y2="400" />
+                <line class="connection" x1="150" y1="450" x2="400" y2="500" />
+
+                <line class="connection" x1="400" y1="100" x2="650" y2="300" />
+                <line class="connection" x1="400" y1="200" x2="650" y2="300" />
+                <line class="connection" x1="400" y1="300" x2="650" y2="300" />
+                <line class="connection" x1="400" y1="400" x2="650" y2="300" />
+                <line class="connection" x1="400" y1="500" x2="650" y2="300" />
+            </g>
+            <!-- Nodes -->
+            <g class="nodes">
+                <circle class="node" id="node-in-1" cx="150" cy="150" r="40" />
+                <circle class="node" id="node-in-2" cx="150" cy="300" r="40" />
+                <circle class="node" id="node-in-3" cx="150" cy="450" r="40" />
+                <circle class="node" id="node-mid-1" cx="400" cy="100" r="30" />
+                <circle class="node" id="node-mid-2" cx="400" cy="200" r="30" />
+                <circle class="node" id="node-mid-3" cx="400" cy="300" r="30" />
+                <circle class="node" id="node-mid-4" cx="400" cy="400" r="30" />
+                <circle class="node" id="node-mid-5" cx="400" cy="500" r="30" />
+                <circle class="node" id="node-out-1" cx="650" cy="300" r="50" />
+            </g>
+        </svg>
+        <div id="model-output" class="element"></div>
+
+        <!-- Final Summary -->
+        <div id="final-summary" class="element">
+            <div id="final-title">Unified Language for AI</div>
+            <div id="final-text">Multimodal Tokenizers translate diverse data types into a single, unified sequence that
+                AI models can understand.</div>
+        </div>
+
+        <!-- Subtitles -->
+        <div id="subtitles" class="element">
+            <div id="subtitle-cn"></div>
+            <div id="subtitle-en"></div>
+        </div>
+
+    </div>
+
+    <script>
+        const D = (id) => document.getElementById(id);
+
+        const allElements = document.querySelectorAll('.element');
+        const subtitles = D('subtitles');
+        const subtitleCN = D('subtitle-cn');
+        const subtitleEN = D('subtitle-en');
+
+        const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
+        const narration = [
+            { cn: "大家好，今天我们来了解一个AI领域的关键概念。", en: "Hello everyone, today we'll explore a key concept in AI.", duration: 3000 },
+            { cn: "多模态分词器 (Multimodal Tokenizer)。", en: "The Multimodal Tokenizer.", duration: 3000 },
+            { cn: "首先，AI模型需要处理来自不同来源的数据。", en: "First, AI models need to process data from different sources.", duration: 3000 },
+            { cn: "比如，一段描述性的文字...", en: "For example, a piece of descriptive text...", duration: 2000 },
+            { cn: "...和一张与之相关的图片。", en: "...and a related image.", duration: 3000 },
+            { cn: "但是，AI模型本身不理解文字或图像，它们只懂数字。", en: "However, AI models don't understand text or images directly; they only understand numbers.", duration: 4000 },
+            { cn: "这就是分词器发挥作用的地方。它将不同类型的数据转换成统一的数字“令牌”(Token)。", en: "This is where the tokenizer comes in. It converts different data types into unified numerical 'tokens'.", duration: 5000 },
+            { cn: "对于文本，文本分词器会将其分解成词或子词单元。", en: "For text, a text tokenizer breaks it down into words or sub-word units.", duration: 4000 },
+            { cn: "每一个单元都变成一个独立的文本令牌。", en: "Each unit becomes an individual text token.", duration: 3000 },
+            { cn: "对于图像，过程稍有不同。图像编码器首先将图片切成小块(Patches)。", en: "For images, the process is slightly different. An image encoder first cuts the picture into small patches.", duration: 5000 },
+            { cn: "然后，每个小块被转换成一个图像令牌。", en: "Then, each patch is converted into an image token.", duration: 4000 },
+            { cn: "现在我们有了两种令牌，但它们还是分开的。", en: "Now we have two types of tokens, but they are still separate.", duration: 3000 },
+            { cn: "多模态分词器的核心任务，就是将这些来自不同模态的令牌...", en: "The core task of a multimodal tokenizer is to take these tokens from different modalities...", duration: 4000 },
+            { cn: "...合并成一个统一的序列。", en: "...and merge them into a single, unified sequence.", duration: 4000 },
+            { cn: "这个序列就像一种通用语言，其中包含了所有模态的信息。", en: "This sequence acts like a universal language, containing information from all modalities.", duration: 4000 },
+            { cn: "然后，这个统一的序列被送入一个大型AI模型中进行处理。", en: "This unified sequence is then fed into a large AI model for processing.", duration: 4000 },
+            { cn: "模型在理解了全部信息后，就可以执行复杂的任务，比如生成更详细的描述。", en: "After understanding all the information, the model can perform complex tasks, like generating a more detailed description.", duration: 5000 },
+            { cn: "总结一下：多模态分词器是连接不同数据世界与AI模型的桥梁。", en: "In summary: The multimodal tokenizer is the bridge connecting different data worlds with the AI model.", duration: 5000 },
+            { cn: "它将万物化为模型能懂的统一语言，开启了更强大、更全面的AI能力。", en: "It turns everything into a unified language that models can understand, unlocking more powerful and comprehensive AI capabilities.", duration: 6000 },
+        ];
+
+        async function updateSubtitles(index) {
+            subtitles.classList.remove('visible');
+            await sleep(500);
+            subtitleCN.textContent = narration[index].cn;
+            subtitleEN.textContent = narration[index].en;
+            subtitles.classList.add('visible');
+            await sleep(narration[index].duration - 500);
+        }
+
+        function hideAll() {
+            allElements.forEach(el => el.classList.remove('visible'));
+        }
+
+        async function playAnimation() {
+            let narrationIndex = 0;
+
+            while (true) {
+                // Reset
+                hideAll();
+                narrationIndex = 0;
+                await sleep(1000);
+
+                // --- Title Scene ---
+                D('title-card').style.transform = 'scale(1)';
+                D('title-card').classList.add('visible');
+                await updateSubtitles(narrationIndex++);
+                await updateSubtitles(narrationIndex++);
+                D('title-card').style.transform = 'scale(1.2)';
+                D('title-card').classList.remove('visible');
+                await sleep(800);
+
+                // --- Scene 1: Inputs ---
+                await updateSubtitles(narrationIndex++);
+                D('input-text').style.transform = 'scale(1)';
+                D('input-text').classList.add('visible');
+                await updateSubtitles(narrationIndex++);
+                D('input-image').style.transform = 'scale(1)';
+                D('input-image').classList.add('visible');
+                await updateSubtitles(narrationIndex++);
+                await updateSubtitles(narrationIndex++);
+
+                // --- Scene 2: Processing ---
+                D('input-text').style.transform = 'translate(350px, 300px) scale(0.6)';
+                D('input-image').style.transform = 'translate(-350px, 300px) scale(0.6)';
+                D('text-tokenizer').classList.add('visible');
+                D('image-tokenizer').classList.add('visible');
+                D('line-text').style.opacity = '1';
+                D('line-image').style.opacity = '1';
+                await updateSubtitles(narrationIndex++);
+
+                // Text tokenization
+                const textTokens = D('text-tokens-container').children;
+                D('text-tokens-container').classList.add('visible');
+                for (const token of textTokens) {
+                    token.style.transform = 'scale(1)';
+                    await sleep(300);
+                }
+                await updateSubtitles(narrationIndex++);
+
+                // Image tokenization
+                D('image-patches').innerHTML = '';
+                for (let i = 0; i < 16; i++) {
+                    const patch = document.createElement('div');
+                    patch.className = 'patch';
+                    patch.style.backgroundPosition = `${(i % 4) * 33.3}% ${(Math.floor(i / 4)) * 33.3}%`;
+                    D('image-patches').appendChild(patch);
+                }
+                D('image-patches').classList.add('visible');
+
+                await updateSubtitles(narrationIndex++);
+
+                const patches = D('image-patches').children;
+                D('image-tokens-container').classList.add('visible');
+                D('image-tokens-container').innerHTML = '';
+                for (let i = 0; i < 4; i++) {
+                    patches[i * 4].style.transform = 'scale(1.2)';
+                    await sleep(100);
+                    patches[i * 4].style.transform = 'scale(0)';
+                    patches[i * 4].style.opacity = '0';
+                    const token = document.createElement('div');
+                    token.className = 'token image-token';
+                    token.textContent = `P${i + 1}`;
+                    token.style.transform = 'scale(0)';
+                    D('image-tokens-container').appendChild(token);
+                    await sleep(100);
+                    token.style.transform = 'scale(1)';
+                    await sleep(300);
+                }
+                await updateSubtitles(narrationIndex++);
+
+                // --- Scene 3: Unification ---
+                D('line-text').style.opacity = '0';
+                D('line-image').style.opacity = '0';
+                D('input-text').classList.remove('visible');
+                D('input-image').classList.remove('visible');
+                D('text-tokenizer').classList.remove('visible');
+                D('image-tokenizer').classList.remove('visible');
+                D('image-patches').classList.remove('visible');
+
+                await sleep(800);
+                await updateSubtitles(narrationIndex++);
+
+                D('text-tokens-container').style.transition = 'transform 1s ease-in-out';
+                D('image-tokens-container').style.transition = 'transform 1s ease-in-out';
+                D('text-tokens-container').style.transform = 'translate(200px, -50px)';
+                D('image-tokens-container').style.transform = 'translate(-350px, -50px)';
+
+                await updateSubtitles(narrationIndex++);
+
+                const unifiedContainer = D('unified-sequence-container');
+                unifiedContainer.innerHTML = '';
+                unifiedContainer.classList.add('visible');
+
+                const createToken = (text, type) => `<div class="token ${type}">${text}</div>`;
+
+                unifiedContainer.innerHTML += createToken('CLS', 'special-token'); await sleep(200);
+                unifiedContainer.innerHTML += D('text-tokens-container').innerHTML; await sleep(200);
+                unifiedContainer.innerHTML += createToken('<IMG>', 'special-token'); await sleep(200);
+                unifiedContainer.innerHTML += D('image-tokens-container').innerHTML; await sleep(200);
+
+                D('text-tokens-container').classList.remove('visible');
+                D('image-tokens-container').classList.remove('visible');
+                // Reset transform for next loop
+                D('text-tokens-container').style.transition = '';
+                D('image-tokens-container').style.transition = '';
+                D('text-tokens-container').style.transform = '';
+                D('image-tokens-container').style.transform = '';
+
+                await updateSubtitles(narrationIndex++);
+
+                // --- Scene 4: AI Model ---
+                D('unified-sequence-container').style.transition = 'transform 1s ease-in-out, opacity 1s ease-in-out';
+                D('unified-sequence-container').style.transform = 'translate(-50%, -600px) scale(0.5)';
+                D('unified-sequence-container').style.opacity = '0';
+
+                await updateSubtitles(narrationIndex++);
+
+                D('ai-model').classList.add('visible');
+                const nodes = D('ai-model').querySelectorAll('.node');
+                for (let i = 0; i < 3; i++) {
+                    nodes.forEach(n => n.classList.remove('active'));
+                    await sleep(150);
+                    nodes.forEach(n => n.classList.add('active'));
+                    await sleep(150);
+                }
+                nodes.forEach(n => n.classList.remove('active'));
+
+                await updateSubtitles(narrationIndex++);
+
+                const output = D('model-output');
+                output.textContent = '';
+                output.classList.add('visible');
+                const outputText = 'This is a fluffy ginger cat, likely a Persian, with bright amber eyes.';
+                for (const char of outputText) {
+                    output.textContent += char;
+                    await sleep(30);
+                }
+
+                await sleep(2000);
+                D('ai-model').classList.remove('visible');
+                D('model-output').classList.remove('visible');
+                D('unified-sequence-container').style.transition = '';
+                D('unified-sequence-container').style.transform = 'translateX(-50%)';
+                D('unified-sequence-container').style.opacity = '1';
+                D('unified-sequence-container').classList.remove('visible');
+                await sleep(800);
+
+                // --- Final Scene ---
+                await updateSubtitles(narrationIndex++);
+                D('final-summary').classList.add('visible');
+                await updateSubtitles(narrationIndex++);
+
+                await sleep(5000);
+                D('final-summary').classList.remove('visible');
+                subtitles.classList.remove('visible');
+                await sleep(1000);
+            }
+        }
+
+        window.onload = playAnimation;
+
+    </script>
+</body>
+
+</html>

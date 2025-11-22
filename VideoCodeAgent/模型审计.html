@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Auditing Animation</title>
+    <style>
+        :root {
+            --bg-color: #f4f7fa;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --text-color: #333;
+            --light-text-color: #555;
+            --container-shadow: rgba(74, 144, 226, 0.1);
+            --element-stroke: #b8d4f3;
+            --accent-color-good: #27ae60;
+            --accent-color-bad: #e74c3c;
+            --accent-color-neutral: #f39c12;
+        }
+
+        body {
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 100%;
+            max-width: 2560px;
+            aspect-ratio: 16 / 9;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px var(--container-shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #animation-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .subtitle-container {
+            position: absolute;
+            bottom: 5%;
+            left: 0;
+            right: 0;
+            padding: 1% 2%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(to top, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0));
+            pointer-events: none;
+        }
+
+        .subtitle {
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+
+        .subtitle.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #subtitle-cn {
+            font-size: calc(1.2vw + 1.2vh);
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        #subtitle-en {
+            font-size: calc(0.8vw + 0.8vh);
+            margin-top: 0.5%;
+            color: var(--light-text-color);
+        }
+
+        /* Animation specific styles */
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .element {
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .fast-transition {
+            transition-duration: 0.4s;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.02);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-15px);
+            }
+        }
+
+        @keyframes data-flow {
+            to {
+                stroke-dashoffset: -100;
+            }
+        }
+
+        #title-text {
+            font-size: 80px;
+            font-weight: bold;
+            fill: var(--primary-color);
+            text-anchor: middle;
+        }
+
+        #title-text-en {
+            font-size: 40px;
+            font-weight: normal;
+            fill: var(--light-text-color);
+            text-anchor: middle;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="animation-svg" viewBox="0 0 2560 1440">
+            <!-- Defs for gradients and patterns -->
+            <defs>
+                <linearGradient id="modelGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#a8c0ff; stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#3f2b96; stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#e0e8f0" />
+                    <stop offset="100%" stop-color="#ffffff" />
+                </linearGradient>
+                <filter id="glow">
+                    <feGaussianBlur stdDeviation="7.5" result="coloredBlur" />
+                    <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+
+            <!-- Background -->
+            <rect width="2560" height="1440" fill="url(#bgGradient)" />
+
+            <!-- SCENE 0: Title -->
+            <g id="scene-title" class="element hidden">
+                <text id="title-text" x="1280" y="650">模型审计</text>
+                <text id="title-text-en" x="1280" y="730">Model Auditing</text>
+            </g>
+
+            <!-- SCENE 1: The Black Box -->
+            <g id="scene1-blackbox" class="element hidden">
+                <!-- Data Input -->
+                <g id="data-input">
+                    <text x="350" y="650" font-size="40" fill="var(--text-color)" text-anchor="middle">输入 (Data)</text>
+                    <path d="M500 720 H 800" stroke="var(--primary-color)" stroke-width="5" stroke-dasharray="20"
+                        style="animation: data-flow 2s linear infinite;" />
+                    <circle cx="450" cy="720" r="15" fill="var(--secondary-color)" />
+                    <rect x="420" y="760" width="60" height="60" fill="var(--secondary-color)" rx="10" />
+                </g>
+                <!-- The Model -->
+                <g id="model-core" transform="translate(1280, 720)">
+                    <rect x="-200" y="-200" width="400" height="400" rx="30" fill="url(#modelGradient)" stroke="#fff"
+                        stroke-width="10" style="animation: pulse 3s infinite ease-in-out;" />
+                    <text x="0" y="20" font-size="60" fill="white" text-anchor="middle">AI 模型</text>
+                    <text x="0" y="80" font-size="30" fill="white" text-anchor="middle" opacity="0.8">AI Model</text>
+                    <g id="question-marks">
+                        <text x="-250" y="-250" font-size="80" fill="var(--accent-color-neutral)"
+                            style="animation: float 4s infinite ease-in-out;">?</text>
+                        <text x="250" y="-150" font-size="60" fill="var(--accent-color-neutral)"
+                            style="animation: float 5s infinite ease-in-out;">?</text>
+                        <text x="280" y="220" font-size="70" fill="var(--accent-color-neutral)"
+                            style="animation: float 4.5s infinite ease-in-out;">?</text>
+                    </g>
+                </g>
+                <!-- Prediction Output -->
+                <g id="data-output">
+                    <text x="2210" y="650" font-size="40" fill="var(--text-color)" text-anchor="middle">输出
+                        (Prediction)</text>
+                    <path d="M1760 720 H 2060" stroke="var(--primary-color)" stroke-width="5" stroke-dasharray="20"
+                        style="animation: data-flow 2s linear infinite reverse;" />
+                    <path d="M2110 700 L 2140 720 L 2110 740" fill="var(--accent-color-good)" />
+                    <circle cx="2125" cy="780" r="25" fill="var(--accent-color-bad)" />
+                </g>
+            </g>
+
+            <!-- SCENE 2: The Audit Process -->
+            <g id="scene2-audit-tools" class="element hidden">
+                <g id="magnifying-glass" transform="translate(800 450) scale(1.5)">
+                    <circle cx="50" cy="50" r="40" stroke="var(--primary-color)" stroke-width="8"
+                        fill="rgba(74, 144, 226, 0.2)" />
+                    <line x1="80" y1="80" x2="120" y2="120" stroke="var(--primary-color)" stroke-width="12"
+                        stroke-linecap="round" />
+                </g>
+                <g id="clipboard" transform="translate(1600 450) scale(1.5)">
+                    <rect x="0" y="0" width="100" height="130" rx="10" fill="#fff" stroke="var(--element-stroke)"
+                        stroke-width="4" />
+                    <rect x="20" y="-10" width="60" height="20" fill="#777" />
+                    <line x1="15" y1="30" x2="85" y2="30" stroke="var(--element-stroke)" stroke-width="3" />
+                    <line x1="15" y1="50" x2="85" y2="50" stroke="var(--element-stroke)" stroke-width="3" />
+                    <line x1="15" y1="70" x2="65" y2="70" stroke="var(--element-stroke)" stroke-width="3" />
+                    <line x1="15" y1="90" x2="85" y2="90" stroke="var(--element-stroke)" stroke-width="3" />
+                </g>
+            </g>
+
+            <!-- SCENE 3: Audit Dimensions -->
+            <g id="scene3-dimensions">
+                <!-- 3a: Fairness -->
+                <g id="dim-fairness" class="element hidden" transform="translate(540, 720)">
+                    <text y="-350" text-anchor="middle" font-size="45" font-weight="600" fill="var(--text-color)">1. 公平性
+                        & 无偏见</text>
+                    <text y="-300" text-anchor="middle" font-size="30" fill="var(--light-text-color)">Fairness &
+                        Bias</text>
+                    <path d="M-250 0 H 250 M 0 0 V -50" stroke="#333" stroke-width="8" />
+                    <g id="scale-left" transform="translate(-150, 0)" class="element">
+                        <path d="M 0 0 L -25 -50 H 25 Z" fill="var(--secondary-color)" />
+                        <rect x="-50" y="-70" width="100" height="20" fill="var(--secondary-color)" rx="5" />
+                        <circle cx="-30" cy="-120" r="20" fill="#f39c12" />
+                        <circle cx="30" cy="-120" r="20" fill="#3498db" />
+                    </g>
+                    <g id="scale-right" transform="translate(150, 0)" class="element">
+                        <path d="M 0 0 L -25 -50 H 25 Z" fill="var(--secondary-color)" />
+                        <rect x="-50" y="-70" width="100" height="20" fill="var(--secondary-color)" rx="5" />
+                        <circle cx="0" cy="-120" r="20" fill="#9b59b6" />
+                    </g>
+                </g>
+
+                <!-- 3b: Robustness -->
+                <g id="dim-robustness" class="element hidden" transform="translate(1280, 720)">
+                    <text y="-350" text-anchor="middle" font-size="45" font-weight="600" fill="var(--text-color)">2. 鲁棒性
+                        & 安全性</text>
+                    <text y="-300" text-anchor="middle" font-size="30" fill="var(--light-text-color)">Robustness &
+                        Security</text>
+                    <path id="shield" d="M 0 -200 L -150 -100 C -150 100 0 200 0 200 C 0 200 150 100 150 -100 Z"
+                        fill="rgba(74, 144, 226, 0.2)" stroke="var(--primary-color)" stroke-width="10" />
+                    <text fill="var(--primary-color)" font-size="120" text-anchor="middle" y="-20"
+                        style="font-family: 'Arial Black', sans-serif;">✓</text>
+                    <!-- Attacking data -->
+                    <g id="adversarial-data" class="element hidden">
+                        <path d="M-400 -100 l 20 -20 l 20 20 l 20 -20 l 20 20" stroke="var(--accent-color-bad)"
+                            stroke-width="8" fill="none" />
+                        <path d="M-400 100 l 15 -25 l 15 25 l 15 -25 l 15 25" stroke="var(--accent-color-bad)"
+                            stroke-width="8" fill="none" />
+                    </g>
+                </g>
+
+                <!-- 3c: Explainability -->
+                <g id="dim-explainability" class="element hidden" transform="translate(2020, 720)">
+                    <text y="-350" text-anchor="middle" font-size="45" font-weight="600" fill="var(--text-color)">3.
+                        可解释性</text>
+                    <text y="-300" text-anchor="middle" font-size="30" fill="var(--light-text-color)">Explainability
+                        (XAI)</text>
+                    <rect x="-200" y="-200" width="400" height="400" rx="30" fill="none" stroke="var(--element-stroke)"
+                        stroke-width="5" stroke-dasharray="15" />
+                    <circle cx="-100" cy="-100" r="20" fill="var(--primary-color)" />
+                    <circle cx="-100" cy="100" r="20" fill="var(--primary-color)" />
+                    <circle cx="0" cy="0" r="20" fill="var(--secondary-color)" />
+                    <circle cx="100" cy="-50" r="20" fill="var(--primary-color)" />
+                    <circle cx="100" cy="50" r="20" fill="var(--primary-color)" />
+                    <path d="M -100 -100 L 0 0 L -100 100 M 0 0 L 100 -50 M 0 0 L 100 50" stroke="var(--element-stroke)"
+                        stroke-width="3" />
+                    <path id="xai-path" d="M -100 -100 L 0 0 L 100 50" stroke="var(--accent-color-neutral)"
+                        stroke-width="8" fill="none" stroke-dasharray="300" stroke-dashoffset="300" />
+                </g>
+
+                <!-- 3d: Performance -->
+                <g id="dim-performance" class="element hidden" transform="translate(1280, 720)">
+                    <text y="-350" text-anchor="middle" font-size="45" font-weight="600" fill="var(--text-color)">4. 性能
+                        & 准确率</text>
+                    <text y="-300" text-anchor="middle" font-size="30" fill="var(--light-text-color)">Performance &
+                        Accuracy</text>
+                    <rect x="-400" y="-250" width="800" height="500" rx="20" fill="#fff" stroke="var(--element-stroke)"
+                        stroke-width="4" />
+                    <text x="-350" y="-180" font-size="30">Accuracy</text>
+                    <rect x="-350" y="-150" width="300" height="30" fill="#e0e0e0" rx="15" />
+                    <rect id="accuracy-bar" x="-350" y="-150" width="0" height="30" fill="var(--accent-color-good)"
+                        rx="15" class="element" />
+                    <text x="-350" y="-80" font-size="30">Precision</text>
+                    <rect x="-350" y="-50" width="300" height="30" fill="#e0e0e0" rx="15" />
+                    <rect id="precision-bar" x="-350" y="-50" width="0" height="30" fill="var(--accent-color-good)"
+                        rx="15" class="element" />
+
+                    <path d="M 50 150 C 150 150, 200 0, 300 50 S 400 150, 450 100" stroke="var(--primary-color)"
+                        fill="none" stroke-width="4" transform="translate(-100, 50)" />
+                    <text x="100" y="-180" font-size="30">F1 Score</text>
+                    <circle cx="250" cy="50" r="100" stroke="var(--element-stroke)" stroke-width="15" fill="none" />
+                    <path id="f1-score-circle" d="M 160, 50 A 90 90 0 0 1 250 140" stroke="var(--secondary-color)"
+                        stroke-width="15" fill="none" stroke-linecap="round" stroke-dasharray="1000"
+                        stroke-dashoffset="1000" />
+                </g>
+            </g>
+
+            <!-- SCENE 4: Trusted AI -->
+            <g id="scene4-trusted-ai" class="element hidden">
+                <g transform="translate(1280, 680)">
+                    <rect x="-200" y="-200" width="400" height="400" rx="30" fill="rgba(80, 227, 194, 0.2)"
+                        stroke="var(--secondary-color)" stroke-width="8" filter="url(#glow)" />
+                    <text x="0" y="-30" font-size="60" fill="var(--accent-color-good)" text-anchor="middle">可信AI</text>
+                    <text x="0" y="30" font-size="30" fill="var(--accent-color-good)" text-anchor="middle">Trusted
+                        AI</text>
+                    <path d="M -80 20 L -30 70 L 80 -40" stroke="var(--accent-color-good)" stroke-width="20" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </g>
+                <g id="stamp" class="element" transform="translate(1700, 800) scale(0)"
+                    style="transform-origin: center;">
+                    <circle cx="0" cy="0" r="120" fill="none" stroke="var(--accent-color-good)" stroke-width="10" />
+                    <text x="0" y="20" font-size="50" fill="var(--accent-color-good)" text-anchor="middle"
+                        font-weight="bold">AUDITED</text>
+                </g>
+            </g>
+
+        </svg>
+
+        <div class="subtitle-container">
+            <p id="subtitle-cn" class="subtitle"></p>
+            <p id="subtitle-en" class="subtitle"></p>
+        </div>
+    </div>
+
+    <script>
+        const scenes = [
+            { duration: 3000, action: 'startTitle' },
+            { duration: 4000, action: 'showBlackbox', cn: 'AI模型通常像一个“黑箱”，我们知道输入和输出，但内部工作原理很复杂。', en: 'AI models often act like a "black box". We know the input and output, but the internal workings are complex.' },
+            { duration: 4000, action: 'showAuditTools', cn: '模型审计，就是对这个“黑箱”进行系统性的检查和评估。', en: 'Model auditing is the process of systematically examining and evaluating this "black box".' },
+            { duration: 1000, action: 'transitionToDimensions' },
+            { duration: 5000, action: 'showFairness', cn: '首先，我们审计其公平性，确保它不会对不同群体产生歧视或偏见。', en: 'First, we audit its fairness to ensure it does not create discrimination or bias against different groups.' },
+            { duration: 5000, action: 'showRobustness', cn: '其次，审计其鲁棒性，测试它在面对恶意攻击或异常数据时的稳定性。', en: 'Second, we audit its robustness, testing its stability against adversarial attacks or noisy data.' },
+            { duration: 5000, action: 'showExplainability', cn: '然后，我们探究其可解释性，理解模型做出特定决策的原因。', en: 'Then, we investigate its explainability to understand why the model makes a particular decision.' },
+            { duration: 5000, action: 'showPerformance', cn: '最后，我们验证其性能，确保模型的准确率、精确度等指标达到预期标准。', en: 'Finally, we validate its performance, ensuring metrics like accuracy and precision meet the required standards.' },
+            { duration: 1000, action: 'transitionToResult' },
+            { duration: 5000, action: 'showTrustedAI', cn: '通过全面的审计，我们最终得到一个公平、可靠、透明且高效的可信AI。', en: 'Through a comprehensive audit, we achieve a fair, robust, transparent, and high-performing Trusted AI.' },
+            { duration: 4000, action: 'endScene', cn: '模型审计：构建负责任的人工智能基石。', en: 'Model Auditing: The cornerstone of building responsible artificial intelligence.' }
+        ];
+
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        function setSubtitle(cn, en) {
+            subtitleCN.textContent = cn || '';
+            subtitleEN.textContent = en || '';
+            if (cn || en) {
+                subtitleCN.classList.add('visible');
+                subtitleEN.classList.add('visible');
+            } else {
+                subtitleCN.classList.remove('visible');
+                subtitleEN.classList.remove('visible');
+            }
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        const actions = {
+            startTitle() {
+                setSubtitle('', '');
+                document.getElementById('scene-title').classList.remove('hidden');
+            },
+            showBlackbox() {
+                document.getElementById('scene-title').classList.add('hidden');
+                document.getElementById('scene1-blackbox').classList.remove('hidden');
+            },
+            showAuditTools() {
+                document.getElementById('question-marks').classList.add('hidden');
+                document.getElementById('scene2-audit-tools').classList.remove('hidden');
+                document.getElementById('model-core').style.transform = "translate(1280px, 720px) scale(0.9)";
+            },
+            transitionToDimensions() {
+                setSubtitle('', '');
+                document.getElementById('scene1-blackbox').classList.add('hidden');
+                document.getElementById('scene2-audit-tools').classList.add('hidden');
+            },
+            showFairness() {
+                document.getElementById('dim-fairness').classList.remove('hidden');
+                setTimeout(() => {
+                    const scaleLeft = document.getElementById('scale-left');
+                    const scaleRight = document.getElementById('scale-right');
+                    scaleLeft.style.transform = 'translate(-150px, 20px) rotate(-5deg)';
+                    scaleRight.style.transform = 'translate(150px, -20px) rotate(-5deg)';
+                    setTimeout(() => {
+                        scaleLeft.style.transform = 'translate(-150px, 0) rotate(0deg)';
+                        scaleRight.style.transform = 'translate(150px, 0) rotate(0deg)';
+                    }, 2000);
+                }, 500);
+            },
+            showRobustness() {
+                document.getElementById('dim-fairness').classList.add('hidden');
+                document.getElementById('dim-robustness').classList.remove('hidden');
+
+                setTimeout(() => {
+                    const data = document.getElementById('adversarial-data');
+                    data.classList.remove('hidden');
+                    data.style.transition = 'transform 1s linear';
+                    data.style.transform = 'translateX(250px)';
+                    setTimeout(() => {
+                        document.getElementById('shield').style.transform = 'scale(1.1)';
+                        setTimeout(() => document.getElementById('shield').style.transform = 'scale(1)', 300);
+                    }, 1000);
+                }, 1000);
+            },
+            showExplainability() {
+                document.getElementById('dim-robustness').classList.add('hidden');
+                document.getElementById('dim-explainability').classList.remove('hidden');
+                setTimeout(() => {
+                    const path = document.getElementById('xai-path');
+                    path.style.transition = 'stroke-dashoffset 2s ease-in-out';
+                    path.style.strokeDashoffset = '0';
+                }, 500);
+            },
+            showPerformance() {
+                document.getElementById('dim-explainability').classList.add('hidden');
+                document.getElementById('dim-performance').classList.remove('hidden');
+                setTimeout(() => {
+                    document.getElementById('accuracy-bar').style.width = '285px'; // 95% of 300
+                    document.getElementById('precision-bar').style.width = '270px'; // 90% of 300
+                    const f1 = document.getElementById('f1-score-circle');
+                    f1.style.transition = 'stroke-dashoffset 2s ease-out';
+                    f1.style.strokeDashoffset = '380'; // an arbitrary value for visual effect
+                }, 500);
+            },
+            transitionToResult() {
+                setSubtitle('', '');
+                document.getElementById('dim-performance').classList.add('hidden');
+            },
+            showTrustedAI() {
+                document.getElementById('scene4-trusted-ai').classList.remove('hidden');
+                setTimeout(() => {
+                    const stamp = document.getElementById('stamp');
+                    stamp.style.transition = 'transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55)';
+                    stamp.style.transform = 'translate(1700px, 800px) scale(1) rotate(-15deg)';
+                }, 1000);
+            },
+            endScene() {
+                document.getElementById('scene4-trusted-ai').classList.add('hidden');
+                const title = document.getElementById('scene-title');
+                title.classList.remove('hidden');
+                title.querySelector('#title-text').textContent = '构建负责任的 AI';
+                title.querySelector('#title-text-en').textContent = 'Building Responsible AI';
+            }
+        };
+
+        async function playAnimation() {
+            for (const scene of scenes) {
+                if (actions[scene.action]) {
+                    actions[scene.action]();
+                }
+                setSubtitle(scene.cn, scene.en);
+                await sleep(scene.duration);
+            }
+            // Loop animation
+            await sleep(5000);
+            window.location.reload();
+        }
+
+        window.onload = playAnimation;
+    </script>
+
+</body>
+
+</html>

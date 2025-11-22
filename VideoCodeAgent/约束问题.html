@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>约束满足问题 (Constraint Satisfaction Problem)</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A40;
+            --primary-color: #007BFF;
+            --accent-color-1: #E76F51;
+            /* Red */
+            --accent-color-2: #2A9D8F;
+            /* Green */
+            --accent-color-3: #264653;
+            /* Blue */
+            --accent-color-4: #E9C46A;
+            /* Yellow */
+            --border-color: #DEE2E6;
+            --shadow-color: rgba(0, 0, 0, 0.05);
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            transform-origin: center center;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            box-shadow: 0 20px 50px var(--shadow-color);
+        }
+
+        #animation-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Subtitle styles */
+        #subtitle-container {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+        }
+
+        .subtitle-line {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            margin: 0;
+            text-shadow: 0 0 10px white;
+        }
+
+        .subtitle-cn {
+            font-size: 48px;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 10px;
+        }
+
+        .subtitle-en {
+            font-size: 32px;
+            font-weight: 400;
+            color: #6C757D;
+        }
+
+        /* General element styles */
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .visible {
+            opacity: 1;
+        }
+
+        /* Keyframe animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes flash-red {
+
+            0%,
+            100% {
+                stroke: #e74c3c;
+                stroke-width: 8;
+            }
+
+            50% {
+                stroke: #c0392b;
+                stroke-width: 12;
+            }
+        }
+
+        @keyframes pop-in {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* SVG specific styles */
+        .title-text {
+            font-size: 100px;
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .component-icon {
+            transition: transform 0.5s ease-out;
+        }
+
+        .component-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .component-text {
+            font-size: 48px;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .map-region {
+            stroke: var(--border-color);
+            stroke-width: 6;
+            fill: #E9ECEF;
+            transition: fill 0.5s ease, transform 0.3s ease;
+        }
+
+        .map-label {
+            font-size: 80px;
+            font-weight: bold;
+            fill: var(--text-color);
+            text-anchor: middle;
+            dominant-baseline: middle;
+            pointer-events: none;
+        }
+
+        .constraint-line {
+            stroke: var(--primary-color);
+            stroke-width: 8;
+            stroke-dasharray: 20 20;
+            opacity: 0;
+        }
+
+        .constraint-symbol {
+            font-size: 80px;
+            fill: var(--primary-color);
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            opacity: 0;
+        }
+
+        .color-palette-circle {
+            stroke: var(--border-color);
+            stroke-width: 4;
+            cursor: pointer;
+            transition: transform 0.3s ease, filter 0.3s ease;
+        }
+
+        .color-palette-circle:hover {
+            transform: scale(1.1);
+            filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.2));
+        }
+
+        .final-text {
+            font-size: 120px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            fill: var(--accent-color-2);
+        }
+
+        .check-mark {
+            fill: none;
+            stroke: var(--accent-color-2);
+            stroke-width: 20;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <svg id="animation-svg" viewBox="0 0 2560 1440">
+            <!-- Background Elements -->
+            <defs>
+                <radialGradient id="bg-gradient" cx="50%" cy="50%" r="70%">
+                    <stop offset="0%" stop-color="#FFFFFF" />
+                    <stop offset="100%" stop-color="#F1F3F5" />
+                </radialGradient>
+            </defs>
+            <rect width="2560" height="1440" fill="url(#bg-gradient)" />
+
+            <!-- Scene 1: Title -->
+            <g id="scene1-title" class="hidden">
+                <text x="1280" y="650" class="title-text">约束满足问题</text>
+                <text x="1280" y="770" class="title-text" style="font-size: 60px; fill: #6C757D;">Constraint
+                    Satisfaction Problem</text>
+            </g>
+
+            <!-- Scene 2: Components -->
+            <g id="scene2-components" class="hidden">
+                <!-- Variables -->
+                <g class="component-icon" transform="translate(640, 720)">
+                    <circle cx="0" cy="-50" r="150" fill="#E9ECEF" />
+                    <text x="0" y="-50" font-size="120px" text-anchor="middle" dominant-baseline="middle"
+                        fill="var(--text-color)">X, Y, Z</text>
+                    <text x="0" y="180" class="component-text">变量 (Variables)</text>
+                </g>
+                <!-- Domains -->
+                <g class="component-icon" transform="translate(1280, 720)">
+                    <circle cx="0" cy="-50" r="150" fill="#E9ECEF" />
+                    <circle cx="-60" cy="-80" r="40" fill="var(--accent-color-1)" />
+                    <circle cx="60" cy="-80" r="40" fill="var(--accent-color-2)" />
+                    <circle cx="0" cy="20" r="40" fill="var(--accent-color-3)" />
+                    <text x="0" y="180" class="component-text">值域 (Domains)</text>
+                </g>
+                <!-- Constraints -->
+                <g class="component-icon" transform="translate(1920, 720)">
+                    <circle cx="0" cy="-50" r="150" fill="#E9ECEF" />
+                    <text x="0" y="-50" font-size="120px" text-anchor="middle" dominant-baseline="middle"
+                        fill="var(--primary-color)">X ≠ Y</text>
+                    <text x="0" y="180" class="component-text">约束 (Constraints)</text>
+                </g>
+            </g>
+
+            <!-- Scene 3-6: Map Coloring Example -->
+            <g id="scene3-map" class="hidden">
+                <!-- Map Regions -->
+                <path id="regionA" class="map-region" d="M 800,300 C 600,400 600,600 800,700 L 1100,700 L 1100,300 Z" />
+                <path id="regionB" class="map-region"
+                    d="M 1100,300 L 1100,700 L 1400,800 C 1500,600 1500,400 1400,200 Z" />
+                <path id="regionC" class="map-region"
+                    d="M 800,700 C 600,800 600,1000 800,1100 L 1100,1100 L 1100,700 Z" />
+                <path id="regionD" class="map-region"
+                    d="M 1100,700 L 1100,1100 L 1400,1200 C 1500,1000 1500,800 1400,800 Z" />
+                <path id="regionE" class="map-region" d="M 1400,200 C 1700,300 1800,600 1700,800 L 1400,800 Z" />
+
+                <!-- Map Labels -->
+                <text id="labelA" class="map-label" x="900" y="500">A</text>
+                <text id="labelB" class="map-label" x="1280" y="500">B</text>
+                <text id="labelC" class="map-label" x="900" y="900">C</text>
+                <text id="labelD" class="map-label" x="1280" y="950">D</text>
+                <text id="labelE" class="map-label" x="1550" y="500">E</text>
+
+                <!-- Constraint Lines & Symbols -->
+                <g id="constraints-viz">
+                    <line class="constraint-line" id="lineAB" x1="1100" y1="500" x2="1190" y2="500" />
+                    <text class="constraint-symbol" id="symbolAB" x="1145" y="480">≠</text>
+
+                    <line class="constraint-line" id="lineAC" x1="950" y1="700" x2="950" y2="800" />
+                    <text class="constraint-symbol" id="symbolAC" x="990" y="750">≠</text>
+
+                    <line class="constraint-line" id="lineBC" x1="1100" y1="700" x2="1000" y2="800" />
+                    <text class="constraint-symbol" id="symbolBC" x="1080" y="780">≠</text>
+
+                    <line class="constraint-line" id="lineBD" x1="1250" y1="800" x2="1250" y2="900" />
+                    <text class="constraint-symbol" id="symbolBD" x="1290" y="850">≠</text>
+
+                    <line class="constraint-line" id="lineBE" x1="1400" y1="500" x2="1470" y2="500" />
+                    <text class="constraint-symbol" id="symbolBE" x="1435" y="480">≠</text>
+
+                    <line class="constraint-line" id="lineCD" x1="1100" y1="950" x2="1190" y2="950" />
+                    <text class="constraint-symbol" id="symbolCD" x="1145" y="930">≠</text>
+                </g>
+
+                <!-- Color Palette -->
+                <g id="color-palette" transform="translate(2100, 500)" class="hidden">
+                    <circle id="color1" class="color-palette-circle" cx="0" cy="0" r="60"
+                        fill="var(--accent-color-1)" />
+                    <circle id="color2" class="color-palette-circle" cx="0" cy="180" r="60"
+                        fill="var(--accent-color-2)" />
+                    <circle id="color3" class="color-palette-circle" cx="0" cy="360" r="60"
+                        fill="var(--accent-color-3)" />
+                </g>
+
+                <!-- Moving color for animation -->
+                <circle id="moving-color" r="40" class="hidden" />
+
+                <!-- Check marks -->
+                <g id="check-marks">
+                    <path id="checkA" class="check-mark" d="M 850,500 l 30,30 l 70,-70" />
+                    <path id="checkB" class="check-mark" d="M 1230,500 l 30,30 l 70,-70" />
+                    <path id="checkC" class="check-mark" d="M 850,900 l 30,30 l 70,-70" />
+                    <path id="checkD" class="check-mark" d="M 1230,950 l 30,30 l 70,-70" />
+                    <path id="checkE" class="check-mark" d="M 1500,500 l 30,30 l 70,-70" />
+                </g>
+            </g>
+
+            <!-- Scene 6: Final Text -->
+            <g id="scene6-final" class="hidden">
+                <text x="1280" y="720" class="final-text">问题解决 (Problem Solved!)</text>
+            </g>
+        </svg>
+
+        <div id="subtitle-container">
+            <p id="subtitle-cn" class="subtitle-line subtitle-cn"></p>
+            <p id="subtitle-en" class="subtitle-line subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        // --- UTILITY FUNCTIONS ---
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function getElement(id) {
+            return document.getElementById(id);
+        }
+
+        async function setSubtitle(cn, en, duration = 2000) {
+            const subCn = getElement('subtitle-cn');
+            const subEn = getElement('subtitle-en');
+
+            subCn.style.opacity = 0;
+            subEn.style.opacity = 0;
+
+            await sleep(500);
+
+            subCn.textContent = cn;
+            subEn.textContent = en;
+            subCn.style.opacity = 1;
+            subEn.style.opacity = 1;
+
+            await sleep(duration);
+        }
+
+        function showElement(el, style = 'block') {
+            el.classList.remove('hidden');
+            el.style.animation = 'fadeIn 1s forwards';
+        }
+
+        function hideElement(el) {
+            el.style.animation = 'fadeOut 1s forwards';
+            setTimeout(() => el.classList.add('hidden'), 1000);
+        }
+
+        // --- ANIMATION CONTROL ---
+        const timeline = [];
+        let currentStep = 0;
+
+        function addStep(func) {
+            timeline.push(func);
+        }
+
+        async function runTimeline() {
+            for (const step of timeline) {
+                await step();
+            }
+        }
+
+        // --- ANIMATION HELPER FUNCTIONS ---
+        async function moveColor(colorId, targetId) {
+            const colorEl = getElement(colorId);
+            const targetEl = getElement(targetId);
+            const movingColorEl = getElement('moving-color');
+
+            const colorRect = colorEl.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+            const containerRect = getElement('container').getBoundingClientRect();
+
+            const scale = 2560 / containerRect.width;
+
+            const startX = (colorRect.left - containerRect.left + colorRect.width / 2) * scale;
+            const startY = (colorRect.top - containerRect.top + colorRect.height / 2) * scale;
+            const endX = (targetRect.left - containerRect.left + targetRect.width / 2) * scale;
+            const endY = (targetRect.top - containerRect.top + targetRect.height / 2) * scale;
+
+            movingColorEl.setAttribute('fill', colorEl.getAttribute('fill'));
+            movingColorEl.setAttribute('cx', startX);
+            movingColorEl.setAttribute('cy', startY);
+            movingColorEl.classList.remove('hidden');
+
+            movingColorEl.animate([
+                { cx: startX, cy: startY, r: 60, opacity: 1 },
+                { cx: endX, cy: endY, r: 40, opacity: 0.5 },
+            ], {
+                duration: 1000,
+                easing: 'ease-in-out',
+                fill: 'forwards'
+            });
+
+            await sleep(1000);
+            targetEl.style.fill = colorEl.getAttribute('fill');
+            movingColorEl.classList.add('hidden');
+        }
+
+        async function showConflict(lineId, symbolId) {
+            const line = getElement(lineId);
+            const symbol = getElement(symbolId);
+            line.style.animation = 'flash-red 0.5s 2';
+            symbol.style.animation = 'flash-red 0.5s 2, pulse 0.5s 2';
+            await sleep(1000);
+            line.style.animation = '';
+            symbol.style.animation = '';
+        }
+
+        async function drawCheckMark(checkId) {
+            const check = getElement(checkId);
+            check.style.animation = 'draw 0.5s ease-out forwards';
+            const style = document.createElement('style');
+            style.innerHTML = `@keyframes draw { to { stroke-dashoffset: 0; } }`;
+            document.head.appendChild(style);
+            await sleep(500);
+        }
+
+
+        // --- SCENE DEFINITIONS ---
+
+        addStep(async () => { // Scene 1: Title
+            await setSubtitle(
+                "我们生活的世界，充满了各种各样的约束。",
+                "Our world is full of all kinds of constraints.",
+                3000
+            );
+            showElement(getElement('scene1-title'));
+            await sleep(4000);
+            hideElement(getElement('scene1-title'));
+            await sleep(1000);
+        });
+
+        addStep(async () => { // Scene 2: Components
+            await setSubtitle(
+                "一个约束满足问题(CSP)，由三个核心部分组成...",
+                "A Constraint Satisfaction Problem (CSP) has three core components...",
+                3000
+            );
+            const components = getElement('scene2-components');
+            showElement(components);
+
+            await sleep(1000);
+            await setSubtitle("变量：我们需要确定其值的对象。", "Variables: The objects we need to assign values to.", 2500);
+            await sleep(1000);
+            await setSubtitle("值域：每个变量可以拥有的可能值的集合。", "Domains: The set of possible values for each variable.", 2500);
+            await sleep(1000);
+            await setSubtitle("约束：定义了变量取值之间必须满足的规则。", "Constraints: The rules that must be satisfied by the variable assignments.", 3000);
+
+            await sleep(2000);
+            hideElement(components);
+            await sleep(1000);
+        });
+
+        addStep(async () => { // Scene 3: Map Coloring Intro
+            await setSubtitle(
+                "让我们来看一个经典的例子：地图着色。",
+                "Let's look at a classic example: Map Coloring.",
+                3000
+            );
+            const mapScene = getElement('scene3-map');
+            showElement(mapScene);
+            await sleep(1000);
+            showElement(getElement('color-palette'));
+            await sleep(3000);
+        });
+
+        addStep(async () => { // Scene 4: State Constraint
+            await setSubtitle(
+                "目标是为每个区域上色，并满足一个简单约束...",
+                "The goal is to color each region, satisfying one simple constraint...",
+                3000
+            );
+            await setSubtitle(
+                "任何相邻的区域都不能有相同的颜色。",
+                "No two adjacent regions can have the same color.",
+                3000
+            );
+
+            const lines = document.querySelectorAll('.constraint-line');
+            const symbols = document.querySelectorAll('.constraint-symbol');
+            for (const el of [...lines, ...symbols]) {
+                el.style.opacity = 1;
+                el.style.animation = 'fadeIn 0.5s forwards';
+                await sleep(100);
+            }
+            await sleep(3000);
+        });
+
+        addStep(async () => { // Scene 5: Solving Process
+            await setSubtitle("我们开始解题。从区域A开始，选择红色。", "Let's start solving. For Region A, we choose Red.", 2500);
+            await moveColor('color1', 'regionA');
+            await drawCheckMark('checkA');
+            await sleep(1000);
+
+            await setSubtitle("接着是区域B。它与A相邻...", "Next is Region B. It's adjacent to A...", 2000);
+            await setSubtitle("所以它不能是红色。我们试试绿色。", "So it can't be Red. Let's try Green.", 2500);
+            await showConflict('lineAB', 'symbolAB');
+            await moveColor('color2', 'regionB');
+            await drawCheckMark('checkB');
+            await sleep(1000);
+
+            await setSubtitle("现在是区域C。它与A(红)和B(绿)都相邻。", "Now for Region C. It's adjacent to both A (Red) and B (Green).", 3000);
+            await setSubtitle("所以它不能是红色或绿色。我们选择蓝色。", "So it can't be Red or Green. We choose Blue.", 3000);
+            await showConflict('lineAC', 'symbolAC');
+            await showConflict('lineBC', 'symbolBC');
+            await moveColor('color3', 'regionC');
+            await drawCheckMark('checkC');
+            await sleep(1000);
+
+            await setSubtitle("轮到区域E。它只与B(绿)相邻。", "Time for Region E. It's only adjacent to B (Green).", 2500);
+            await setSubtitle("它可以是红色或蓝色。我们选红色。", "It can be Red or Blue. Let's pick Red.", 2500);
+            await moveColor('color1', 'regionE');
+            await drawCheckMark('checkE');
+            await sleep(1000);
+
+            await setSubtitle("最后是区域D。它与B(绿)和C(蓝)相邻。", "Finally, Region D. It's adjacent to B (Green) and C (Blue).", 3000);
+            await setSubtitle("它也不能是绿色或蓝色。所以我们选择红色。", "It can't be Green or Blue either. So we choose Red.", 3000);
+            await showConflict('lineBD', 'symbolBD');
+            await showConflict('lineCD', 'symbolCD');
+            await moveColor('color1', 'regionD');
+            await drawCheckMark('checkD');
+            await sleep(2000);
+        });
+
+        addStep(async () => { // Scene 6: Conclusion
+            hideElement(getElement('constraints-viz'));
+            hideElement(getElement('color-palette'));
+            await sleep(1000);
+
+            await setSubtitle(
+                "看！我们找到了一个满足所有约束的解。",
+                "Look! We found a solution that satisfies all constraints.",
+                3000
+            );
+            showElement(getElement('scene6-final'));
+            getElement('scene3-map').style.animation = 'pulse 2s infinite';
+            await sleep(3000);
+
+            await setSubtitle(
+                "这就是约束满足问题的核心思想。",
+                "This is the core idea of Constraint Satisfaction.",
+                4000
+            );
+            await sleep(2000);
+        });
+
+        // --- RESIZING LOGIC ---
+        function resizeContainer() {
+            const container = document.getElementById('container');
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+
+            const scaleX = windowWidth / containerWidth;
+            const scaleY = windowHeight / containerHeight;
+            const scale = Math.min(scaleX, scaleY);
+
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('load', () => {
+            resizeContainer();
+            runTimeline();
+        });
+        window.addEventListener('resize', resizeContainer);
+
+    </script>
+</body>
+
+</html>

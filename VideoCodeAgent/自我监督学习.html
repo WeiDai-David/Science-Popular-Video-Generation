@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>探索自我监督学习 | Exploring Self-Supervised Learning</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-color: #0077b6;
+            --secondary-color: #00b4d8;
+            --accent-color: #ffb703;
+            --text-color: #343a40;
+            --light-gray: #e9ecef;
+            --success-color: #2a9d8f;
+            --font-family: 'Poppins', sans-serif;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            color: var(--text-color);
+        }
+
+        #animation-container {
+            position: relative;
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+
+            /* 2K Resolution Aspect Ratio (16:9) */
+            width: 100vw;
+            height: 56.25vw;
+            /* 9/16 * 100 */
+            max-width: var(--container-width);
+            max-height: 100vh;
+            max-width: calc(100vh * 16 / 9);
+        }
+
+        .scene {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .scene.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 20px 40px;
+            border-radius: 15px;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitles.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        #subtitle-en {
+            font-size: 22px;
+            font-weight: 400;
+            color: var(--text-color);
+        }
+
+        /* Generic styles */
+        .title {
+            font-size: 64px;
+            font-weight: 600;
+            margin-bottom: 40px;
+            color: var(--primary-color);
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        .fade-in-up {
+            animation: fadeInUp 1s forwards;
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 1s forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        .data-grid {
+            display: grid;
+            gap: 15px;
+            transform-style: preserve-3d;
+        }
+
+        .data-item {
+            width: 50px;
+            height: 50px;
+            background-color: var(--light-gray);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .icon-svg {
+            width: 30px;
+            height: 30px;
+            fill: #adb5bd;
+        }
+
+        /* Scene 1: The Problem */
+        #scene1-content {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 80%;
+        }
+
+        .data-pool {
+            text-align: center;
+            opacity: 0;
+        }
+
+        .data-pool h3 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            font-weight: 400;
+        }
+
+        #unlabeled-pool .data-grid {
+            grid-template-columns: repeat(12, 1fr);
+        }
+
+        #labeled-pool .data-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        #labeled-pool .data-item {
+            position: relative;
+            background-color: #caf0f8;
+        }
+
+        #labeled-pool .icon-svg {
+            fill: var(--secondary-color);
+        }
+
+        #labeled-pool .data-item::after {
+            content: '🏷️';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 20px;
+        }
+
+        #human-labeler {
+            position: absolute;
+            opacity: 0;
+            left: 55%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            animation: labeling 3s infinite alternate ease-in-out;
+        }
+
+        @keyframes labeling {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                transform: translate(-40%, -60%) scale(1.05);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        #arrow-to-labeled {
+            position: absolute;
+            left: 45%;
+            top: 50%;
+            transform: translateY(-50%) scaleX(0);
+            transform-origin: left;
+            transition: transform 1s ease-in-out;
+        }
+
+        /* Scene 2: The "Aha!" Moment */
+        #lightbulb {
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 1s ease-out;
+        }
+
+        #lightbulb.on {
+            opacity: 1;
+            transform: scale(1);
+            filter: drop-shadow(0 0 30px var(--accent-color));
+        }
+
+        /* Scene 3: The Pretext Task (Jigsaw Puzzle) */
+        #scene3-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 50px;
+        }
+
+        #pretext-container {
+            display: flex;
+            align-items: center;
+            gap: 100px;
+        }
+
+        #cat-original,
+        #cat-puzzle,
+        #cat-solved {
+            width: 400px;
+            height: 400px;
+            position: relative;
+            opacity: 0;
+        }
+
+        #cat-puzzle svg {
+            position: absolute;
+            transition: all 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        #arrow-flow {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .model-brain {
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 1s;
+        }
+
+        .model-brain.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .model-brain.thinking path.cortex {
+            animation: brain-pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes brain-pulse {
+            0% {
+                fill: var(--secondary-color);
+            }
+
+            50% {
+                fill: var(--primary-color);
+            }
+
+            100% {
+                fill: var(--secondary-color);
+            }
+        }
+
+        /* Scene 4: Downstream Task */
+        #scene4-content {
+            width: 90%;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+        }
+
+        .comparison-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 45%;
+            opacity: 0;
+        }
+
+        .comparison-column h3 {
+            font-size: 36px;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+
+        #ssl-column h3 {
+            color: var(--success-color);
+        }
+
+        #trad-column h3 {
+            color: #e56b6f;
+        }
+
+        .model-box {
+            border: 3px solid var(--light-gray);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            width: 80%;
+        }
+
+        .model-box p {
+            font-size: 24px;
+            font-weight: 400;
+            margin-top: 15px;
+        }
+
+        #ssl-model-box {
+            border-color: var(--success-color);
+        }
+
+        #trad-model-box {
+            border-color: #e56b6f;
+        }
+
+        .data-for-task {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .data-for-task .data-item {
+            width: 60px;
+            height: 60px;
+            position: relative;
+        }
+
+        .data-for-task .data-item::after {
+            content: '🏷️';
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            font-size: 24px;
+        }
+
+        #ssl-data .data-item {
+            background: #d8f3dc;
+        }
+
+        #ssl-data .icon-svg {
+            fill: var(--success-color);
+        }
+
+        #trad-data .data-item {
+            background: #ffccd5;
+        }
+
+        #trad-data .icon-svg {
+            fill: #e56b6f;
+        }
+
+        .result-bar {
+            width: 80%;
+            height: 40px;
+            background-color: var(--light-gray);
+            border-radius: 20px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .result-bar-inner {
+            height: 100%;
+            width: 0;
+            border-radius: 20px;
+            transition: width 2s ease-out;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 15px;
+            color: white;
+            font-size: 20px;
+        }
+
+        #ssl-result-bar .result-bar-inner {
+            background: var(--success-color);
+        }
+
+        #trad-result-bar .result-bar-inner {
+            background: #e56b6f;
+        }
+
+        /* Scene 5: Conclusion */
+        #scene5-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 80px;
+        }
+
+        #summary-flow {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            opacity: 0;
+        }
+
+        .summary-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 400;
+            width: 250px;
+        }
+
+        .summary-icon-box {
+            width: 150px;
+            height: 150px;
+            background-color: #e9ecef;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #summary-flow path {
+            stroke: var(--secondary-color);
+            stroke-width: 5;
+            stroke-dasharray: 20;
+            animation: dash 2s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -40;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+
+        <!-- SCENE 1: The Problem with Labeled Data -->
+        <div id="scene1" class="scene">
+            <h2 class="title">传统监督学习的挑战</h2>
+            <div id="scene1-content">
+                <div id="unlabeled-pool" class="data-pool">
+                    <h3>海量未标记数据<br />Massive Unlabeled Data</h3>
+                    <div class="data-grid">
+                        <!-- Generate 12*8 = 96 items -->
+                    </div>
+                </div>
+
+                <svg id="arrow-to-labeled" width="200" height="100" viewBox="0 0 200 100">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#ffb703" />
+                        </marker>
+                    </defs>
+                    <line x1="10" y1="50" x2="190" y2="50" stroke="#ffb703" stroke-width="8"
+                        marker-end="url(#arrowhead)" />
+                </svg>
+
+                <div id="human-labeler">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 10V2a8 8 0 0 0-8 8h8Z" />
+                        <path d="M22 12A10 10 0 1 1 2 12h20Z" />
+                        <path d="M12 22a8 8 0 0 0 8-8h-8v8Z" />
+                        <circle cx="12" cy="12" r="2" fill="#ffb703" />
+                        <path d="m14.33 13.67-.5.87a2 2 0 0 1-3.66 0l-.5-.87" stroke="#343a40" />
+                        <path d="M12 12v3" stroke="#343a40" />
+                        <path d="m14 17-1 1" stroke="#343a40" />
+                        <path d="m10 17 1 1" stroke="#343a40" />
+                    </svg>
+                    <div style="text-align: center; font-weight: 600; color: #e56b6f; font-size:20px; margin-top:10px;">
+                        耗时 & 昂贵</div>
+                </div>
+
+                <div id="labeled-pool" class="data-pool">
+                    <h3>少量已标记数据<br />Few Labeled Data</h3>
+                    <div class="data-grid">
+                        <!-- Generate 3*3 = 9 items -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCENE 2: The "Aha!" Moment -->
+        <div id="scene2" class="scene">
+            <svg id="lightbulb" width="250" height="250" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path
+                    d="M12 2.69c-4.42 0-8 3.58-8 8 0 2.21.9 4.21 2.34 5.66l.42.42c1.09 1.09 1.74 2.59 1.74 4.15v2.08c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-2.08c0-1.56.65-3.06 1.74-4.15l.42-.42C20.1 14.9 21 12.9 21 10.69c0-4.42-3.58-8-9-8z"
+                    fill="#e9ecef" />
+                <path d="M8.5 19h7" stroke="#343a40" />
+                <path d="M10.5 22h3" stroke="#343a40" />
+            </svg>
+        </div>
+
+        <!-- SCENE 3: Pretext Task -->
+        <div id="scene3" class="scene">
+            <h2 class="title">核心思想：代理任务 (Pretext Task)</h2>
+            <div id="scene3-content">
+                <div id="pretext-container">
+                    <div id="cat-original">
+                        <!-- SVG of a cat -->
+                        <svg viewBox="0 0 100 100">
+                            <g id="cat-full-g" fill="#adb5bd">
+                                <path
+                                    d="M50,15 C25,15 15,30 15,50 C15,75 25,85 50,85 C75,85 85,75 85,50 C85,30 75,15 50,15 Z M40,60 C35,60 32,55 32,50 C32,45 35,40 40,40 C45,40 48,45 48,50 C48,55 45,60 40,60 Z M60,60 C55,60 52,55 52,50 C52,45 55,40 60,40 C65,40 68,45 68,50 C68,55 65,60 60,60 Z">
+                                </path>
+                                <path d="M50,70 C45,70 45,65 50,65 C55,65 55,70 50,70 Z"></path>
+                                <polygon points="20,15 30,30 10,30"></polygon>
+                                <polygon points="80,15 70,30 90,30"></polygon>
+                            </g>
+                        </svg>
+                    </div>
+
+                    <svg id="arrow-flow-1" class="arrow-flow" width="100" height="50" viewBox="0 0 100 50">
+                        <line x1="5" y1="25" x2="95" y2="25" stroke="#00b4d8" stroke-width="4"
+                            stroke-dasharray="8, 8" />
+                    </svg>
+
+                    <div id="cat-puzzle">
+                        <!-- Puzzles will be dynamically created here -->
+                    </div>
+
+                    <svg id="arrow-flow-2" class="arrow-flow" width="100" height="50" viewBox="0 0 100 50">
+                        <line x1="5" y1="25" x2="95" y2="25" stroke="#00b4d8" stroke-width="4"
+                            stroke-dasharray="8, 8" />
+                    </svg>
+
+                    <div class="model-brain">
+                        <svg width="200" viewBox="0 0 64 64">
+                            <path class="cortex"
+                                d="M32.06,5.33A25.33,25.33,0,0,0,6.73,30.67a25.2,25.2,0,0,0,.8,6.4,1,1,0,0,0,1,.8H25.9a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,19.8,0,1,1,0,0,0,1,.75H55.47a1,1,0,0,0,1-.8,25.33,25.33,0,0,0-24.41-32Z"
+                                fill="#00b4d8" />
+                            <path class="cortex"
+                                d="M37.13,42.8a1,1,0,0,0-1,.75,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-.75,1V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33,1,1,0,0,0-1-.75H8.33a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H14.1a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,8.33-8.33,1,1,0,0,0,.75-1V32.8a1,1,0,0,0-1-1H6.73a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H12.5a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-1v-4a1,1,0,0,0-1-1H48.1a1,1,0,0,0-1,1v5.83a1,1,0,0,0,.75,1,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-1,.75V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33A1,1,0,0,0,32.7,42.8Z"
+                                fill="#00b4d8" />
+                        </svg>
+                        <p style="font-size:24px; text-align:center; margin-top:10px;">学习图像的内在结构<br />Learning Internal
+                            Structure</p>
+                    </div>
+
+                    <svg id="arrow-flow-3" class="arrow-flow" width="100" height="50" viewBox="0 0 100 50">
+                        <line x1="5" y1="25" x2="95" y2="25" stroke="#00b4d8" stroke-width="4"
+                            stroke-dasharray="8, 8" />
+                    </svg>
+
+                    <div id="cat-solved">
+                        <!-- Same as original cat, will be made visible -->
+                        <svg viewBox="0 0 100 100">
+                            <g fill="#0077b6">
+                                <path
+                                    d="M50,15 C25,15 15,30 15,50 C15,75 25,85 50,85 C75,85 85,75 85,50 C85,30 75,15 50,15 Z M40,60 C35,60 32,55 32,50 C32,45 35,40 40,40 C45,40 48,45 48,50 C48,55 45,60 40,60 Z M60,60 C55,60 52,55 52,50 C52,45 55,40 60,40 C65,40 68,45 68,50 C68,55 65,60 60,60 Z">
+                                </path>
+                                <path d="M50,70 C45,70 45,65 50,65 C55,65 55,70 50,70 Z"></path>
+                                <polygon points="20,15 30,30 10,30"></polygon>
+                                <polygon points="80,15 70,30 90,30"></polygon>
+                            </g>
+                        </svg>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- SCENE 4: Downstream Task -->
+        <div id="scene4" class="scene">
+            <h2 class="title">迁移到下游任务 (Downstream Task)</h2>
+            <div id="scene4-content">
+                <div id="ssl-column" class="comparison-column">
+                    <h3>自我监督预训练模型</h3>
+                    <div id="ssl-model-box" class="model-box">
+                        <svg width="120" viewBox="0 0 64 64">
+                            <path
+                                d="M32.06,5.33A25.33,25.33,0,0,0,6.73,30.67a25.2,25.2,0,0,0,.8,6.4,1,1,0,0,0,1,.8H25.9a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,19.8,0,1,1,0,0,0,1,.75H55.47a1,1,0,0,0,1-.8,25.33,25.33,0,0,0-24.41-32Z"
+                                fill="var(--success-color)" />
+                            <path
+                                d="M37.13,42.8a1,1,0,0,0-1,.75,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-.75,1V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33,1,1,0,0,0-1-.75H8.33a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H14.1a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,8.33-8.33,1,1,0,0,0,.75-1V32.8a1,1,0,0,0-1-1H6.73a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H12.5a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-1v-4a1,1,0,0,0-1-1H48.1a1,1,0,0,0-1,1v5.83a1,1,0,0,0,.75,1,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-1,.75V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33A1,1,0,0,0,32.7,42.8Z"
+                                fill="var(--success-color)" />
+                        </svg>
+                        <p>强大的特征表示</p>
+                    </div>
+                    <p style="font-size: 24px; margin-bottom: 20px;">只需少量标记数据微调</p>
+                    <div id="ssl-data" class="data-for-task"></div>
+                    <div id="ssl-result-bar" class="result-bar">
+                        <div class="result-bar-inner">95%</div>
+                    </div>
+                </div>
+                <div id="trad-column" class="comparison-column">
+                    <h3>传统模型从零开始训练</h3>
+                    <div id="trad-model-box" class="model-box">
+                        <svg width="120" viewBox="0 0 64 64">
+                            <path
+                                d="M32.06,5.33A25.33,25.33,0,0,0,6.73,30.67a25.2,25.2,0,0,0,.8,6.4,1,1,0,0,0,1,.8H25.9a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,19.8,0,1,1,0,0,0,1,.75H55.47a1,1,0,0,0,1-.8,25.33,25.33,0,0,0-24.41-32Z"
+                                fill="#e9ecef" />
+                            <path
+                                d="M37.13,42.8a1,1,0,0,0-1,.75,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-.75,1V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33,1,1,0,0,0-1-.75H8.33a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H14.1a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,8.33-8.33,1,1,0,0,0,.75-1V32.8a1,1,0,0,0-1-1H6.73a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H12.5a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-1v-4a1,1,0,0,0-1-1H48.1a1,1,0,0,0-1,1v5.83a1,1,0,0,0,.75,1,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-1,.75V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33A1,1,0,0,0,32.7,42.8Z"
+                                fill="#e9ecef" />
+                        </svg>
+                        <p>随机初始化权重</p>
+                    </div>
+                    <p style="font-size: 24px; margin-bottom: 20px;">需要大量标记数据训练</p>
+                    <div id="trad-data" class="data-for-task"></div>
+                    <div id="trad-result-bar" class="result-bar">
+                        <div class="result-bar-inner">60%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCENE 5: Conclusion -->
+        <div id="scene5" class="scene">
+            <h2 class="title" style="font-size: 80px;">自我监督学习</h2>
+            <div id="scene5-content">
+                <div id="summary-flow">
+                    <div class="summary-item">
+                        <div class="summary-icon-box">
+                            <svg width="80" viewBox="0 0 24 24" fill="#343a40">
+                                <path d="M20 18h-2V6h2v12zm-4 2h-2V4h2v16zm-4 0H8V2h2v18zM4 22H2V0h2v22z" />
+                            </svg>
+                        </div>
+                        <p>海量无标签数据</p>
+                    </div>
+                    <svg width="100" height="50">
+                        <path d="M 5 25 L 95 25" stroke-linecap="round" fill="none" />
+                    </svg>
+                    <div class="summary-item">
+                        <div class="summary-icon-box">
+                            <svg width="80" viewBox="0 0 24 24" fill="#343a40">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                            </svg>
+                        </div>
+                        <p>设计代理任务</p>
+                    </div>
+                    <svg width="100" height="50">
+                        <path d="M 5 25 L 95 25" stroke-linecap="round" fill="none" />
+                    </svg>
+                    <div class="summary-item">
+                        <div class="summary-icon-box">
+                            <svg width="80" viewBox="0 0 64 64">
+                                <path
+                                    d="M32.06,5.33A25.33,25.33,0,0,0,6.73,30.67a25.2,25.2,0,0,0,.8,6.4,1,1,0,0,0,1,.8H25.9a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,19.8,0,1,1,0,0,0,1,.75H55.47a1,1,0,0,0,1-.8,25.33,25.33,0,0,0-24.41-32Z"
+                                    fill="var(--primary-color)" />
+                                <path
+                                    d="M37.13,42.8a1,1,0,0,0-1,.75,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-.75,1V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33,1,1,0,0,0-1-.75H8.33a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H14.1a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,8.33-8.33,1,1,0,0,0,.75-1V32.8a1,1,0,0,0-1-1H6.73a1,1,0,0,0-1,1v4a1,1,0,0,0,1,1H12.5a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-.75,10.2,10.2,0,0,1,16.66,0,1,1,0,0,0,1,.75h5.83a1,1,0,0,0,1-1v-4a1,1,0,0,0-1-1H48.1a1,1,0,0,0-1,1v5.83a1,1,0,0,0,.75,1,10.2,10.2,0,0,1-8.33,8.33,1,1,0,0,0-1,.75V58.67a1,1,0,0,0,1,1h4a1,1,0,0,0,1-1V52.88a1,1,0,0,0-.75-1,10.2,10.2,0,0,1-8.33-8.33A1,1,0,0,0,32.7,42.8Z"
+                                    fill="var(--primary-color)" />
+                            </svg>
+                        </div>
+                        <p>学习通用特征</p>
+                    </div>
+                    <svg width="100" height="50">
+                        <path d="M 5 25 L 95 25" stroke-linecap="round" fill="none" />
+                    </svg>
+                    <div class="summary-item">
+                        <div class="summary-icon-box">
+                            <svg width="80" viewBox="0 0 24 24" fill="none" stroke="var(--success-color)"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <p>高效解决下游任务</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subtitles -->
+        <div id="subtitles">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const scenes = document.querySelectorAll('.scene');
+        const subtitles = document.getElementById('subtitles');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        function showScene(sceneId) {
+            scenes.forEach(scene => {
+                scene.classList.remove('active');
+            });
+            document.getElementById(sceneId).classList.add('active');
+        }
+
+        async function updateSubtitles(cn, en) {
+            subtitles.classList.remove('visible');
+            await sleep(300);
+            subtitleCN.innerHTML = cn;
+            subtitleEN.innerHTML = en;
+            subtitles.classList.add('visible');
+        }
+
+        function generateDataItems(containerSelector, count, icons = ['cat', 'dog', 'tree']) {
+            const container = document.querySelector(containerSelector);
+            const iconSvgs = {
+                cat: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm4 0h-2v-2h2v2zm0-4h-4V9.17c0-1.1.9-2 2-2s2 .9 2 2V12z"/></svg>',
+                dog: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2zM9 14v-4h1.5v4H9zm4.5 0v-4H15v4h-1.5z"/></svg>',
+                tree: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 2L4.5 20h15L12 2zm0 4.24L15.76 18H8.24L12 6.24z"/></svg>'
+            };
+            for (let i = 0; i < count; i++) {
+                const item = document.createElement('div');
+                item.classList.add('data-item');
+                item.innerHTML = iconSvgs[icons[i % icons.length]];
+                container.appendChild(item);
+            }
+        }
+
+        // --- Animation Timeline ---
+        async function playAnimation() {
+            // --- SCENE 1: The Problem ---
+            showScene('scene1');
+            document.querySelector('#scene1 .title').classList.add('fade-in-up');
+            generateDataItems('#unlabeled-pool .data-grid', 12 * 8);
+            generateDataItems('#labeled-pool .data-grid', 3 * 3);
+            await sleep(500);
+
+            await updateSubtitles(
+                '在机器学习中，我们通常需要大量“已标记”的数据来训练模型。',
+                'In machine learning, we often need vast amounts of "labeled" data to train models.'
+            );
+            document.getElementById('unlabeled-pool').style.opacity = 1;
+            document.getElementById('labeled-pool').style.opacity = 1;
+            document.getElementById('unlabeled-pool').classList.add('fade-in');
+            document.getElementById('labeled-pool').classList.add('fade-in');
+
+            await sleep(4000);
+
+            await updateSubtitles(
+                '但数据标记过程非常耗时、昂贵，且需要大量人力。',
+                'However, the labeling process is time-consuming, expensive, and requires significant human effort.'
+            );
+            document.getElementById('arrow-to-labeled').style.transform = 'translateY(-50%) scaleX(1)';
+            document.getElementById('human-labeler').style.opacity = 1;
+
+            await sleep(5000);
+
+            // --- SCENE 2: The "Aha!" Moment ---
+            showScene('scene2');
+            await updateSubtitles(
+                '那么，有没有一种方法，能让数据“自我标记”呢？',
+                'So, is there a way to let the data "label itself"?'
+            );
+            await sleep(500);
+            document.getElementById('lightbulb').classList.add('on');
+
+            await sleep(4000);
+
+            await updateSubtitles(
+                '这就是“自我监督学习”的核心思想。',
+                'This is the core idea of "Self-Supervised Learning".'
+            );
+
+            await sleep(3000);
+
+            // --- SCENE 3: The Pretext Task ---
+            showScene('scene3');
+            document.querySelector('#scene3 .title').classList.add('fade-in-up');
+            await sleep(500);
+
+            await updateSubtitles(
+                '我们不直接标记数据，而是创建一个“代理任务” (Pretext Task)。',
+                'Instead of labeling data directly, we create a "pretext task".'
+            );
+            document.getElementById('cat-original').style.opacity = 1;
+
+            await sleep(3000);
+
+            await updateSubtitles(
+                '例如，将一张图片分割成小块并打乱顺序。',
+                'For example, we can cut an image into pieces and shuffle them.'
+            );
+            document.getElementById('arrow-flow-1').style.opacity = 1;
+
+            const catOriginal = document.getElementById('cat-full-g');
+            const catPuzzleContainer = document.getElementById('cat-puzzle');
+            const puzzleSize = 2; // 2x2 grid
+            for (let i = 0; i < puzzleSize; i++) {
+                for (let j = 0; j < puzzleSize; j++) {
+                    const piece = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                    piece.setAttribute('viewBox', '0 0 100 100');
+                    piece.setAttribute('width', `${400 / puzzleSize}`);
+                    piece.setAttribute('height', `${400 / puzzleSize}`);
+                    piece.style.left = `${j * (400 / puzzleSize)}px`;
+                    piece.style.top = `${i * (400 / puzzleSize)}px`;
+
+                    const clipPath = document.createElementNS("http://www.w3.org/2000/svg", "clipPath");
+                    const clipId = `clip-${i}-${j}`;
+                    clipPath.setAttribute('id', clipId);
+                    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttribute('x', j * (100 / puzzleSize));
+                    rect.setAttribute('y', i * (100 / puzzleSize));
+                    rect.setAttribute('width', 100 / puzzleSize);
+                    rect.setAttribute('height', 100 / puzzleSize);
+                    clipPath.appendChild(rect);
+                    piece.appendChild(clipPath);
+
+                    const catClone = catOriginal.cloneNode(true);
+                    catClone.setAttribute('clip-path', `url(#${clipId})`);
+                    piece.appendChild(catClone);
+                    catPuzzleContainer.appendChild(piece);
+                }
+            }
+            document.getElementById('cat-puzzle').style.opacity = 1;
+            await sleep(1000);
+
+            const pieces = catPuzzleContainer.querySelectorAll('svg');
+            pieces.forEach(p => {
+                const dx = (Math.random() - 0.5) * 300;
+                const dy = (Math.random() - 0.5) * 300;
+                const rot = (Math.random() - 0.5) * 90;
+                p.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
+            });
+
+            await sleep(4000);
+
+            await updateSubtitles(
+                '模型的任务，就是学会如何将这些图块复原。',
+                'The model\'s task is to learn how to put these pieces back together.'
+            );
+            document.getElementById('arrow-flow-2').style.opacity = 1;
+            const modelBrain = document.querySelector('.model-brain');
+            modelBrain.classList.add('active');
+
+            await sleep(3000);
+            await updateSubtitles(
+                '在这个过程中，模型被迫学习图像的深层特征，比如什么是眼睛、什么是纹理。',
+                'In this process, the model is forced to learn deep features of the image, like what an eye is, or what texture looks like.'
+            );
+            modelBrain.classList.add('thinking');
+
+            await sleep(4000);
+
+            await updateSubtitles(
+                '当模型成功完成任务时，它就拥有了对图像的深刻理解。',
+                'When the model successfully completes the task, it gains a profound understanding of images.'
+            );
+            modelBrain.classList.remove('thinking');
+            document.getElementById('arrow-flow-3').style.opacity = 1;
+            pieces.forEach(p => {
+                p.style.transform = 'translate(0, 0) rotate(0deg)';
+            });
+            await sleep(1500);
+            document.getElementById('cat-solved').style.opacity = 1;
+
+            await sleep(4000);
+
+            // --- SCENE 4: Downstream Task ---
+            showScene('scene4');
+            document.querySelector('#scene4 .title').classList.add('fade-in-up');
+            await sleep(500);
+
+            await updateSubtitles(
+                '这种“预训练”好的模型，在解决新任务时表现出色。',
+                'This "pre-trained" model excels when applied to new, downstream tasks.'
+            );
+
+            generateDataItems('#ssl-data', 4, ['cat', 'dog']);
+            generateDataItems('#trad-data', 16, ['cat', 'dog']);
+
+            const sslCol = document.getElementById('ssl-column');
+            const tradCol = document.getElementById('trad-column');
+
+            sslCol.style.opacity = 1;
+            sslCol.classList.add('fade-in');
+            await sleep(3000);
+
+            await updateSubtitles(
+                '只需少量标记数据进行微调，它就能达到很高的准确率。',
+                'With just a small amount of labeled data for fine-tuning, it can achieve high accuracy.'
+            );
+            document.querySelector('#ssl-result-bar .result-bar-inner').style.width = '95%';
+
+            await sleep(4000);
+
+            await updateSubtitles(
+                '相比之下，从零开始训练的传统模型需要更多数据，且效果可能更差。',
+                'In contrast, a traditional model trained from scratch requires much more data and may perform worse.'
+            );
+            tradCol.style.opacity = 1;
+            tradCol.classList.add('fade-in');
+            await sleep(2000);
+            document.querySelector('#trad-result-bar .result-bar-inner').style.width = '60%';
+
+            await sleep(5000);
+
+            // --- SCENE 5: Conclusion ---
+            showScene('scene5');
+            document.querySelector('#scene5 .title').classList.add('fade-in-up');
+            await sleep(500);
+
+            await updateSubtitles(
+                '总结一下：自我监督学习利用数据自身的结构来创建监督信号。',
+                'In summary: Self-Supervised Learning leverages the inherent structure of data to create its own supervision.'
+            );
+            document.getElementById('summary-flow').style.opacity = 1;
+            document.getElementById('summary-flow').classList.add('fade-in-up');
+
+            await sleep(5000);
+
+            await updateSubtitles(
+                '它让模型从海量无标签数据中学习到有价值的知识，极大地推动了人工智能的发展。',
+                'It enables models to learn valuable knowledge from massive unlabeled data, greatly advancing the field of AI.'
+            );
+
+            await sleep(6000);
+
+            subtitles.classList.remove('visible');
+            await sleep(1000);
+            playAnimation(); // Loop
+        }
+
+        window.onload = playAnimation;
+    </script>
+</body>
+
+</html>

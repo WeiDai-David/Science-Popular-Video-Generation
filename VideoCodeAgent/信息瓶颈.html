@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>信息瓶颈 The Information Bottleneck</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A40;
+            --primary-color: #007BFF;
+            --secondary-color: #28A745;
+            --accent-color: #FFC107;
+            --light-gray: #E9ECEF;
+            --gray: #ADB5BD;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #e0e0e0;
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+        }
+
+        #scaler {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            transform-origin: center center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+        }
+
+        .element {
+            position: absolute;
+            visibility: hidden;
+            /* Initially hidden, controlled by JS */
+        }
+
+        #title-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        #title-main {
+            font-size: 140px;
+            font-weight: 600;
+            color: var(--text-color);
+            letter-spacing: 2px;
+        }
+
+        #title-sub {
+            font-size: 70px;
+            font-weight: 300;
+            color: var(--gray);
+            margin-top: 20px;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px 40px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            z-index: 100;
+        }
+
+        #subtitle-ch {
+            font-size: 36px;
+            font-weight: 500;
+            color: var(--text-color);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            font-weight: 400;
+            color: var(--gray);
+            margin: 10px 0 0 0;
+            line-height: 1.5;
+        }
+
+        #main-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* SVG Element Styles */
+        .data-point {
+            fill: var(--gray);
+        }
+
+        .label-text {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            font-size: 50px;
+            fill: var(--text-color);
+            font-weight: 400;
+        }
+
+        .formula-text {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            font-size: 60px;
+            fill: var(--text-color);
+            font-weight: 300;
+        }
+
+        .math-symbol {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            font-size: 60px;
+            font-weight: 600;
+        }
+
+        .axis-label {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            font-size: 36px;
+            fill: #6c757d;
+        }
+
+        .arrow-head {
+            fill: var(--text-color);
+        }
+
+        .flow-line {
+            stroke: var(--gray);
+            stroke-width: 2;
+            stroke-dasharray: 10 10;
+        }
+
+        .bottleneck-path {
+            fill: url(#bottleneck-gradient);
+            stroke: var(--light-gray);
+            stroke-width: 3;
+        }
+
+        .info-path {
+            stroke: var(--primary-color);
+            stroke-width: 6;
+            fill: none;
+        }
+
+        .prediction-path {
+            stroke: var(--secondary-color);
+            stroke-width: 8;
+            fill: none;
+        }
+
+        .tradeoff-curve {
+            stroke: var(--accent-color);
+            stroke-width: 10;
+            fill: none;
+            stroke-linecap: round;
+        }
+
+        .beta-slider-track {
+            stroke: var(--light-gray);
+            stroke-width: 8;
+            stroke-linecap: round;
+        }
+
+        .beta-slider-fill {
+            stroke: var(--primary-color);
+            stroke-width: 8;
+            stroke-linecap: round;
+        }
+
+        .beta-slider-thumb {
+            fill: var(--primary-color);
+            stroke: white;
+            stroke-width: 5;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="scaler">
+        <div id="container">
+            <!-- Title Card -->
+            <div id="title-card" class="element">
+                <div id="title-main">信息瓶颈</div>
+                <div id="title-sub">Information Bottleneck</div>
+            </div>
+
+            <!-- Subtitle Box -->
+            <div id="subtitle-container" class="element">
+                <p id="subtitle-ch"></p>
+                <p id="subtitle-en"></p>
+            </div>
+
+            <!-- Main SVG Canvas for animations -->
+            <svg id="main-svg" class="element" viewBox="0 0 2560 1440">
+                <!-- Defs for gradients, markers etc. -->
+                <defs>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6"
+                        orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head" />
+                    </marker>
+                    <linearGradient id="bottleneck-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:rgba(233, 236, 239, 0.2)" />
+                        <stop offset="50%" style="stop-color:rgba(233, 236, 239, 0.8)" />
+                        <stop offset="100%" style="stop-color:rgba(233, 236, 239, 0.2)" />
+                    </linearGradient>
+                </defs>
+
+                <!-- Scene 1: Data Cloud -->
+                <g id="data-cloud"></g>
+
+                <!-- Scene 2: X, Y, Z elements -->
+                <g id="scene2-elements">
+                    <!-- Input X -->
+                    <g id="input-X">
+                        <rect x="250" y="520" width="400" height="400" rx="20" fill="#ffffff" stroke="#dee2e6"
+                            stroke-width="2" />
+                        <circle cx="355" cy="625" r="30" fill="#007BFF" opacity="0.6" />
+                        <rect x="420" y="650" width="100" height="100" fill="#28A745" opacity="0.6"
+                            transform="rotate(15, 470, 700)" />
+                        <path d="M 300 750 Q 450 850 600 750" stroke="#FFC107" stroke-width="10" fill="none"
+                            opacity="0.6" />
+                        <circle cx="550" cy="650" r="50" fill="#dc3545" opacity="0.6" />
+                        <text x="450" y="980" text-anchor="middle" class="label-text">X (输入数据 / Input)</text>
+                    </g>
+                    <!-- Label Y -->
+                    <g id="label-Y">
+                        <rect x="1910" y="520" width="400" height="400" rx="20" fill="#ffffff" stroke="#dee2e6"
+                            stroke-width="2" />
+                        <path d="M 2010 770 L 2110 620 L 2210 770 M 2110 620 L 2110 870" stroke="#28A745"
+                            stroke-width="25" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                        <text x="2110" y="980" text-anchor="middle" class="label-text">Y (相关标签 / Label)</text>
+                    </g>
+                    <!-- Bottleneck Z -->
+                    <g id="bottleneck-Z">
+                        <path id="bottleneck-shape" class="bottleneck-path"
+                            d="M 1080 420 C 1280 420, 1280 1020, 1480 1020 L 1480 420 C 1280 420, 1280 1020, 1080 1020 Z" />
+                        <text x="1280" y="1080" text-anchor="middle" class="label-text">Z (瓶颈 / Bottleneck)</text>
+                    </g>
+                    <!-- Flow lines -->
+                    <line id="flow-x-z" class="flow-line" x1="650" y1="720" x2="1080" y2="720" />
+                    <line id="flow-z-y" class="flow-line" x1="1480" y1="720" x2="1910" y2="720" />
+                </g>
+
+                <!-- Scene 3: Compression -->
+                <g id="scene3-compression">
+                    <path id="info-path-x-z" class="info-path" d="M 650 720 C 850 620, 900 820, 1080 720" />
+                    <text id="compression-text" x="865" y="550" text-anchor="middle" class="formula-text"
+                        style="fill: var(--primary-color);">压缩/Compression</text>
+                    <text id="compression-math" x="865" y="630" text-anchor="middle" class="formula-text"
+                        style="fill: var(--primary-color);">
+                        丢弃无关细节
+                        <tspan dy="1.2em" x="865">Throw away irrelevant details</tspan>
+                    </text>
+                </g>
+
+                <!-- Scene 4: Prediction -->
+                <g id="scene4-prediction">
+                    <path id="info-path-z-y" class="prediction-path" d="M 1480 720 C 1680 620, 1730 820, 1910 720" />
+                    <text id="prediction-text" x="1695" y="550" text-anchor="middle" class="formula-text"
+                        style="fill: var(--secondary-color);">预测/Prediction</text>
+                    <text id="prediction-math" x="1695" y="630" text-anchor="middle" class="formula-text"
+                        style="fill: var(--secondary-color);">
+                        保留相关信息
+                        <tspan dy="1.2em" x="1695">Preserve relevant information</tspan>
+                    </text>
+                </g>
+
+                <!-- Scene 5: Formula -->
+                <g id="scene5-formula" transform="translate(1280, 720)">
+                    <text text-anchor="middle" class="formula-text">
+                        <tspan class="math-symbol">min</tspan>
+                        <tspan dx="10"> I(X;Z)</tspan>
+                        <tspan class="math-symbol" dx="20">-</tspan>
+                        <tspan class="math-symbol" dx="20" fill="var(--accent-color)">β</tspan>
+                        <tspan dx="10"> I(Z;Y)</tspan>
+                    </text>
+                </g>
+
+                <!-- Scene 6: IB Plane -->
+                <g id="scene6-plane">
+                    <!-- Axes -->
+                    <line x1="400" y1="1100" x2="2160" y2="1100" stroke="var(--text-color)" stroke-width="3"
+                        marker-end="url(#arrow)" />
+                    <line x1="400" y1="1100" x2="400" y2="240" stroke="var(--text-color)" stroke-width="3"
+                        marker-end="url(#arrow)" />
+                    <!-- Labels -->
+                    <text x="2200" y="1100" class="axis-label">I(X;Z) (压缩程度/Complexity)</text>
+                    <text x="400" y="200" text-anchor="middle" transform="rotate(-90, 400, 200)"
+                        class="axis-label">I(Z;Y) (预测能力/Relevance)</text>
+
+                    <!-- Curve -->
+                    <path id="tradeoff-curve" class="tradeoff-curve" d="M 600 300 C 800 1000, 1500 1050, 2000 1080" />
+                    <circle id="tradeoff-point" cx="600" cy="300" r="20" fill="var(--primary-color)" stroke="white"
+                        stroke-width="5" />
+
+                    <!-- Beta slider -->
+                    <g id="beta-slider" transform="translate(850, 1250)">
+                        <text x="-100" y="15" text-anchor="end" class="label-text">β</text>
+                        <line class="beta-slider-track" x1="0" y1="0" x2="800" y2="0" />
+                        <line id="beta-slider-fill" class="beta-slider-fill" x1="0" y1="0" x2="0" y2="0" />
+                        <circle id="beta-slider-thumb" class="beta-slider-thumb" cx="0" cy="0" r="20" />
+                        <text x="0" y="80" text-anchor="middle" class="axis-label">低β / Low β</text>
+                        <text x="800" y="80" text-anchor="middle" class="axis-label">高β / High β</text>
+                        <text x="400" y="-50" text-anchor="middle" class="label-text"
+                            style="font-size: 40px; fill:var(--gray)">权衡压缩与预测的超参数</text>
+                        <text x="400" y="0" text-anchor="middle" class="label-text"
+                            style="font-size: 32px; fill:var(--gray)">A hyperparameter to trade off compression and
+                            prediction</text>
+                    </g>
+                </g>
+
+            </svg>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/MotionPathPlugin.min.js"></script>
+    <script>
+        gsap.registerPlugin(MotionPathPlugin);
+
+        // --- Responsive Scaling ---
+        function scaleContainer() {
+            const container = document.getElementById('container');
+            const scaler = document.getElementById('scaler');
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+            const viewportWidth = scaler.clientWidth;
+            const viewportHeight = scaler.clientHeight;
+
+            const scale = Math.min(viewportWidth / containerWidth, viewportHeight / containerHeight);
+
+            gsap.set(container, {
+                scale: scale,
+                x: (viewportWidth - containerWidth * scale) / 2,
+                y: (viewportHeight - containerHeight * scale) / 2
+            });
+        }
+        window.addEventListener('load', scaleContainer);
+        window.addEventListener('resize', scaleContainer);
+
+
+        // --- Subtitle Data ---
+        const subtitles = [
+            { ch: "在我们的世界里，充满了海量复杂的数据。", en: "In our world, we are surrounded by vast and complex data." },
+            { ch: "想象一下，我们想从这些数据中提取有用的信息。", en: "Imagine we want to extract useful information from this data." },
+            { ch: "这就是“信息瓶颈”理论登场的地方。", en: "This is where the 'Information Bottleneck' principle comes into play." },
+            { ch: "我们有一个输入 X，比如一张包含很多细节的图像。", en: "We have an input, X, like an image with many details." },
+            { ch: "还有一个我们关心的相关变量 Y，比如图像的标签。", en: "And a relevant variable we care about, Y, such as the image's label." },
+            { ch: "我们的目标是创建一个压缩表示 Z...", en: "Our goal is to create a compressed representation, Z..." },
+            { ch: "...它就像一个瓶颈，过滤信息。", en: "...that acts like a bottleneck, filtering the information." },
+            { ch: "这个瓶颈有两个任务。", en: "This bottleneck has two tasks." },
+            { ch: "第一：尽可能地压缩 X。", en: "First: to compress X as much as possible." },
+            { ch: "这意味着丢弃所有与 Y 无关的冗余细节。", en: "This means discarding all redundant details irrelevant to Y." },
+            { ch: "第二：同时，Z 必须保留关于 Y 的全部信息。", en: "Second: at the same time, Z must preserve all information about Y." },
+            { ch: "这样，我们依然能用 Z 准确地预测出 Y。", en: "This way, we can still accurately predict Y using Z." },
+            { ch: "这种权衡可以用一个数学公式来描述。", en: "This trade-off can be described by a mathematical objective." },
+            { ch: "我们希望最小化 X 和 Z 之间的互信息 I(X;Z)...", en: "We want to minimize the mutual information between X and Z, I(X;Z)..." },
+            { ch: "...同时最大化 Z 和 Y 之间的互信息 I(Z;Y)。", en: "...while maximizing the mutual information between Z and Y, I(Z;Y)." },
+            { ch: "参数 β 控制着压缩和预测之间的平衡。", en: "The parameter β controls the balance between compression and prediction." },
+            { ch: "这个理论可以在一个二维平面上可视化。", en: "This principle can be visualized on a 2D plane." },
+            { ch: "X轴代表压缩程度，我们希望它尽可能小。", en: "The X-axis represents complexity, which we want to be as small as possible." },
+            { ch: "Y轴代表预测能力，我们希望它尽可能大。", en: "The Y-axis represents relevance, which we want to be as high as possible." },
+            { ch: "对于每个β值，都存在一个最优的权衡点。", en: "For each value of β, there is an optimal trade-off point." },
+            { ch: "这些点共同构成了一条最优的信息曲线。", en: "Together, these points form an optimal information curve." },
+            { ch: "当β较小时，我们保留更多信息，压缩程度低但预测能力强。", en: "When β is low, we keep more information, resulting in low compression but high relevance." },
+            { ch: "当β较大时，我们追求极致压缩，但这可能会牺牲一些预测能力。", en: "When β is high, we push for maximum compression, which might sacrifice some relevance." },
+            { ch: "信息瓶颈理论，帮助我们找到在压缩和保留有用信息之间的完美平衡。", en: "The Information Bottleneck helps us find the perfect balance between compression and preserving what's essential." },
+            { ch: "它深刻地影响了深度学习、表征学习等诸多领域。", en: "It has profoundly influenced many fields, including deep learning and representation learning." },
+            { ch: "", en: "" }
+        ];
+
+        // --- Subtitle Engine ---
+        const subCH = document.getElementById('subtitle-ch');
+        const subEN = document.getElementById('subtitle-en');
+        let currentSubIndex = -1;
+
+        function updateSubtitles(time) {
+            let newSubIndex = -1;
+            if (time >= 2 && time < 5) newSubIndex = 0;
+            else if (time >= 5 && time < 8) newSubIndex = 1;
+            else if (time >= 8 && time < 11) newSubIndex = 2;
+            else if (time >= 11.5 && time < 14.5) newSubIndex = 3;
+            else if (time >= 14.5 && time < 17.5) newSubIndex = 4;
+            else if (time >= 17.5 && time < 19.5) newSubIndex = 5;
+            else if (time >= 19.5 && time < 22) newSubIndex = 6;
+            else if (time >= 22 && time < 23.5) newSubIndex = 7;
+            else if (time >= 23.5 && time < 25.5) newSubIndex = 8;
+            else if (time >= 25.5 && time < 28.5) newSubIndex = 9;
+            else if (time >= 28.5 && time < 31) newSubIndex = 10;
+            else if (time >= 31 && time < 34) newSubIndex = 11;
+            else if (time >= 34.5 && time < 37) newSubIndex = 12;
+            else if (time >= 37 && time < 40) newSubIndex = 13;
+            else if (time >= 40 && time < 43) newSubIndex = 14;
+            else if (time >= 43 && time < 46) newSubIndex = 15;
+            else if (time >= 46.5 && time < 49) newSubIndex = 16;
+            else if (time >= 49 && time < 52) newSubIndex = 17;
+            else if (time >= 52 && time < 55) newSubIndex = 18;
+            else if (time >= 55.5 && time < 58) newSubIndex = 19;
+            else if (time >= 58 && time < 61) newSubIndex = 20;
+            else if (time >= 61.5 && time < 65) newSubIndex = 21;
+            else if (time >= 65 && time < 69) newSubIndex = 22;
+            else if (time >= 69.5 && time < 74) newSubIndex = 23;
+            else if (time >= 74 && time < 78) newSubIndex = 24;
+            else if (time >= 78) newSubIndex = 25;
+
+
+            if (newSubIndex !== currentSubIndex) {
+                currentSubIndex = newSubIndex;
+                const sub = subtitles[currentSubIndex] || { ch: '', en: '' };
+
+                gsap.timeline()
+                    .to([subCH, subEN], { opacity: 0, y: 10, duration: 0.3 })
+                    .call(() => {
+                        subCH.innerHTML = sub.ch;
+                        subEN.innerHTML = sub.en;
+                    })
+                    .to([subCH, subEN], { opacity: 1, y: 0, duration: 0.3 });
+            }
+        }
+
+        // --- Animation Timeline ---
+        const tl = gsap.timeline({
+            onUpdate: () => updateSubtitles(tl.time())
+        });
+
+        // Setup
+        gsap.set(".element", { visibility: "visible" });
+        gsap.set("#main-svg, #subtitle-container, #scene2-elements, #scene3-compression, #scene4-prediction, #scene5-formula, #scene6-plane", { opacity: 0 });
+
+        // Scene 0: Title Card
+        tl.from("#title-main", { y: 50, opacity: 0, duration: 1, ease: "power2.out" }, 0.5)
+            .from("#title-sub", { y: 50, opacity: 0, duration: 1, ease: "power2.out" }, 0.8)
+            .to("#title-card", { opacity: 0, duration: 1, ease: "power2.in" }, 3);
+
+        // Scene 1: Data Cloud Intro
+        const dataCloud = document.getElementById('data-cloud');
+        for (let i = 0; i < 200; i++) {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            gsap.set(circle, {
+                attr: {
+                    cx: Math.random() * 2560,
+                    cy: Math.random() * 1440,
+                    r: Math.random() * 5 + 2,
+                    class: 'data-point'
+                },
+                opacity: 0
+            });
+            dataCloud.appendChild(circle);
+        }
+
+        tl.to("#main-svg", { opacity: 1, duration: 0.5 }, 4)
+            .to("#subtitle-container", { opacity: 1, duration: 1 }, 4)
+            .to(".data-point", { opacity: () => Math.random() * 0.5 + 0.1, duration: 2, stagger: 0.01 }, 4.5);
+
+        // Scene 2: Introduce X, Y, Z
+        tl.to("#data-cloud", { opacity: 0.1, duration: 2, ease: "power2.inOut" }, 9)
+            .to("#scene2-elements", { opacity: 1, duration: 1 }, 11)
+            .from("#input-X", { x: -200, opacity: 0, duration: 1.5, ease: "power2.out" }, 11.5)
+            .from("#label-Y", { x: 200, opacity: 0, duration: 1.5, ease: "power2.out" }, 11.5)
+            .from("#bottleneck-Z", { scale: 0.5, opacity: 0, duration: 1.5, ease: "back.out(1.7)" }, 13)
+            .from(["#flow-x-z", "#flow-z-y"], { strokeDashoffset: 1000, duration: 2, ease: "none" }, 14);
+
+        // Scene 3 & 4: Compression and Prediction
+        const infoPathXZ = document.getElementById('info-path-x-z');
+        const pathXZLength = infoPathXZ.getTotalLength();
+        const infoPathZY = document.getElementById('info-path-z-y');
+        const pathZYLength = infoPathZY.getTotalLength();
+
+        gsap.set("#info-path-x-z", { strokeDasharray: pathXZLength, strokeDashoffset: pathXZLength });
+        gsap.set("#info-path-z-y", { strokeDasharray: pathZYLength, strokeDashoffset: pathZYLength });
+
+        tl.to("#scene3-compression", { opacity: 1, duration: 0.5 }, 23)
+            .to("#info-path-x-z", { strokeDashoffset: 0, duration: 2, ease: "power1.inOut" }, 23.5)
+            .from(["#compression-text", "#compression-math"], { y: 30, opacity: 0, duration: 1, stagger: 0.3, ease: "power2.out" }, 24)
+            .to("#scene4-prediction", { opacity: 1, duration: 0.5 }, 28)
+            .to("#info-path-z-y", { strokeDashoffset: 0, duration: 2, ease: "power1.inOut" }, 28.5)
+            .from(["#prediction-text", "#prediction-math"], { y: 30, opacity: 0, duration: 1, stagger: 0.3, ease: "power2.out" }, 29);
+
+        // Transition to formula
+        tl.to(["#scene2-elements", "#scene3-compression", "#scene4-prediction"], { opacity: 0, duration: 1.5, ease: "power2.in" }, 34);
+
+        // Scene 5: Formula
+        tl.to("#scene5-formula", { opacity: 1, duration: 1 }, 35.5)
+            .from("#scene5-formula", { scale: 0.8, duration: 1.5, ease: "back.out(1.7)" }, 35.5)
+            .to("#scene5-formula", { opacity: 0, y: -100, duration: 1.5, ease: "power2.in" }, 45);
+
+        // Scene 6: IB Plane
+        const tradeoffCurve = document.getElementById('tradeoff-curve');
+        const curveLength = tradeoffCurve.getTotalLength();
+        gsap.set("#tradeoff-curve", { strokeDasharray: curveLength, strokeDashoffset: curveLength });
+
+        tl.to("#scene6-plane", { opacity: 1, duration: 1 }, 46)
+            .from("#scene6-plane > line, #scene6-plane > text", { opacity: 0, y: 50, stagger: 0.2, duration: 1, ease: "power2.out" }, 46.5)
+            .to("#tradeoff-curve", { strokeDashoffset: 0, duration: 3, ease: "power1.inOut" }, 49.5)
+            .from("#tradeoff-point", { opacity: 0, duration: 0.5 }, 49.5)
+            .from("#beta-slider", { opacity: 0, y: 50, duration: 1 }, 54);
+
+        // Animate beta slider and point on curve
+        tl.to("#beta-slider-thumb", {
+            motionPath: {
+                path: "#beta-slider-fill",
+                align: "#beta-slider-fill",
+                alignOrigin: [0.5, 0.5],
+                autoRotate: false,
+                start: 0.2,
+                end: 0.8
+            },
+            duration: 12,
+            ease: "sine.inOut"
+        }, 61.5);
+        tl.to("#beta-slider-fill", {
+            attr: { x2: 800 * 0.8 },
+            duration: 12,
+            ease: "sine.inOut"
+        }, 61.5);
+        tl.to("#tradeoff-point", {
+            motionPath: {
+                path: "#tradeoff-curve",
+                align: "#tradeoff-curve",
+                alignOrigin: [0.5, 0.5],
+                autoRotate: false,
+                start: 0.1,
+                end: 0.9
+            },
+            duration: 12,
+            ease: "sine.inOut"
+        }, 61.5);
+
+        // Final Fade out
+        tl.to("#container", { opacity: 0, duration: 2, ease: "power2.in" }, 78);
+
+    </script>
+</body>
+
+</html>

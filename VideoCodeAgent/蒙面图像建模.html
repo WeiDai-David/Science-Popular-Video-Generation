@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Masked Image Modeling Explained</title>
+    <style>
+        :root {
+            --bg-color: #F5F7FA;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --text-color: #4A4A4A;
+            --light-text-color: #9B9B9B;
+            --border-color: #E0E6EB;
+            --mask-color: #D8D8D8;
+            --reconstruct-color: rgba(74, 144, 226, 0.5);
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #EAEFF5;
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            transform-origin: top left;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        #particle-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .scene-element {
+            position: absolute;
+            opacity: 0;
+            z-index: 10;
+        }
+
+        /* Scene 1: Title */
+        #title-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #main-title {
+            font-size: 100px;
+            color: var(--text-color);
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        #sub-title {
+            font-size: 60px;
+            color: var(--primary-color);
+            font-weight: 300;
+            margin-top: 20px;
+        }
+
+        /* Image & Patches */
+        #image-container {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 768px;
+            height: 768px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        #source-image {
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1596854407944-bf87f6fdd49e?q=80&w=1160&auto=format&fit=crop') no-repeat center center;
+            background-size: cover;
+        }
+
+        #patch-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(16, 1fr);
+            grid-template-rows: repeat(16, 1fr);
+        }
+
+        .patch {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            background: url('https://images.unsplash.com/photo-1596854407944-bf87f6fdd49e?q=80&w=1160&auto=format&fit=crop') no-repeat;
+            background-size: 768px 768px;
+            position: relative;
+        }
+
+        .patch-overlay {
+            width: 100%;
+            height: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-sizing: border-box;
+        }
+
+        .mask-token {
+            background-color: var(--mask-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .reconstructed-patch {
+            background-color: var(--reconstruct-color);
+            filter: blur(5px);
+        }
+
+
+        /* Subtitles */
+        #subtitle-container {
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            z-index: 100;
+        }
+
+        #subtitle-cn,
+        #subtitle-en {
+            margin: 0;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #subtitle-cn {
+            font-size: 48px;
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            color: var(--light-text-color);
+            margin-top: 10px;
+            font-weight: 400;
+        }
+
+        /* Architectural Components */
+        .arch-component {
+            width: 400px;
+            height: 500px;
+            border: 3px solid var(--border-color);
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        .arch-icon {
+            width: 100px;
+            height: 100px;
+        }
+
+        .arch-label {
+            font-size: 40px;
+            font-weight: 500;
+            color: var(--primary-color);
+            margin-top: 20px;
+        }
+
+        #encoder {
+            left: 200px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        #decoder {
+            right: 200px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        #mask-percentage {
+            top: 250px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 50px;
+            font-weight: 600;
+            color: var(--primary-color);
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px 30px;
+            border-radius: 15px;
+        }
+
+        /* Scene 5: Loss Calculation */
+        #loss-container {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            gap: 80px;
+        }
+
+        .comparison-image {
+            width: 512px;
+            height: 512px;
+            border: 3px solid var(--border-color);
+            border-radius: 15px;
+            position: relative;
+        }
+
+        .comparison-label {
+            position: absolute;
+            bottom: -70px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            color: var(--text-color);
+            width: 100%;
+            text-align: center;
+        }
+
+        #original-masked {
+            background: url('https://images.unsplash.com/photo-1596854407944-bf87f6fdd49e?q=80&w=1160&auto=format&fit=crop') no-repeat center center;
+            background-size: cover;
+        }
+
+        #reconstructed-full {
+            background: url('https://images.unsplash.com/photo-1596854407944-bf87f6fdd49e?q=80&w=1160&auto=format&fit=crop') no-repeat center center;
+            background-size: cover;
+            filter: blur(1.5px);
+            /* Simulates reconstruction imperfection */
+        }
+
+        #loss-function {
+            text-align: center;
+        }
+
+        #loss-label {
+            font-size: 40px;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        #loss-value {
+            font-size: 70px;
+            color: var(--text-color);
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        /* Scene 6: Outcome */
+        #final-model {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        #model-icon {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+        }
+
+        #model-label {
+            font-size: 60px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-top: 30px;
+        }
+
+        #downstream-tasks {
+            display: flex;
+            justify-content: center;
+            gap: 100px;
+            margin-top: 100px;
+        }
+
+        .task {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .task-icon {
+            width: 120px;
+            height: 120px;
+            border: 3px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+        }
+
+        .task-label {
+            font-size: 32px;
+            color: var(--text-color);
+        }
+
+        .arrow {
+            position: absolute;
+            stroke: var(--primary-color);
+            stroke-width: 4;
+            fill: none;
+            stroke-dasharray: 10 10;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+        <canvas id="particle-canvas"></canvas>
+
+        <!-- Scene 1 Elements -->
+        <div id="title-card" class="scene-element">
+            <div id="main-title">Masked Image Modeling</div>
+            <div id="sub-title">蒙面图像建模</div>
+        </div>
+
+        <!-- Scene 2, 3, 4 Elements -->
+        <div id="image-container" class="scene-element">
+            <div id="source-image"></div>
+            <div id="patch-grid"></div>
+        </div>
+        <div id="mask-percentage" class="scene-element">~75% Masked</div>
+
+        <!-- Scene 3, 4 Architectural Elements -->
+        <div id="encoder" class="scene-element arch-component">
+            <svg class="arch-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+                <path fill="currentColor"
+                    d="M160 160q-33 0-56.5-23.5T80 80v-32q0-13.255 9.373-22.627T112 16h72q13.255 0 22.627 9.373T216 48v32q0 33-23.5 56.5T160 160zm0 800q-33 0-56.5-23.5T80 880v-32q0-13.255 9.373-22.627T112 816h72q13.255 0 22.627 9.373T216 848v32q0 33-23.5 56.5T160 960zm80-400q0-33 23.5-56.5T296 480h432q33 0 56.5 23.5T816 536v-32q0-13.255-9.373-22.627T784 472h-72q-13.255 0-22.627-9.373T576 440v-72q0-13.255-9.373-22.627T544 336h-72q-13.255 0-22.627-9.373T432 304v-72q0-13.255-9.373-22.627T400 200h-72q-13.255 0-22.627-9.373T288 168v-32q0-33 23.5-56.5T344 56h336q33 0 56.5 23.5T760 112v32q0 13.255 9.373 22.627T792 176h72q13.255 0 22.627 9.373T896 208v72q0 13.255 9.373 22.627T928 312h32q33 0 56.5 23.5T1016 368v288q0 33-23.5 56.5T960 736h-32q-13.255 0-22.627-9.373T896 704v-72q0-13.255-9.373-22.627T864 600h-72q-13.255 0-22.627-9.373T752 568v32q0 33-23.5 56.5T696 680H344q-33 0-56.5-23.5T264 600v-32q0-13.255-9.373-22.627T232 536h-72q-13.255 0-22.627-9.373T128 504v-32q0-33 23.5-56.5T184 392h72q13.255 0 22.627 9.373T288 424v72q0 33-23.5 56.5T240 576zM864 800q-13.255 0-22.627 9.373T832 832v72q0 13.255 9.373 22.627T864 936h72q13.255 0 22.627-9.373T968 904v-72q0-13.255-9.373-22.627T936 800h-72z" />
+            </svg>
+            <div class="arch-label">Encoder</div>
+        </div>
+        <div id="decoder" class="scene-element arch-component">
+            <svg class="arch-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+                <path fill="currentColor"
+                    d="M512 64a448 448 0 1 1 0 896a448 448 0 0 1 0-896zm0 832a384 384 0 0 0 0-768a384 384 0 0 0 0 768zm-48-247.232v-60.8a8 8 0 0 1 8-8h80a8 8 0 0 1 8 8v60.8a8 8 0 0 1-8 8h-80a8 8 0 0 1-8-8zm-9.664-156.992L488.32 376.8a8 8 0 0 1 13.856-8l34.624 60a8 8 0 0 1-13.856 8L488.32 376.8zM379.328 492.8a8 8 0 0 1-8-13.856l60-34.624a8 8 0 0 1 8 13.856l-60 34.624zM379.328 531.2a8 8 0 0 1 8 13.856l-60 34.624a8 8 0 0 1-8-13.856l60-34.624zm123.008 123.008a8 8 0 0 1-13.856-8l34.624-60a8 8 0 0 1 13.856 8l-34.624 60zM635.328 492.8l-60 34.624a8 8 0 0 1-8-13.856l60-34.624a8 8 0 0 1 8 13.856zm-91.328-116a8 8 0 0 1 13.856 8l-34.624 60a8 8 0 0 1-13.856-8l34.624-60zM635.328 531.2l-60-34.624a8 8 0 0 1 8-13.856l60 34.624a8 8 0 0 1-8 13.856z" />
+            </svg>
+            <div class="arch-label">Decoder</div>
+        </div>
+
+        <!-- Scene 5 Elements -->
+        <div id="loss-container" class="scene-element">
+            <div id="reconstructed-full" class="comparison-image">
+                <div class="comparison-label">Reconstructed Image / 重建图像</div>
+            </div>
+            <div id="loss-function">
+                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                    style="margin-bottom: 20px;">
+                    <path
+                        d="M13 13H19V15H13V13ZM5 13V15H11V13H5ZM13 9H19V11H13V9ZM5 9H11V11H5V9ZM12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z"
+                        fill="#E85C5C" />
+                </svg>
+                <div id="loss-label">Loss / 损失函数</div>
+                <div id="loss-value">0.734</div>
+            </div>
+            <div id="original-masked" class="comparison-image">
+                <div class="comparison-label">Original Image / 原始图像</div>
+            </div>
+        </div>
+
+        <!-- Scene 6 Elements -->
+        <div id="final-model" class="scene-element">
+            <div id="model-icon">
+                <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="url(#grad1)"
+                        d="M512 896a320 320 0 1 0 0-640a320 320 0 0 0 0 640zm0 64a384 384 0 1 1 0-768a384 384 0 0 1 0 768z" />
+                    <path fill="url(#grad1)"
+                        d="M512 64a448 448 0 1 1 0 896a448 448 0 0 1 0-896zm0-64C229.248 0 0 229.248 0 512s229.248 512 512 512s512-229.248 512-512S794.752 0 512 0z" />
+                    <defs>
+                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:var(--secondary-color);stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:var(--primary-color);stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <div id="model-label">Powerful Pre-trained Model<br>强大的预训练模型</div>
+            <div id="downstream-tasks">
+                <div class="task" id="task-classify">
+                    <div class="task-icon"><svg viewBox="0 0 24 24" width="60" height="60" fill="var(--primary-color)">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+                        </svg></div>
+                    <div class="task-label">Classification<br>分类</div>
+                </div>
+                <div class="task" id="task-detect">
+                    <div class="task-icon"><svg viewBox="0 0 24 24" width="60" height="60" fill="var(--primary-color)">
+                            <path
+                                d="M12 4c4.41 0 8 3.59 8 8s-3.59 8-8 8-8-3.59-8-8 3.59-8 8-8m0-2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 5c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                        </svg></div>
+                    <div class="task-label">Detection<br>检测</div>
+                </div>
+                <div class="task" id="task-segment">
+                    <div class="task-icon"><svg viewBox="0 0 24 24" width="60" height="60" fill="var(--primary-color)">
+                            <path
+                                d="M3 15h4v-2H3v2zm0 4h4v-2H3v2zm0-8h4V9H3v2zm0-6v2h4V5H3zm8 14h4v-2h-4v2zm0-18v2h4V5h-4zm-4 2h2v-2H7v2zm0 14h2v-2H7v2zm-4-2H5v-2H3v2zM7 9h2V7H7v2zm-4 2h2V9H3v2zm2-2h2V7H5v2zm4 8h2v-2H9v2zm8-12v2h4V5h-4zm-2 2h2V7h-2v2zm4 8h-4v2h4v-2zm-4-2h2v-2h-2v2zm-4 2h2v-2h-2v2zm0-14h2V5h-2v2z" />
+                        </svg></div>
+                    <div class="task-label">Segmentation<br>分割</div>
+                </div>
+            </div>
+        </div>
+        <svg id="arrows-svg" width="2560" height="1440"
+            style="position:absolute; top:0; left:0; z-index: 5; pointer-events: none;"></svg>
+
+        <!-- Subtitles -->
+        <div id="subtitle-container" class="scene-element">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        // --- Responsive Scaling ---
+        const container = document.getElementById('animation-container');
+        const resize = () => {
+            const scale = Math.min(
+                window.innerWidth / 2560,
+                window.innerHeight / 1440
+            );
+            container.style.transform = `scale(${scale})`;
+            container.style.left = `${(window.innerWidth - 2560 * scale) / 2}px`;
+            container.style.top = `${(window.innerHeight - 1440 * scale) / 2}px`;
+        };
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Particle Background ---
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 2560;
+        canvas.height = 1440;
+
+        let particlesArray;
+
+        const particleColors = ['#4A90E2', '#50E3C2', '#D8D8D8'];
+
+        class Particle {
+            constructor(x, y, directionX, directionY, size, color) {
+                this.x = x;
+                this.y = y;
+                this.directionX = directionX;
+                this.directionY = directionY;
+                this.size = size;
+                this.color = color;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+            update() {
+                if (this.x > canvas.width || this.x < 0) {
+                    this.directionX = -this.directionX;
+                }
+                if (this.y > canvas.height || this.y < 0) {
+                    this.directionY = -this.directionY;
+                }
+                this.x += this.directionX;
+                this.y += this.directionY;
+                this.draw();
+            }
+        }
+
+        function initParticles() {
+            particlesArray = [];
+            let numberOfParticles = 50;
+            for (let i = 0; i < numberOfParticles; i++) {
+                let size = Math.random() * 2 + 1;
+                let x = Math.random() * canvas.width;
+                let y = Math.random() * canvas.height;
+                let directionX = (Math.random() * .4) - .2;
+                let directionY = (Math.random() * .4) - .2;
+                let color = particleColors[Math.floor(Math.random() * particleColors.length)];
+                particlesArray.push(new Particle(x, y, directionX, directionY, size, color));
+            }
+        }
+
+        function animateParticles() {
+            requestAnimationFrame(animateParticles);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+            }
+        }
+
+        initParticles();
+        animateParticles();
+
+
+        // --- Main Animation Timeline using GSAP ---
+        const tl = gsap.timeline({ delay: 1 });
+
+        // DOM elements
+        const titleCard = "#title-card";
+        const subtitleContainer = "#subtitle-container";
+        const subtitleCN = "#subtitle-cn";
+        const subtitleEN = "#subtitle-en";
+        const imageContainer = "#image-container";
+        const sourceImage = "#source-image";
+        const patchGrid = "#patch-grid";
+        const maskPercentage = "#mask-percentage";
+        const encoder = "#encoder";
+        const decoder = "#decoder";
+        const lossContainer = "#loss-container";
+        const lossValue = "#loss-value";
+        const finalModel = "#final-model";
+        const arrowsSVG = "#arrows-svg";
+
+        // --- Helper Functions ---
+        function updateSubtitles(cn, en) {
+            gsap.to([subtitleCN, subtitleEN], {
+                opacity: 0,
+                duration: 0.3,
+                onComplete: () => {
+                    document.querySelector(subtitleCN).innerHTML = cn;
+                    document.querySelector(subtitleEN).innerHTML = en;
+                    gsap.to([subtitleCN, subtitleEN], { opacity: 1, duration: 0.3 });
+                }
+            });
+        }
+
+        // --- Animation Sequence ---
+
+        // SCENE 1: Introduction
+        tl.to(titleCard, { opacity: 1, duration: 1 })
+            .to(subtitleContainer, { opacity: 1, duration: 1 }, "-=0.5")
+            .call(updateSubtitles, ["这是蒙面图像建模 (MIM)", "This is Masked Image Modeling (MIM)"])
+            .to({}, { duration: 2 }) // Pause
+            .call(updateSubtitles, ["一种让计算机在没有标签的情况下，学习图像内在知识的方法。", "A way for computers to learn from images without labels."])
+            .to({}, { duration: 2.5 }) // Pause
+            .to(titleCard, { opacity: 0, duration: 1 })
+            .to(imageContainer, { opacity: 1, scale: 0.8, duration: 1 }, "-=0.5");
+
+        // SCENE 2: Masking
+        tl.call(updateSubtitles, ["首先，我们将一张图片分割成许多小图块 (Patches)。", "First, we divide an image into a grid of patches."])
+            .to({}, { duration: 0.5 })
+            .call(() => {
+                const grid = document.querySelector(patchGrid);
+                for (let i = 0; i < 16 * 16; i++) {
+                    const patch = document.createElement('div');
+                    patch.className = 'patch';
+                    const overlay = document.createElement('div');
+                    overlay.className = 'patch-overlay';
+                    patch.appendChild(overlay);
+
+                    const row = Math.floor(i / 16);
+                    const col = i % 16;
+                    patch.style.backgroundPosition = `-${col * 48}px -${row * 48}px`;
+
+                    grid.appendChild(patch);
+                }
+                gsap.from(".patch-overlay", {
+                    opacity: 0,
+                    borderColor: 'rgba(74, 144, 226, 0)',
+                    duration: 1,
+                    stagger: 0.005
+                });
+            })
+            .to({}, { duration: 2.5 })
+            .call(updateSubtitles, ["然后，我们随机“蒙上”或隐藏其中大部分图块，大约75%。", "Then, we randomly 'mask' or hide a large portion of them, around 75%."])
+            .to({}, { duration: 1 })
+            .to(maskPercentage, { opacity: 1, y: -20, duration: 0.5 })
+            .call(() => {
+                const patches = document.querySelectorAll(".patch");
+                const patchesToMask = Array.from(patches).sort(() => 0.5 - Math.random()).slice(0, Math.floor(patches.length * 0.75));
+
+                patchesToMask.forEach(patch => {
+                    patch.classList.add('masked');
+                    gsap.to(patch, {
+                        opacity: 0,
+                        scale: 0.5,
+                        duration: 0.5,
+                        stagger: 0.01,
+                        onComplete: () => {
+                            patch.style.background = 'var(--mask-color)';
+                            patch.style.border = '1px solid var(--border-color)';
+                            gsap.to(patch, { opacity: 1, scale: 1, duration: 0.3 });
+                        }
+                    });
+                });
+            })
+            .to({}, { duration: 2 });
+
+        // SCENE 3: Encoding
+        tl.call(updateSubtitles, ["模型 (Encoder) 只能看到未被遮挡的图块。", "The model (Encoder) only sees the visible patches."])
+            .to([imageContainer, maskPercentage], { x: '-=500', scale: 0.6, duration: 1.5, ease: 'power2.inOut' })
+            .to(encoder, { opacity: 1, duration: 1 }, "-=1")
+            .to({}, { duration: 1 })
+            .call(updateSubtitles, ["它的任务是从这些零散的信息中，理解图像的整体内容。", "Its job is to understand the context from these visible parts."])
+            .call(() => {
+                const visiblePatches = document.querySelectorAll(".patch:not(.masked)");
+                gsap.to(visiblePatches, {
+                    x: -600,
+                    y: (i) => (i - visiblePatches.length / 2) * 2,
+                    scale: 0,
+                    opacity: 0,
+                    duration: 1,
+                    stagger: 0.01,
+                    ease: 'power2.in'
+                });
+                gsap.fromTo(encoder, { boxShadow: "0 5px 20px rgba(0,0,0,0.05)" }, {
+                    boxShadow: "0 0 40px rgba(74, 144, 226, 0.5)",
+                    repeat: 1,
+                    yoyo: true,
+                    duration: 1,
+                    ease: 'power2.inOut'
+                });
+            })
+            .to({}, { duration: 2 });
+
+        // SCENE 4: Reconstruction
+        tl.call(updateSubtitles, ["接着，一个解码器 (Decoder) 尝试重建被蒙住的部分。", "Next, a Decoder tries to reconstruct the masked parts."])
+            .to(decoder, { opacity: 1, duration: 1 })
+            .to({}, { duration: 1 })
+            .call(updateSubtitles, ["它利用从可见图块学到的上下文信息进行预测。", "It uses the learned context to predict the missing pixels."])
+            .call(() => {
+                gsap.fromTo(decoder, { boxShadow: "0 5px 20px rgba(0,0,0,0.05)" }, {
+                    boxShadow: "0 0 40px rgba(80, 227, 194, 0.5)",
+                    repeat: 1,
+                    yoyo: true,
+                    duration: 1,
+                    ease: 'power2.inOut'
+                });
+                const maskedPatches = document.querySelectorAll(".patch.masked");
+                maskedPatches.forEach(patch => {
+                    patch.classList.add('reconstructed-patch');
+                    gsap.from(patch, {
+                        opacity: 0,
+                        scale: 0.5,
+                        duration: 0.5,
+                        stagger: 0.01
+                    });
+                });
+            })
+            .to({}, { duration: 2.5 })
+            .to([encoder, decoder], { opacity: 0, duration: 1 })
+            .to(imageContainer, { x: 0, y: 0, scale: 0.8, duration: 1.5, ease: 'power2.inOut' }, "-=1");
+
+        // SCENE 5: Learning
+        tl.call(updateSubtitles, ["模型将重建结果与原始图像进行比较。", "The model compares its reconstruction to the original."])
+            .to(imageContainer, { opacity: 0, scale: 0.5, duration: 1 })
+            .to(lossContainer, { opacity: 1, duration: 1 }, "-=0.5")
+            .to({}, { duration: 2 })
+            .call(updateSubtitles, ["两者差异越大，“损失”就越大。模型的目标是最小化这个损失。", "The difference is the 'loss'. The goal is to minimize this loss."])
+            .to({}, { duration: 1 })
+            .to(lossValue, {
+                textContent: "0.121",
+                duration: 2,
+                ease: "power1.in",
+                snap: { textContent: 0.001 },
+                onUpdate: function () {
+                    this.targets()[0].textContent = parseFloat(this.targets()[0].textContent).toFixed(3);
+                }
+            })
+            .to({}, { duration: 1 })
+            .call(updateSubtitles, ["通过不断重复这个过程，模型学会了强大的视觉表征能力。", "By repeating this process, the model learns powerful visual representations."])
+            .to({}, { duration: 2.5 });
+
+        // SCENE 6: Outcome
+        tl.to(lossContainer, { opacity: 0, duration: 1 })
+            .to(finalModel, { opacity: 1, duration: 1 })
+            .call(updateSubtitles, ["最终，我们得到一个强大的预训练模型。", "Finally, we get a powerful pre-trained model."])
+            .fromTo("#model-icon", { scale: 0.8 }, { scale: 1, repeat: -1, yoyo: true, duration: 2, ease: "sine.inOut" })
+            .to({}, { duration: 2 })
+            .call(updateSubtitles, ["这个模型可以被高效地用于各种下游任务，如分类、检测和分割。", "This model can be efficiently fine-tuned for various downstream tasks."])
+            .to(".task", { opacity: 1, y: -20, stagger: 0.3, duration: 0.7 })
+            .call(() => {
+                const svg = document.querySelector(arrowsSVG);
+                function drawArrow(from, to) {
+                    const fromRect = document.querySelector(from).getBoundingClientRect();
+                    const toRect = document.querySelector(to).getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    const scale = 2560 / containerRect.width;
+
+                    const startX = (fromRect.left + fromRect.width / 2 - containerRect.left) * scale;
+                    const startY = (fromRect.top + fromRect.height / 2 - containerRect.top) * scale;
+                    const endX = (toRect.left + toRect.width / 2 - containerRect.left) * scale;
+                    const endY = (toRect.top - containerRect.top) * scale;
+
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    const d = `M ${startX} ${startY + 150} C ${startX} ${startY + 250}, ${endX} ${endY - 100}, ${endX} ${endY - 70}`;
+                    path.setAttribute("d", d);
+                    path.setAttribute("class", "arrow");
+                    path.setAttribute("marker-end", "url(#arrowhead)");
+
+                    const pathLength = path.getTotalLength();
+                    path.style.strokeDasharray = pathLength;
+                    path.style.strokeDashoffset = pathLength;
+
+                    svg.innerHTML += `<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="var(--primary-color)"/></marker></defs>`;
+                    svg.appendChild(path);
+
+                    gsap.to(path, { strokeDashoffset: 0, duration: 1.5, ease: 'power2.out' });
+                }
+                drawArrow('#model-icon', '#task-classify');
+                drawArrow('#model-icon', '#task-detect');
+                drawArrow('#model-icon', '#task-segment');
+            })
+            .to({}, { duration: 4 })
+            .call(updateSubtitles, ["这就是蒙面图像建模的魅力。", "This is the power of Masked Image Modeling."])
+            .to({}, { duration: 2 })
+            .to("#animation-container > .scene-element", { opacity: 0, duration: 1.5 })
+            .to(arrowsSVG, { opacity: 0, duration: 1.5 }, "-=1.5")
+            .to({}, { duration: 1 })
+            .call(() => {
+                // Option to loop animation
+                // tl.restart();
+            });
+
+    </script>
+</body>
+
+</html>

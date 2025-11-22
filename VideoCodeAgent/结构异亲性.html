@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Structural Heterophily | 结构异亲性</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #343a40;
+            --primary-color: #a2d2ff;
+            /* Blue cluster */
+            --secondary-color: #ffc9a2;
+            /* Orange cluster */
+            --accent-color: #e07a5f;
+            /* Bridge & info */
+            --shadow-color: rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Poppins', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 100%;
+            max-width: 2560px;
+            aspect-ratio: 2560 / 1440;
+            position: relative;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px var(--shadow-color);
+            overflow: hidden;
+        }
+
+        #main-svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* SVG Element Styling */
+        .node {
+            transition: all 0.3s ease-in-out;
+        }
+
+        .node-cluster-A {
+            fill: var(--primary-color);
+        }
+
+        .node-cluster-B {
+            fill: var(--secondary-color);
+        }
+
+        .link {
+            stroke: #ced4da;
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+
+        .bridge-link {
+            stroke: var(--accent-color);
+            stroke-width: 4;
+            stroke-dasharray: 15 10;
+        }
+
+        .info-orb {
+            filter: drop-shadow(0 0 8px var(--accent-color));
+        }
+
+        .title-text,
+        .concept-text {
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .title-text {
+            font-size: 80px;
+        }
+
+        .subtitle-text {
+            font-size: 40px;
+        }
+
+        .concept-text {
+            font-size: 50px;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 5%;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            padding: 0 5%;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .subtitle-line {
+            font-size: 28px;
+            line-height: 1.6;
+            opacity: 0;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+
+        .subtitle-zh {
+            font-weight: 400;
+            color: var(--text-color);
+        }
+
+        .subtitle-en {
+            font-weight: 300;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .pulsing {
+            animation: pulse 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="main-svg" viewBox="0 0 2560 1440">
+            <!-- Defs for filters and markers -->
+            <defs>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="15" result="coloredBlur" />
+                    <feMerge>
+                        <feMergeNode in="coloredBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                </filter>
+            </defs>
+
+            <!-- Title -->
+            <g id="title-group">
+                <text x="1280" y="650" class="title-text">Structural Heterophily</text>
+                <text x="1280" y="760" class="subtitle-text">结构异亲性</text>
+            </g>
+
+            <!-- Network Elements -->
+            <g id="network-group" style="opacity: 0;">
+                <!-- Cluster A -->
+                <g id="cluster-A">
+                    <line id="link-A1-A2" class="link" x1="600" y1="720" x2="750" y2="600" />
+                    <line id="link-A1-A3" class="link" x1="600" y1="720" x2="750" y2="840" />
+                    <line id="link-A2-A4" class="link" x1="750" y1="600" x2="950" y2="600" />
+                    <line id="link-A3-A5" class="link" x1="750" y1="840" x2="950" y2="840" />
+                    <line id="link-A4-A5" class="link" x1="950" y1="600" x2="950" y2="840" />
+                    <line id="link-A2-A3" class="link" x1="750" y1="600" x2="750" y2="840" />
+
+                    <circle id="node-A1" class="node node-cluster-A" cx="600" cy="720" r="30" />
+                    <circle id="node-A2" class="node node-cluster-A" cx="750" cy="600" r="30" />
+                    <circle id="node-A3" class="node node-cluster-A" cx="750" cy="840" r="30" />
+                    <circle id="node-A4" class="node node-cluster-A" cx="950" cy="600" r="30" />
+                    <circle id="node-A5" class="node node-cluster-A" cx="950" cy="840" r="30" />
+                </g>
+
+                <!-- Cluster B -->
+                <g id="cluster-B">
+                    <line id="link-B1-B2" class="link" x1="1960" y1="720" x2="1810" y2="600" />
+                    <line id="link-B1-B3" class="link" x1="1960" y1="720" x2="1810" y2="840" />
+                    <line id="link-B2-B4" class="link" x1="1810" y1="600" x2="1610" y2="600" />
+                    <line id="link-B3-B5" class="link" x1="1810" y1="840" x2="1610" y2="840" />
+                    <line id="link-B4-B5" class="link" x1="1610" y1="600" x2="1610" y2="840" />
+                    <line id="link-B2-B3" class="link" x1="1810" y1="600" x2="1810" y2="840" />
+
+                    <circle id="node-B1" class="node node-cluster-B" cx="1960" cy="720" r="30" />
+                    <circle id="node-B2" class="node node-cluster-B" cx="1810" cy="600" r="30" />
+                    <circle id="node-B3" class="node node-cluster-B" cx="1810" cy="840" r="30" />
+                    <circle id="node-B4" class="node node-cluster-B" cx="1610" cy="600" r="30" />
+                    <circle id="node-B5" class="node node-cluster-B" cx="1610" cy="840" r="30" />
+                </g>
+
+                <!-- Bridge -->
+                <line id="bridge" class="bridge-link" x1="950" y1="600" x2="1610" y2="600" />
+
+                <!-- Information Orbs -->
+                <circle id="info-orb-A" class="info-orb" fill="#61a5c2" r="15" />
+                <circle id="info-orb-B" class="info-orb" fill="#f77f00" r="15" />
+            </g>
+
+            <!-- Concept Labels -->
+            <text id="homophily-text" class="concept-text" x="775" y="450" opacity="0">Homophily / 同质性</text>
+            <text id="heterophily-text" class="concept-text" x="1280" y="500" opacity="0">Structural Heterophily /
+                结构异亲性</text>
+            <text id="final-text" class="concept-text" x="1280" y="720" opacity="0" style="font-size: 60px;">The Power
+                of Bridges / 桥梁的力量</text>
+        </svg>
+
+        <div id="subtitle-container">
+            <div id="subtitle-zh" class="subtitle-line subtitle-zh"></div>
+            <div id="subtitle-en" class="subtitle-line subtitle-en"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script>
+        const subtitles = [
+            { zh: "在我们的人际网络中，我们常常与相似的人建立连接。", en: "In our social networks, we often connect with people similar to us." },
+            { zh: "这种现象被称为“同质性”，即“物以类聚”。", en: "This is called 'Homophily', the principle that 'birds of a feather flock together'." },
+            { zh: "信息在同质化的圈子内快速流动，但往往是冗余的。", en: "Information flows quickly within a homogeneous group, but it's often redundant." },
+            { zh: "每个人都已经知道了同样的事情，形成了一个信息回音室。", en: "Everyone already knows the same things, creating an information echo chamber." },
+            { zh: "但是，当我们的网络中出现一个与众不同的连接时...", en: "But what happens when a different kind of connection emerges in our network?" },
+            { zh: "这个连接跨越了原有的社群边界。", en: "This connection spans across existing community boundaries." },
+            { zh: "这就是“结构异亲性”——连接不同社会结构中的个体。", en: "This is 'Structural Heterophilosity' — connecting individuals from different social structures." },
+            { zh: "这个连接就像一座桥梁...", en: "This connection acts as a bridge..." },
+            { zh: "让新颖的信息、新的想法和新的机会，得以在不同群体间流动。", en: "allowing novel information, new ideas, and fresh opportunities to flow between groups." },
+            { zh: "这些“桥梁”打破了信息壁垒，促进了创新与合作。", en: "These 'bridges' break down information barriers, fostering innovation and collaboration." },
+            { zh: "这就是结构异亲性的力量。", en: "This is the power of Structural Heterophilosity." }
+        ];
+
+        const zhSub = document.getElementById('subtitle-zh');
+        const enSub = document.getElementById('subtitle-en');
+
+        function updateSubtitles(index) {
+            anime({
+                targets: [zhSub, enSub],
+                opacity: 0,
+                duration: 300,
+                easing: 'easeInQuad',
+                complete: () => {
+                    if (index < subtitles.length) {
+                        zhSub.innerHTML = subtitles[index].zh;
+                        enSub.innerHTML = subtitles[index].en;
+                        anime({
+                            targets: [zhSub, enSub],
+                            opacity: 1,
+                            duration: 300,
+                            easing: 'easeOutQuad'
+                        });
+                    }
+                }
+            });
+        }
+
+        const timeline = anime.timeline({
+            easing: 'easeInOutSine',
+            duration: 1000,
+        });
+
+        // Initial setup
+        anime.set(['#network-group', '#bridge', '#cluster-B', '#info-orb-A', '#info-orb-B'], { opacity: 0 });
+        anime.set(['#node-A1', '#node-A2', '#node-A3', '#node-A4', '#node-A5'], { transformOrigin: '50% 50%' });
+        anime.set(['#node-B1', '#node-B2', '#node-B3', '#node-B4', '#node-B5'], { transformOrigin: '50% 50%' });
+
+
+        timeline
+            // 1. Fade out title
+            .add({
+                targets: '#title-group',
+                opacity: [1, 0],
+                duration: 1500,
+                begin: () => updateSubtitles(0),
+            })
+            // 2. Fade in Homophily cluster
+            .add({
+                targets: '#network-group',
+                opacity: 1,
+                duration: 500
+            }, '-=500')
+            .add({
+                targets: ['#cluster-A .node', '#cluster-A .link'],
+                strokeDashoffset: [anime.setDashoffset, 0],
+                scale: [0, 1],
+                opacity: [0, 1],
+                delay: anime.stagger(100),
+                duration: 1000,
+                begin: () => {
+                    updateSubtitles(1);
+                    anime({ targets: '#homophily-text', opacity: [0, 1], duration: 1000 });
+                }
+            }, '-=500')
+            // 3. Information echo chamber
+            .add({
+                targets: '#info-orb-A',
+                cx: 600, cy: 720,
+                opacity: 1,
+                duration: 500,
+                begin: () => updateSubtitles(2)
+            })
+            .add({ targets: '#info-orb-A', cx: 750, cy: 600, duration: 800 })
+            .add({ targets: '#info-orb-A', cx: 950, cy: 600, duration: 800 })
+            .add({ targets: '#info-orb-A', cx: 950, cy: 840, duration: 800, begin: () => updateSubtitles(3) })
+            .add({ targets: '#info-orb-A', cx: 750, cy: 840, duration: 800 })
+            .add({ targets: '#info-orb-A', cx: 750, cy: 600, duration: 800 })
+
+            // 4. Introduce the other cluster
+            .add({
+                targets: '#homophily-text',
+                opacity: 0,
+                duration: 500
+            }, '-=500')
+            .add({
+                targets: ['#cluster-B .node', '#cluster-B .link'],
+                strokeDashoffset: [anime.setDashoffset, 0],
+                scale: [0, 1],
+                opacity: [0, 1],
+                delay: anime.stagger(100),
+                duration: 1000,
+                begin: () => updateSubtitles(4)
+            })
+            .add({
+                targets: '#info-orb-B',
+                cx: 1960, cy: 720,
+                opacity: 1,
+                duration: 500
+            })
+
+            // 5. Draw the bridge
+            .add({
+                targets: '#bridge',
+                strokeDashoffset: [anime.setDashoffset, 0],
+                opacity: [0, 1],
+                duration: 1500,
+                begin: () => updateSubtitles(5)
+            })
+            .add({
+                targets: '#heterophily-text',
+                opacity: [0, 1],
+                duration: 1000,
+                begin: () => updateSubtitles(6)
+            }, '-=500')
+
+            // 6. Information flow
+            .add({
+                begin: () => updateSubtitles(7)
+            }, '+=500')
+            .add({
+                targets: '#info-orb-A',
+                cx: 1610,
+                duration: 2000,
+                easing: 'easeInOutCubic',
+                begin: () => updateSubtitles(8)
+            }, '+=500')
+            .add({
+                targets: '#info-orb-B',
+                cx: 950,
+                cy: 840,
+                duration: 2000,
+                easing: 'easeInOutCubic',
+            }, '-=2000')
+
+            // 7. Show impact
+            .add({
+                targets: '#heterophily-text',
+                opacity: 0,
+                duration: 500
+            })
+            .add({
+                targets: '#cluster-A .node',
+                fill: '#8ecae6', // slightly different blue
+                duration: 1000
+            }, '-=500')
+            .add({
+                targets: '#cluster-B .node',
+                fill: '#ffb703', // slightly different orange
+                duration: 1000,
+                begin: () => {
+                    document.getElementById('cluster-A').classList.add('pulsing');
+                    document.getElementById('cluster-B').classList.add('pulsing');
+                    updateSubtitles(9);
+                }
+            }, '-=1000')
+
+            // 8. Conclusion
+            .add({
+                targets: '#final-text',
+                opacity: [0, 1],
+                duration: 1500,
+                begin: () => updateSubtitles(10)
+            }, '+=1000')
+
+            // Loop animation
+            .add({
+                targets: '#animation-container',
+                opacity: [1, 1], // just to hold the end
+                duration: 4000,
+                complete: () => {
+                    // Optional: restart animation after a delay
+                    // setTimeout(() => location.reload(), 5000);
+                }
+            });
+
+    </script>
+</body>
+
+</html>

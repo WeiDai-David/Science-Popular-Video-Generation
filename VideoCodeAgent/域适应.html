@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态动画：域适应 (Domain Adaptation)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --source-color: #4A90E2;
+            --target-color: #F5A623;
+            --success-color: #7ED321;
+            --fail-color: #D0021B;
+            --text-color: #333;
+            --light-text-color: #555;
+            --boundary-color: #8E44AD;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #e9ecef;
+            font-family: 'Poppins', 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 100vw;
+            height: 56.25vw;
+            /* 16:9 Aspect Ratio */
+            max-width: var(--container-width);
+            max-height: var(--container-height);
+            background-color: var(--bg-color);
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .data-point {
+            transition: all 0.5s ease-in-out;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 80px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .subtitle {
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(5px);
+            padding: 10px 30px;
+            border-radius: 15px;
+            font-size: 32px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            max-width: 80%;
+        }
+
+        #subtitle-cn {
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        #subtitle-en {
+            font-weight: 300;
+            font-size: 24px;
+            color: var(--light-text-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="canvas" viewBox="0 0 2560 1440"></svg>
+        <div id="subtitle-container">
+            <p id="subtitle-cn" class="subtitle"></p>
+            <p id="subtitle-en" class="subtitle"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script>
+        const svgNS = "http://www.w3.org/2000/svg";
+        const canvas = document.getElementById('canvas');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = new_subtitle_en = document.getElementById('subtitle-en');
+
+        const CONFIG = {
+            width: 2560,
+            height: 1440,
+            dotCount: 80,
+            sourceCenter: { x: 700, y: 720 },
+            targetCenter: { x: 1860, y: 720 },
+            spread: { x: 250, y: 350 },
+        };
+
+        // --- Helper Functions ---
+        function createSVGElement(tag, attributes) {
+            const el = document.createElementNS(svgNS, tag);
+            for (const key in attributes) {
+                el.setAttribute(key, attributes[key]);
+            }
+            return el;
+        }
+
+        function gaussianRandom(mean = 0, stdev = 1) {
+            let u = 1 - Math.random();
+            let v = Math.random();
+            let z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            return z * stdev + mean;
+        }
+
+        function createDots(count, color, centerX, centerY, className, isUpperHalf) {
+            const group = createSVGElement('g', { class: className });
+            for (let i = 0; i < count; i++) {
+                const yOffset = isUpperHalf ? -CONFIG.spread.y / 2.5 : CONFIG.spread.y / 2.5;
+                const dot = createSVGElement('circle', {
+                    cx: gaussianRandom(centerX, CONFIG.spread.x / 2),
+                    cy: gaussianRandom(centerY + yOffset, CONFIG.spread.y / 4),
+                    r: 10,
+                    fill: color,
+                    opacity: 0,
+                    class: 'data-point'
+                });
+                group.appendChild(dot);
+            }
+            canvas.appendChild(group);
+            return group;
+        }
+
+        function createLabel(text, x, y, size, color, id) {
+            const label = createSVGElement('text', {
+                id: id,
+                x: x,
+                y: y,
+                'font-size': size,
+                'font-weight': 500,
+                fill: color,
+                'text-anchor': 'middle',
+                opacity: 0,
+                'font-family': 'Poppins, Noto Sans SC'
+            });
+            label.textContent = text;
+            canvas.appendChild(label);
+            return label;
+        }
+
+        function createIcon(pathData, x, y, id, color) {
+            const iconGroup = createSVGElement('g', {
+                id: id,
+                transform: `translate(${x}, ${y}) scale(2.5)`,
+                opacity: 0
+            });
+            const path = createSVGElement('path', {
+                d: pathData,
+                fill: color
+            });
+            iconGroup.appendChild(path);
+            canvas.appendChild(iconGroup);
+            return iconGroup;
+        }
+
+        function updateSubtitles(cn, en) {
+            const show = (el, text) => {
+                el.style.opacity = 0;
+                el.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    el.textContent = text;
+                    el.style.opacity = 1;
+                    el.style.transform = 'translateY(0)';
+                }, 100);
+            };
+            show(subtitleCN, cn);
+            show(subtitleEN, en);
+        }
+
+        // --- Animation Timeline ---
+        const tl = anime.timeline({
+            easing: 'easeInOutQuad',
+            duration: 1000,
+        });
+
+        // --- Scene 1: Introduction ---
+        const mainTitle = createLabel('域适应 Domain Adaptation', CONFIG.width / 2, 150, 80, 'var(--text-color)', 'mainTitle');
+        const sourceLabel = createLabel('源域 (Source Domain)', CONFIG.sourceCenter.x, 280, 50, 'var(--source-color)', 'sourceLabel');
+        const targetLabel = createLabel('目标域 (Target Domain)', CONFIG.targetCenter.x, 280, 50, 'var(--target-color)', 'targetLabel');
+
+        const sourceGroupUpper = createDots(CONFIG.dotCount, 'var(--source-color)', CONFIG.sourceCenter.x, CONFIG.sourceCenter.y, 'source-dots-upper', true);
+        const sourceGroupLower = createDots(CONFIG.dotCount, '#ADD8E6', CONFIG.sourceCenter.x, CONFIG.sourceCenter.y, 'source-dots-lower', false);
+        const targetGroupUpper = createDots(CONFIG.dotCount, 'var(--target-color)', CONFIG.targetCenter.x, CONFIG.targetCenter.y, 'target-dots-upper', true);
+        const targetGroupLower = createDots(CONFIG.dotCount, '#FFD700', CONFIG.targetCenter.x, CONFIG.targetCenter.y, 'target-dots-lower', false);
+
+        const iconLabeledPath = "M20.41,4.59l-2.83-2.83c-0.39-0.39-1.02-0.39-1.41,0L4,13.93V18h4.07l12.17-12.17C20.8,5.62,20.8,4.98,20.41,4.59z M6,16v-2.07l7.5-7.5l2.07,2.07L8.07,16H6z M22,12c0,5.52-4.48,10-10,10S2,17.52,2,12S6.48,2,12,2c2.03,0,3.9,0.62,5.44,1.69l1.45-1.45C17.1,1.46,14.66,0.67,12,0.67C5.74,0.67,0.67,5.74,0.67,12s5.07,11.33,11.33,11.33s11.33-5.07,11.33-11.33V12h-1.33V12z";
+        const iconUnlabeledPath = "M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M12,20c-4.41,0-8-3.59-8-8s3.59-8,8-8s8,3.59,8,8S16.41,20,12,20z M12,6c-1.66,0-3,1.34-3,3s1.34,3,3,3s3-1.34,3-3S13.66,6,12,6z M12,18c-2.33,0-4.31-1.46-5.11-3.5h10.22C16.31,16.54,14.33,18,12,18z";
+        const iconLabeled = createIcon(iconLabeledPath, CONFIG.sourceCenter.x, 1000, 'iconLabeled', 'var(--source-color)');
+        const iconUnlabeled = createIcon(iconUnlabeledPath, CONFIG.targetCenter.x, 1000, 'iconUnlabeled', 'var(--target-color)');
+        const labelLabeled = createLabel('拥有大量标注数据', CONFIG.sourceCenter.x, 1120, 36, 'var(--light-text-color)', 'labelLabeled');
+        const labelUnlabeled = createLabel('仅有无标注数据', CONFIG.targetCenter.x, 1120, 36, 'var(--light-text-color)', 'labelUnlabeled');
+
+        tl.add({
+            targets: mainTitle,
+            opacity: [0, 1],
+            translateY: [-20, 0],
+            duration: 1500,
+            begin: () => updateSubtitles('假设我们有一个任务，比如图像分类。', 'Let\'s say we have a task, like image classification.')
+        }).add({
+            targets: [sourceLabel, targetLabel],
+            opacity: 1,
+            translateY: [-20, 0],
+            delay: anime.stagger(200)
+        }).add({
+            targets: ['.source-dots-upper circle', '.source-dots-lower circle'],
+            opacity: 0.8,
+            r: [0, 10],
+            delay: anime.stagger(5),
+            offset: '-=500',
+            begin: () => updateSubtitles('我们有一个“源域”，数据丰富且带有精确标注。', 'We have a "Source Domain" with abundant, well-labeled data.')
+        }).add({
+            targets: [iconLabeled, labelLabeled],
+            opacity: 1,
+            translateY: [-10, 0],
+            offset: '-=500',
+        }).add({
+            targets: ['.target-dots-upper circle', '.target-dots-lower circle'],
+            opacity: 0.8,
+            r: [0, 10],
+            delay: anime.stagger(5),
+            offset: '-=500',
+            begin: () => updateSubtitles('同时，还有一个“目标域”，数据风格不同，且没有标注。', 'And a "Target Domain", where data has a different style and no labels.')
+        }).add({
+            targets: [iconUnlabeled, labelUnlabeled],
+            opacity: 1,
+            translateY: [-10, 0],
+            offset: '-=500',
+        });
+
+        // --- Scene 2: The Problem ---
+        const decisionBoundary = createSVGElement('path', {
+            id: 'boundary',
+            d: `M250,720 Q ${CONFIG.sourceCenter.x},720 ${CONFIG.width - 250},720`,
+            stroke: 'var(--boundary-color)',
+            'stroke-width': 8,
+            'stroke-dasharray': '20 15',
+            fill: 'none',
+            opacity: 0
+        });
+        canvas.appendChild(decisionBoundary);
+
+        const boundaryLabel = createLabel('分类模型', CONFIG.sourceCenter.x - 300, 680, 40, 'var(--boundary-color)', 'boundaryLabel');
+        boundaryLabel.setAttribute('transform', `rotate(-90, ${CONFIG.sourceCenter.x - 300}, 680)`);
+
+        tl.add({
+            duration: 3000
+        }).add({
+            targets: decisionBoundary,
+            opacity: 1,
+            begin: () => {
+                updateSubtitles('我们在源域上训练一个分类模型。', 'We train a classification model on the source domain.');
+                anime({
+                    targets: boundaryLabel,
+                    opacity: 1,
+                    duration: 500
+                });
+            }
+        }).add({
+            targets: decisionBoundary,
+            d: [`M250,720 Q ${CONFIG.sourceCenter.x},720 ${CONFIG.width - 250},720`, `M250,720 Q ${CONFIG.sourceCenter.x},620 ${CONFIG.width - 250},720`],
+            duration: 1500,
+            easing: 'easeInOutSine',
+            begin: () => updateSubtitles('这个模型在源域上表现完美。', 'This model performs perfectly on the source data.')
+        }).add({
+            duration: 1500,
+            begin: () => updateSubtitles('但是，当直接把它用于目标域时...', 'But when we directly apply it to the target domain...')
+        }).add({
+            begin: () => {
+                const targetDots = document.querySelectorAll('.target-dots-upper circle, .target-dots-lower circle');
+                targetDots.forEach((dot, i) => {
+                    const cy = parseFloat(dot.getAttribute('cy'));
+                    if ((cy < 720 && i % 2 === 0) || (cy > 720 && i % 2 !== 0)) { // Simulate misclassification
+                        const x = dot.getAttribute('cx');
+                        const y = dot.getAttribute('cy');
+                        const cross = createSVGElement('path', {
+                            d: `M ${x - 12} ${y - 12} L ${x + 12} ${y + 12} M ${x - 12} ${y + 12} L ${x + 12} ${y - 12}`,
+                            stroke: 'var(--fail-color)',
+                            'stroke-width': 4,
+                            opacity: 0,
+                            class: 'fail-mark'
+                        });
+                        canvas.appendChild(cross);
+                        anime({
+                            targets: cross,
+                            opacity: 1,
+                            scale: [0.5, 1],
+                            delay: i * 10,
+                            duration: 300
+                        });
+                    }
+                });
+                updateSubtitles('由于“域漂移”，模型性能急剧下降。', 'Due to "domain shift", the model\'s performance drops drastically.');
+            }
+        });
+
+        // --- Scene 3: Domain Adaptation ---
+        const algoIconPath = "M19.43,12.98c0.04-0.32,0.07-0.64,0.07-0.98s-0.03-0.66-0.07-0.98l2.11-1.65c0.19-0.15,0.24-0.42,0.12-0.64l-2-3.46c-0.12-0.22-0.39-0.3-0.61-0.22l-2.49,1c-0.52-0.4-1.08-0.73-1.69-0.98l-0.38-2.65C14.46,2.18,14.25,2,14,2h-4c-0.25,0-0.46,0.18-0.49,0.42L9.13,5.07C8.52,5.32,7.96,5.66,7.44,6.06l-2.49-1c-0.23-0.09-0.49,0-0.61,0.22l-2,3.46c-0.12,0.22-0.07,0.49,0.12,0.64l2.11,1.65C4.53,11.34,4.5,11.66,4.5,12s0.03,0.66,0.07,0.98l-2.11,1.65c-0.19,0.15-0.24,0.42-0.12,0.64l2,3.46c0.12,0.22,0.39,0.3,0.61,0.22l2.49-1c0.52,0.4,1.08,0.73,1.69,0.98l0.38,2.65C9.54,21.82,9.75,22,10,22h4c0.25,0,0.46-0.18,0.49-0.42l0.38-2.65c0.61-0.25,1.17-0.59,1.69-0.98l2.49,1c0.23,0.09,0.49,0,0.61-0.22l2-3.46c0.12-0.22,0.07-0.49-0.12-0.64L19.43,12.98z M12,15.5c-1.93,0-3.5-1.57-3.5-3.5s1.57-3.5,3.5-3.5s3.5,1.57,3.5,3.5S13.93,15.5,12,15.5z";
+        const algoIcon = createIcon(algoIconPath, CONFIG.width / 2, CONFIG.height / 2, 'algoIcon', '#34495E');
+        algoIcon.setAttribute('transform', `translate(${CONFIG.width / 2}, ${CONFIG.height / 2}) scale(6)`);
+
+        tl.add({
+            duration: 2000
+        }).add({
+            targets: ['.fail-mark', boundaryLabel, decisionBoundary],
+            opacity: 0,
+            duration: 500,
+            easing: 'linear',
+            begin: () => {
+                updateSubtitles('这时，就需要“域适应”技术。', 'This is where "Domain Adaptation" comes in.');
+            },
+            complete: () => {
+                document.querySelectorAll('.fail-mark').forEach(e => e.remove());
+            }
+        }).add({
+            targets: algoIcon,
+            opacity: 1,
+            scale: [5, 6],
+            rotate: [0, 360],
+            duration: 2000,
+            easing: 'easeInOutBack',
+            begin: () => {
+                updateSubtitles('它的目标是学习一种域不变的特征表示。', 'Its goal is to learn a domain-invariant feature representation.');
+            }
+        }).add({
+            begin: () => {
+                updateSubtitles('通过对齐源域和目标域的特征分布...', 'By aligning the feature distributions of the source and target domains...');
+                const targetDotsUpper = document.querySelectorAll('.target-dots-upper circle');
+                const targetDotsLower = document.querySelectorAll('.target-dots-lower circle');
+
+                anime({
+                    targets: targetDotsUpper,
+                    translateX: (el) => CONFIG.sourceCenter.x - el.getAttribute('cx'),
+                    translateY: (el) => (CONFIG.sourceCenter.y - CONFIG.spread.y / 2.5) - el.getAttribute('cy'),
+                    scale: 1,
+                    duration: 2000,
+                    delay: anime.stagger(5),
+                    easing: 'easeInOutExpo'
+                });
+                anime({
+                    targets: targetDotsLower,
+                    translateX: (el) => CONFIG.sourceCenter.x - el.getAttribute('cx'),
+                    translateY: (el) => (CONFIG.sourceCenter.y + CONFIG.spread.y / 2.5) - el.getAttribute('cy'),
+                    scale: 1,
+                    duration: 2000,
+                    delay: anime.stagger(5),
+                    easing: 'easeInOutExpo'
+                });
+            }
+        });
+
+        // --- Scene 4: The Result ---
+        tl.add({
+            duration: 2500
+        }).add({
+            targets: [algoIcon, targetLabel],
+            opacity: 0,
+            duration: 500,
+            easing: 'linear'
+        }).add({
+            targets: decisionBoundary,
+            opacity: 1,
+            duration: 500,
+            begin: () => {
+                updateSubtitles('...使得源域训练的模型能够很好地泛化到目标域。', '...the model trained on the source domain can now generalize well to the target domain.');
+                anime({
+                    targets: boundaryLabel,
+                    opacity: 1,
+                    duration: 500
+                });
+            }
+        }).add({
+            begin: () => {
+                const adaptedTargetDots = document.querySelectorAll('.target-dots-upper circle, .target-dots-lower circle');
+                adaptedTargetDots.forEach((dot, i) => {
+                    const finalTransform = dot.transform.baseVal.consolidate().matrix;
+                    const x = finalTransform.e;
+                    const y = finalTransform.f;
+                    const check = createSVGElement('path', {
+                        d: `M ${x - 15} ${y} L ${x - 5} ${y + 12} L ${x + 15} ${y - 10}`,
+                        stroke: 'var(--success-color)',
+                        'stroke-width': 6,
+                        'stroke-linecap': 'round',
+                        fill: 'none',
+                        opacity: 0,
+                        class: 'success-mark'
+                    });
+                    canvas.appendChild(check);
+                    anime({
+                        targets: check,
+                        opacity: 1,
+                        scale: [0.5, 1],
+                        delay: i * 10,
+                        duration: 300
+                    });
+                });
+                updateSubtitles('现在，模型在目标域上也取得了很高的准确率！', 'Now, the model achieves high accuracy on the target domain as well!');
+            }
+        });
+
+        // --- Scene 5: Conclusion ---
+        const summaryGroup = createSVGElement('g', { id: 'summary', opacity: 0 });
+        canvas.appendChild(summaryGroup);
+
+        const summarySourceRect = createSVGElement('rect', { x: 300, y: 500, width: 600, height: 400, rx: 20, fill: 'var(--source-color)', opacity: 0.2 });
+        const summaryTargetRect = createSVGElement('rect', { x: 1660, y: 500, width: 600, height: 400, rx: 20, fill: 'var(--target-color)', opacity: 0.2 });
+        const summarySourceLabel = createLabel('源域知识', 600, 720, 50, 'var(--source-color)', 'summarySourceLabel');
+        const summaryTargetLabel = createLabel('目标域任务', 1960, 720, 50, 'var(--target-color)', 'summaryTargetLabel');
+        const summaryArrow = createSVGElement('path', {
+            d: 'M 950 720 L 1610 720',
+            stroke: 'var(--text-color)',
+            'stroke-width': 8,
+            'marker-end': 'url(#arrowhead)'
+        });
+        const summaryAlgoLabel = createLabel('Domain Adaptation', 1280, 650, 45, 'var(--text-color)', 'summaryAlgoLabel');
+
+        const defs = createSVGElement('defs');
+        const marker = createSVGElement('marker', {
+            id: 'arrowhead',
+            viewBox: '0 0 10 10',
+            refX: 8,
+            refY: 5,
+            markerWidth: 6,
+            markerHeight: 6,
+            orient: 'auto-start-reverse'
+        });
+        const arrowheadPath = createSVGElement('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: 'var(--text-color)' });
+        marker.appendChild(arrowheadPath);
+        defs.appendChild(marker);
+        summaryGroup.append(defs, summarySourceRect, summaryTargetRect, summarySourceLabel, summaryTargetLabel, summaryArrow, summaryAlgoLabel);
+
+        tl.add({
+            duration: 3000
+        }).add({
+            targets: '#canvas > *:not(#summary)',
+            opacity: 0,
+            duration: 1000,
+            easing: 'linear',
+            begin: () => updateSubtitles('这就是域适应的核心思想。', 'This is the core idea of Domain Adaptation.'),
+            complete: () => {
+                // Clean up previous elements for performance
+                const elementsToRemove = document.querySelectorAll('#canvas > *:not(#summary)');
+                elementsToRemove.forEach(el => el.remove());
+            }
+        }).add({
+            targets: '#summary',
+            opacity: 1,
+            duration: 1000,
+            begin: () => updateSubtitles('它将知识从一个富数据的领域迁移到另一个数据稀疏的领域。', 'It transfers knowledge from a data-rich domain to a data-scarce one.'),
+        }).add({
+            duration: 4000,
+            complete: () => {
+                updateSubtitles('感谢观看！', 'Thanks for watching!');
+            }
+        });
+
+    </script>
+</body>
+
+</html>

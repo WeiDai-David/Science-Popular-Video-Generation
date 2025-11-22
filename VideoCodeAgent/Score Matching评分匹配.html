@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Score Matching Explained</title>
+    <style>
+        :root {
+            --bg-color: #fdf6e3;
+            /* Solarized Light Background */
+            --base-color: #657b83;
+            /* Solarized Base1 */
+            --text-color: #073642;
+            /* Solarized Base02 */
+            --accent-blue: #268bd2;
+            --accent-magenta: #d33682;
+            --accent-green: #859900;
+            --accent-red: #dc322f;
+            --accent-yellow: #b58900;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0eadf;
+            /* A slightly darker shade for contrast */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            overflow: hidden;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            transform-origin: center center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        #background-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        #main-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 1800px;
+            padding: 20px 40px;
+            background-color: rgba(253, 246, 227, 0.85);
+            backdrop-filter: blur(8px);
+            border-radius: 15px;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .subtitle-en,
+        .subtitle-zh {
+            display: block;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .subtitle-en {
+            font-size: 32px;
+            color: var(--text-color);
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+
+        .subtitle-zh {
+            font-size: 28px;
+            color: var(--base-color);
+        }
+
+        /* Auto-scaling for the container */
+        @media (max-width: 2560px) {
+            #container {
+                width: 100vw;
+                height: 56.25vw;
+                /* 16:9 aspect ratio */
+            }
+        }
+
+        @media (max-height: 1440px) {
+            #container {
+                height: 100vh;
+                width: 177.78vh;
+                /* 16:9 aspect ratio */
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <canvas id="background-canvas"></canvas>
+        <svg id="main-svg" viewBox="0 0 2560 1440"></svg>
+        <div id="subtitle-container">
+            <span class="subtitle-en" id="subtitle-en-text"></span>
+            <span class="subtitle-zh" id="subtitle-zh-text"></span>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const svg = document.getElementById('main-svg');
+            const enSub = document.getElementById('subtitle-en-text');
+            const zhSub = document.getElementById('subtitle-zh-text');
+            const NS = 'http://www.w3.org/2000/svg';
+
+            const width = 2560;
+            const height = 1440;
+
+            // --- Background Animation ---
+            const bgCanvas = document.getElementById('background-canvas');
+            bgCanvas.width = width;
+            bgCanvas.height = height;
+            const ctx = bgCanvas.getContext('2d');
+            let particles = [];
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: (Math.random() - 0.5) * 0.3,
+                    radius: Math.random() * 3 + 1,
+                    color: `rgba(38, 139, 210, ${Math.random() * 0.2 + 0.1})`
+                });
+            }
+            function drawBackground() {
+                ctx.clearRect(0, 0, width, height);
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    if (p.x < 0 || p.x > width) p.vx *= -1;
+                    if (p.y < 0 || p.y > height) p.vy *= -1;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                });
+                requestAnimationFrame(drawBackground);
+            }
+            drawBackground();
+
+            // --- Subtitle Data ---
+            const subtitles = [
+                { en: "Let's explore a powerful idea in machine learning: Score Matching.", zh: "让我们来探索一个机器学习中的强大思想：评分匹配（Score Matching）。" },
+                { en: "Imagine we have some data points, samples from an unknown probability distribution p(x).", zh: "想象我们有一些数据点，它们来自一个未知的概率分布 p(x)。" },
+                { en: "Our goal is to model this distribution. To learn a model p_θ(x) that looks just like it.", zh: "我们的目标是对这个分布进行建模，学习一个模型 p_θ(x) 使它看起来和真实分布一样。" },
+                { en: "A common approach is Maximum Likelihood Estimation (MLE).", zh: "一个常见的方法是最大似然估计（MLE）。" },
+                { en: "We try to maximize the log-likelihood of our data under the model.", zh: "我们尝试最大化数据在模型下的对数似然。" },
+                { en: "But complex models often have this form, with a normalization constant Z, the partition function.", zh: "但复杂的模型通常有这样的形式，包含一个归一化常数 Z，也叫配分函数。" },
+                { en: "This Z involves an integral over the entire data space, which is often intractable to compute.", zh: "这个 Z 涉及到在整个数据空间上的积分，通常是难以计算的。" },
+                { en: "This is a huge problem. So, can we learn without computing Z?", zh: "这是一个巨大的难题。那么，我们能否在不计算 Z 的情况下进行学习呢？" },
+                { en: "This is where Score Matching comes in. The key idea is to model something else...", zh: "这正是评分匹配的用武之地。它的核心思想是去建模另一个目标..." },
+                { en: "...the Score Function: the gradient of the log-probability with respect to the data x.", zh: "……分数函数（Score Function）：对数概率关于数据 x 的梯度。" },
+                { en: "Visually, the score at any point is a vector pointing in the direction of the steepest ascent of probability density.", zh: "在视觉上，任何一点的分数是一个向量，指向概率密度最陡峭的上升方向。" },
+                { en: "Now, let's see the magic. When we take the gradient of log p(x)...", zh: "现在，见证奇迹的时刻。当我们对 log p(x) 求梯度时..." },
+                { en: "...the gradient of log(Z) is zero, because Z doesn't depend on x.", zh: "...log(Z) 的梯度为零，因为 Z 不依赖于 x。" },
+                { en: "The intractable partition function Z simply vanishes! We can compute the score without knowing Z.", zh: "难以处理的配分函数 Z 就这样消失了！我们可以在不知道 Z 的情况下计算分数。" },
+                { en: "So, our new goal is to train a model s_θ(x) to match the true data score function s_p(x).", zh: "所以，我们的新目标是训练一个模型 s_θ(x) 来匹配真实数据的分数函数 s_p(x)。" },
+                { en: "We want to minimize the difference between our model's score field and the true data's score field.", zh: "我们希望最小化模型分数场与真实数据分数场之间的差异。" },
+                { en: "We can write this as an objective function: the expected squared distance between the scores.", zh: "我们可以把它写成一个目标函数：分数之间期望的平方距离。" },
+                { en: "But wait... this still requires the true score s_p(x), which we don't know!", zh: "但是等等……这仍然需要我们不知道的真实分数 s_p(x)！" },
+                { en: "Through some clever math (integration by parts), this objective can be transformed...", zh: "通过一些巧妙的数学（分部积分法），这个目标函数可以被转换..." },
+                { en: "...into an equivalent form that ONLY depends on our model s_θ(x) and the data points!", zh: "……变成一个等价的形式，它只依赖于我们的模型 s_θ(x) 和数据点！" },
+                { en: "We can now minimize this new objective using our data samples.", zh: "现在我们就可以用我们的数据样本来最小化这个新的目标函数了。" },
+                { en: "We use gradient descent to adjust our model's parameters θ...", zh: "我们使用梯度下降来调整模型的参数 θ……" },
+                { en: "...and our model's score field gradually learns to match the true data's score field.", zh: "...我们的模型分数场逐渐学会了匹配真实数据的分数场。" },
+                { en: "In summary, Score Matching allows us to model complex distributions by...", zh: "总结一下，评分匹配让我们能够通过以下方式为复杂分布建模……" },
+                { en: "...bypassing the intractable partition function Z and matching the score function instead.", zh: "……绕过难以计算的配分函数 Z，转而匹配分数函数。" },
+                { en: "This powerful technique is a cornerstone of modern generative models, like Diffusion Models.", zh: "这项强大的技术是现代生成模型（如扩散模型）的基石。" },
+                { en: "Score Matching. A smart way to model data.", zh: "评分匹配，一种对数据进行建模的巧妙方法。" }
+            ];
+
+            // --- Helper Functions ---
+            function create(type, attrs) {
+                const el = document.createElementNS(NS, type);
+                for (let attr in attrs) {
+                    el.setAttribute(attr, attrs[attr]);
+                }
+                svg.appendChild(el);
+                return el;
+            }
+
+            function showSubtitle(index) {
+                gsap.to([enSub, zhSub], {
+                    opacity: 0, y: 10, duration: 0.3, onComplete: () => {
+                        if (subtitles[index]) {
+                            enSub.textContent = subtitles[index].en;
+                            zhSub.textContent = subtitles[index].zh;
+                            gsap.to([enSub, zhSub], { opacity: 1, y: 0, duration: 0.5 });
+                        }
+                    }
+                });
+            }
+
+            const masterTimeline = gsap.timeline({ delay: 1 });
+
+            // --- Animation Scenes ---
+
+            // Scene 0: Title
+            function sceneTitle() {
+                const tl = gsap.timeline();
+                const title = create('text', {
+                    'x': width / 2, 'y': height / 2 - 40, 'font-size': 120, 'font-weight': 'bold',
+                    'fill': 'var(--text-color)', 'text-anchor': 'middle', 'opacity': 0
+                });
+                title.textContent = "Score Matching";
+
+                const subtitle = create('text', {
+                    'x': width / 2, 'y': height / 2 + 60, 'font-size': 80, 'font-weight': '300',
+                    'fill': 'var(--base-color)', 'text-anchor': 'middle', 'opacity': 0
+                });
+                subtitle.textContent = "评分匹配";
+
+                tl.add(() => showSubtitle(0))
+                    .to([title, subtitle], { opacity: 1, duration: 1.5, ease: "power2.out" })
+                    .to([title, subtitle], { opacity: 0, duration: 1, ease: "power2.in" }, "+=2");
+
+                return tl;
+            }
+
+            // Scene 1: The Problem
+            function sceneProblem() {
+                const tl = gsap.timeline();
+                const dataGroup = create('g', { opacity: 0 });
+                const numPoints = 150;
+                const points = [];
+                for (let i = 0; i < numPoints; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 200 + Math.random() * 100 - (Math.cos(angle * 2)) * 50;
+                    const x = width / 2 + radius * Math.cos(angle);
+                    const y = height / 2 + radius * Math.sin(angle);
+                    const p = create('circle', { cx: x, cy: y, r: 5, fill: 'var(--accent-blue)', opacity: 0.7 });
+                    dataGroup.appendChild(p);
+                    points.push(p);
+                }
+
+                const distPath = create('path', {
+                    'd': "M1080,720 C880,420 1680,420 1480,720 S1080,1020 1280,720 Z",
+                    'stroke': 'var(--accent-yellow)', 'stroke-width': 8, 'fill': 'none',
+                    'stroke-dasharray': 2000, 'stroke-dashoffset': 2000, 'opacity': 0.5
+                });
+
+                const p_x_text = create('text', {
+                    'x': width / 2 + 350, 'y': height / 2 - 250, 'font-size': 70, 'font-weight': 'bold',
+                    'fill': 'var(--accent-yellow)', 'text-anchor': 'middle', 'opacity': 0, 'font-family': 'serif'
+                });
+                p_x_text.innerHTML = 'p(x)';
+
+                const qMark = create('text', {
+                    'x': width / 2, 'y': height / 2 + 50, 'font-size': 250, 'font-weight': 'bold',
+                    'fill': 'var(--accent-magenta)', 'text-anchor': 'middle', 'opacity': 0
+                });
+                qMark.textContent = "?";
+
+                const p_theta_text = create('text', {
+                    'x': width * 0.75, 'y': height / 2, 'font-size': 90, 'font-weight': 'bold',
+                    'fill': 'var(--accent-green)', 'text-anchor': 'middle', 'opacity': 0, 'font-family': 'serif'
+                });
+                p_theta_text.innerHTML = 'p<sub>&theta;</sub>(x)';
+
+                tl.add(() => showSubtitle(1))
+                    .to(dataGroup, { opacity: 1, duration: 1 })
+                    .to(points, {
+                        stagger: 0.01,
+                        scale: 1.2,
+                        repeat: 1,
+                        yoyo: true,
+                        ease: "sine.inOut"
+                    }, "-=0.5")
+                    .add(() => showSubtitle(2))
+                    .to(qMark, { opacity: 1, scale: 1.2, duration: 0.5, ease: "back.out" }, "+=1")
+                    .to(distPath, { strokeDashoffset: 0, duration: 2 }, "-=0.5")
+                    .to(p_x_text, { opacity: 1, duration: 0.5 })
+                    .to(qMark, { opacity: 0, scale: 0.8, duration: 0.5, ease: "back.in" }, "+=1")
+                    .to(p_theta_text, { opacity: 1, duration: 1 })
+                    .to([dataGroup, distPath, p_x_text, p_theta_text], { opacity: 0, duration: 1 }, "+=2");
+
+                return tl;
+            }
+
+            // Scene 2: MLE and Z problem
+            function sceneMLE() {
+                const tl = gsap.timeline();
+
+                const mleTitle = create('text', {
+                    'x': width / 2, 'y': 250, 'font-size': 80, 'font-weight': 'bold',
+                    'fill': 'var(--text-color)', 'text-anchor': 'middle', 'opacity': 0
+                });
+                mleTitle.textContent = "Maximum Likelihood Estimation (MLE)";
+
+                const formula1 = create('text', {
+                    'x': width / 2, 'y': 450, 'font-size': 90,
+                    'fill': 'var(--base-color)', 'text-anchor': 'middle', 'opacity': 0, 'font-family': 'serif'
+                });
+                formula1.innerHTML = `max <sub>&theta;</sub> &sum; log p<sub>&theta;</sub>(x<sub>i</sub>)`;
+
+                const formula2_group = create('g', { opacity: 0 });
+                const p_theta_def = create('text', {
+                    'x': width / 2 - 200, 'y': 720, 'font-size': 90,
+                    'fill': 'var(--base-color)', 'text-anchor': 'end', 'font-family': 'serif'
+                });
+                p_theta_def.innerHTML = 'p<sub>&theta;</sub>(x) = ';
+
+                const fraction_line = create('line', {
+                    x1: width / 2 - 150, y1: 730, x2: width / 2 + 150, y2: 730,
+                    stroke: 'var(--base-color)', 'stroke-width': 5
+                });
+
+                const p_tilde = create('text', {
+                    'x': width / 2, 'y': 680, 'font-size': 90,
+                    'fill': 'var(--base-color)', 'text-anchor': 'middle', 'font-family': 'serif'
+                });
+                p_tilde.innerHTML = 'p̃<sub>&theta;</sub>(x)';
+
+                const Z = create('text', {
+                    'x': width / 2, 'y': 800, 'font-size': 120,
+                    'fill': 'var(--accent-red)', 'text-anchor': 'middle', 'font-weight': 'bold', 'font-family': 'serif'
+                });
+                Z.innerHTML = 'Z';
+
+                const z_def = create('text', {
+                    'x': width / 2, 'y': 1050, 'font-size': 70,
+                    'fill': 'var(--accent-red)', 'text-anchor': 'middle', 'opacity': 0, 'font-family': 'serif'
+                });
+                z_def.innerHTML = `Z = &int; p̃<sub>&theta;</sub>(x) dx`;
+
+                const intractable = create('text', {
+                    'x': width / 2, 'y': 1200, 'font-size': 80,
+                    'fill': 'var(--accent-red)', 'text-anchor': 'middle', 'opacity': 0, 'font-weight': 'bold'
+                });
+                intractable.textContent = "INTRACTABLE";
+
+                formula2_group.appendChild(p_theta_def);
+                formula2_group.appendChild(fraction_line);
+                formula2_group.appendChild(p_tilde);
+                formula2_group.appendChild(Z);
+
+                tl.add(() => showSubtitle(3))
+                    .to(mleTitle, { opacity: 1, duration: 1 })
+                    .add(() => showSubtitle(4))
+                    .to(formula1, { opacity: 1, y: 400, duration: 1 }, "+=1")
+                    .add(() => showSubtitle(5))
+                    .to(formula2_group, { opacity: 1, duration: 1 }, "+=1.5")
+                    .add(() => showSubtitle(6))
+                    .to(Z, { scale: 1.5, duration: 0.5, ease: "back.out" }).to(Z, { scale: 1, duration: 0.5 })
+                    .to(z_def, { opacity: 1, y: 1000, duration: 1 }, "-=0.5")
+                    .add(() => showSubtitle(7))
+                    .to(intractable, { opacity: 1, duration: 1 }, "+=1")
+                    .to([mleTitle, formula1, formula2_group, z_def, intractable], { opacity: 0, duration: 1 }, "+=2");
+
+                return tl;
+            }
+
+            // Scene 3: The Score Function
+            function sceneScoreFunction() {
+                const tl = gsap.timeline();
+                const titleGroup = create('g', { opacity: 0 });
+                const title = create('text', {
+                    'x': width / 2, 'y': 200, 'font-size': 90, 'font-weight': 'bold',
+                    'fill': 'var(--text-color)', 'text-anchor': 'middle'
+                });
+                title.textContent = "The Score Function";
+                const formula = create('text', {
+                    'x': width / 2, 'y': 350, 'font-size': 100,
+                    'fill': 'var(--accent-blue)', 'text-anchor': 'middle', 'font-family': 'serif'
+                });
+                formula.innerHTML = `s(x) = &nabla;<sub>x</sub> log p(x)`;
+                titleGroup.appendChild(title);
+                titleGroup.appendChild(formula);
+
+                const vizGroup = create('g', { opacity: 0 });
+                const distPath = create('path', {
+                    'd': "M830,720 C630,920 1930,920 1730,720 S830,520 1280,720 Z",
+                    'stroke': 'var(--accent-yellow)', 'stroke-width': 8, 'fill': 'rgba(181, 137, 0, 0.1)'
+                });
+                vizGroup.appendChild(distPath);
+
+                // Create vector field
+                const vectorField = create('g');
+                for (let i = 0; i < 15; i++) {
+                    for (let j = 0; j < 9; j++) {
+                        const x = 500 + i * 110;
+                        const y = 400 + j * 110;
+                        // Simplified gradient calculation for this specific path shape
+                        const dx = 2 * (x - 1280);
+                        const dy = 2 * (y - 720);
+                        const angle = Math.atan2(-dy, -dx) * 180 / Math.PI;
+                        const magnitude = Math.max(0.1, 1 - Math.sqrt(dx * dx + dy * dy) / 1000) * 30;
+
+                        if (magnitude > 5) {
+                            const arrow = create('path', {
+                                d: "M0,0 L20,0 L15,5 M20,0 L15,-5",
+                                stroke: 'var(--accent-blue)', 'stroke-width': 3, fill: 'none',
+                                transform: `translate(${x}, ${y}) rotate(${angle}) scale(${magnitude / 20})`,
+                                'stroke-linecap': 'round', 'stroke-linejoin': 'round'
+                            });
+                            vectorField.appendChild(arrow);
+                        }
+                    }
+                }
+                vizGroup.appendChild(vectorField);
+
+                tl.add(() => showSubtitle(8))
+                    .to(titleGroup, { opacity: 1, duration: 1 })
+                    .add(() => showSubtitle(9), "+=1")
+                    .to(formula, { y: 320, scale: 1.1, duration: 0.5 }).to(formula, { y: 350, scale: 1, duration: 0.5 })
+                    .add(() => showSubtitle(10))
+                    .to(vizGroup, { opacity: 1, duration: 1.5 }, "+=1")
+                    .from(vectorField.childNodes, { opacity: 0, scale: 0, stagger: 0.02, duration: 1.5 })
+                    .to([titleGroup, vizGroup], { opacity: 0, duration: 1 }, "+=2.5");
+
+                return tl;
+            }
+
+            // Scene 4: Z vanishes
+            function sceneZVanishes() {
+                const tl = gsap.timeline();
+                const formulaGroup = create('g', { opacity: 0 });
+
+                const text1 = create('text', { 'x': 400, 'y': 500, 'font-size': 90, 'text-anchor': 'start', 'font-family': 'serif' });
+                text1.innerHTML = `s<sub>&theta;</sub>(x) = &nabla;<sub>x</sub> log p<sub>&theta;</sub>(x)`;
+
+                const text2 = create('text', { 'x': 1000, 'y': 700, 'font-size': 90, 'text-anchor': 'start', 'font-family': 'serif' });
+                text2.innerHTML = `= &nabla;<sub>x</sub> log ( p̃<sub>&theta;</sub>(x) / Z )`;
+
+                const text3 = create('text', { 'x': 1000, 'y': 900, 'font-size': 90, 'text-anchor': 'start', 'font-family': 'serif' });
+                text3.innerHTML = `= &nabla;<sub>x</sub> ( log p̃<sub>&theta;</sub>(x) - log Z )`;
+
+                const text4_part1 = create('text', { 'x': 1000, 'y': 1100, 'font-size': 90, 'text-anchor': 'start', 'font-family': 'serif' });
+                text4_part1.innerHTML = `= &nabla;<sub>x</sub> log p̃<sub>&theta;</sub>(x)`;
+
+                const text4_part2 = create('text', { 'x': 1750, 'y': 1100, 'font-size': 90, 'text-anchor': 'start', 'font-family': 'serif' });
+                text4_part2.innerHTML = `- &nabla;<sub>x</sub> log Z`;
+
+                const text4_part2_strike = create('line', {
+                    x1: 1730, y1: 1080, x2: 2300, y2: 1080,
+                    stroke: 'var(--accent-red)', 'stroke-width': 8,
+                    'stroke-dasharray': 600, 'stroke-dashoffset': 600
+                });
+
+                const text4_zero = create('text', { 'x': 2350, 'y': 1100, 'font-size': 90, 'text-anchor': 'start', 'font-family': 'serif', fill: 'var(--accent-red)', opacity: 0 });
+                text4_zero.textContent = "= 0";
+
+                const final_text = create('text', { 'x': width / 2, 'y': 720, 'font-size': 120, 'text-anchor': 'middle', opacity: 0, fill: 'var(--accent-green)', 'font-weight': 'bold' });
+                final_text.textContent = "The partition function Z vanishes!";
+
+                formulaGroup.append(text1, text2, text3, text4_part1, text4_part2, text4_part2_strike, text4_zero);
+
+                tl.to(formulaGroup, { opacity: 1, duration: 0.5 })
+                    .add(() => showSubtitle(11))
+                    .from(text1, { x: "-=50", opacity: 0, duration: 1 })
+                    .from(text2, { x: "-=50", opacity: 0, duration: 1 }, "+=1")
+                    .from(text3, { x: "-=50", opacity: 0, duration: 1 }, "+=1.5")
+                    .from([text4_part1, text4_part2], { x: "-=50", opacity: 0, duration: 1 }, "+=1.5")
+                    .add(() => showSubtitle(12), "+=1")
+                    .to(text4_part2, { fill: 'var(--accent-red)', duration: 0.5 })
+                    .to(text4_part2_strike, { strokeDashoffset: 0, duration: 1 })
+                    .to(text4_zero, { opacity: 1, duration: 0.5 })
+                    .add(() => showSubtitle(13), "+=1")
+                    .to([text1, text2, text3, text4_part1, text4_part2, text4_part2_strike, text4_zero], { opacity: 0, duration: 1 })
+                    .to(final_text, { opacity: 1, duration: 1.5 })
+                    .to([formulaGroup, final_text], { opacity: 0, duration: 1 }, "+=2");
+
+                return tl;
+            }
+
+            // Scene 5: Matching the scores
+            function sceneMatching() {
+                const tl = gsap.timeline();
+
+                const true_score_group = create('g', { opacity: 0 });
+                const model_score_group = create('g', { opacity: 0 });
+
+                const true_title = create('text', { x: width * 0.25, y: 250, 'font-size': 60, 'text-anchor': 'middle', fill: 'var(--text-color)' });
+                true_title.innerHTML = "True Data Score s<sub>p</sub>(x)";
+                true_score_group.appendChild(true_title);
+
+                const model_title = create('text', { x: width * 0.75, y: 250, 'font-size': 60, 'text-anchor': 'middle', fill: 'var(--text-color)' });
+                model_title.innerHTML = "Our Model Score s<sub>&theta;</sub>(x)";
+                model_score_group.appendChild(model_title);
+
+                // True vector field
+                const true_field = create('g');
+                const true_arrows = [];
+                for (let i = 0; i < 9; i++) {
+                    for (let j = 0; j < 9; j++) {
+                        const x = width * 0.25 - 400 + i * 100;
+                        const y = height / 2 - 400 + j * 100;
+                        const dx = 2 * (x - width * 0.25); const dy = 2 * (y - height / 2);
+                        const angle = Math.atan2(-dy, -dx) * 180 / Math.PI;
+                        const magnitude = Math.max(0.1, 1 - Math.sqrt(dx * dx + dy * dy) / 600) * 25;
+                        if (magnitude > 3) {
+                            const arrow = create('path', { d: "M0,0 L20,0 L15,5 M20,0 L15,-5", stroke: 'var(--accent-blue)', 'stroke-width': 3, fill: 'none', transform: `translate(${x}, ${y}) rotate(${angle}) scale(${magnitude / 20})` });
+                            true_field.appendChild(arrow);
+                            true_arrows.push(arrow);
+                        }
+                    }
+                }
+                true_score_group.appendChild(true_field);
+
+                // Model vector field
+                const model_field = create('g');
+                const model_arrows = [];
+                for (let i = 0; i < 9; i++) {
+                    for (let j = 0; j < 9; j++) {
+                        const x = width * 0.75 - 400 + i * 100;
+                        const y = height / 2 - 400 + j * 100;
+                        const true_dx = 2 * (x - width * 0.75); const true_dy = 2 * (y - height / 2);
+                        const true_angle = Math.atan2(-true_dy, -true_dx) * 180 / Math.PI;
+                        const true_mag = Math.max(0.1, 1 - Math.sqrt(true_dx * true_dx + true_dy * true_dy) / 600) * 25;
+
+                        if (true_mag > 3) {
+                            const initial_angle = Math.random() * 360;
+                            const initial_mag = Math.random() * 20 + 5;
+                            const arrow = create('path', { d: "M0,0 L20,0 L15,5 M20,0 L15,-5", stroke: 'var(--accent-green)', 'stroke-width': 3, fill: 'none', transform: `translate(${x}, ${y}) rotate(${initial_angle}) scale(${initial_mag / 20})` });
+                            arrow.dataset.targetAngle = true_angle;
+                            arrow.dataset.targetScale = true_mag / 20;
+                            model_field.appendChild(arrow);
+                            model_arrows.push(arrow);
+                        }
+                    }
+                }
+                model_score_group.appendChild(model_field);
+
+                const arrow_connector = create('path', {
+                    d: `M ${width * 0.5 - 200} 720 L ${width * 0.5 + 200} 720`,
+                    'stroke-dasharray': '20 15', stroke: 'var(--base-color)', 'stroke-width': 5, opacity: 0
+                });
+                const match_text = create('text', { x: width * 0.5, y: 700, 'font-size': 80, 'text-anchor': 'middle', fill: 'var(--accent-magenta)', opacity: 0 });
+                match_text.textContent = "MATCH!";
+
+                const objective_formula = create('text', {
+                    x: width / 2, y: 1200, 'font-size': 70, 'text-anchor': 'middle', 'font-family': 'serif', opacity: 0
+                });
+                objective_formula.innerHTML = `J(&theta;) = E<sub>p(x)</sub> [ || s<sub>&theta;</sub>(x) - s<sub>p</sub>(x) ||<sup>2</sup> ]`;
+
+                tl.add(() => showSubtitle(14))
+                    .to([true_score_group, model_score_group], { opacity: 1, duration: 1 })
+                    .add(() => showSubtitle(15))
+                    .to(arrow_connector, { opacity: 1, duration: 0.5 }, "+=1")
+                    .to(match_text, { opacity: 1, scale: 1.2, duration: 0.5 }).to(match_text, { scale: 1, duration: 0.5 })
+                    .add(() => showSubtitle(16))
+                    .to(objective_formula, { opacity: 1, duration: 1 }, "+=1.5")
+                    .add(() => showSubtitle(17), "+=1")
+                    .to(objective_formula.childNodes[4], { fill: 'var(--accent-red)', duration: 0.5 })
+                    .to(objective_formula.childNodes[4], { scale: 1.2, duration: 0.3, repeat: 1, yoyo: true })
+                    .to([true_score_group, model_score_group, arrow_connector, match_text, objective_formula], { opacity: 0, duration: 1 }, "+=2.5");
+
+                return tl;
+            }
+
+            // Scene 6: The Trick and Training
+            function sceneTrick() {
+                const tl = gsap.timeline();
+
+                const old_formula = create('text', {
+                    x: width / 2, y: 400, 'font-size': 70, 'text-anchor': 'middle', 'font-family': 'serif', opacity: 0
+                });
+                old_formula.innerHTML = `J(&theta;) = E<sub>p(x)</sub> [ || s<sub>&theta;</sub>(x) - s<sub>p</sub>(x) ||<sup>2</sup> ]`;
+
+                const magic_wand = create('text', { x: width / 2, y: 650, 'font-size': 150, 'text-anchor': 'middle', opacity: 0 });
+                magic_wand.textContent = "✨";
+
+                const new_formula = create('text', {
+                    x: width / 2, y: 900, 'font-size': 70, 'text-anchor': 'middle', 'font-family': 'serif', opacity: 0
+                });
+                new_formula.innerHTML = `J(&theta;) = E<sub>p(x)</sub> [ tr(&nabla;<sub>x</sub> s<sub>&theta;</sub>(x)) + &frac12; ||s<sub>&theta;</sub>(x)||<sup>2</sup> ]`;
+
+                const no_sp = create('text', { x: width / 2, y: 1150, 'font-size': 80, 'text-anchor': 'middle', opacity: 0, fill: 'var(--accent-green)', 'font-weight': 'bold' });
+                no_sp.innerHTML = "No s<sub>p</sub>(x) needed!";
+
+                tl.add(() => showSubtitle(18))
+                    .to(old_formula, { opacity: 1, duration: 1 })
+                    .to(magic_wand, { opacity: 1, scale: 1.5, rotate: 360, duration: 1 }, "+=1")
+                    .add(() => showSubtitle(19))
+                    .to(new_formula, { opacity: 1, duration: 1 }, "-=0.5")
+                    .add(() => showSubtitle(20), "+=1")
+                    .to(no_sp, { opacity: 1, duration: 1 })
+                    .to([old_formula, magic_wand, new_formula, no_sp], { opacity: 0, duration: 1 }, "+=2");
+
+                return tl;
+            }
+
+            // Scene 7: Training visualization
+            function sceneTrainingViz() {
+                const tl = gsap.timeline();
+
+                const model_score_group = create('g');
+                const model_title = create('text', { x: width * 0.3, y: 250, 'font-size': 60, 'text-anchor': 'middle', fill: 'var(--text-color)' });
+                model_title.innerHTML = "Training s<sub>&theta;</sub>(x)";
+                model_score_group.appendChild(model_title);
+
+                const model_field = create('g');
+                const model_arrows = [];
+                for (let i = 0; i < 9; i++) {
+                    for (let j = 0; j < 9; j++) {
+                        const x = width * 0.3 - 400 + i * 100;
+                        const y = height / 2 - 400 + j * 100;
+                        const true_dx = 2 * (x - width * 0.3); const true_dy = 2 * (y - height / 2);
+                        const true_angle = Math.atan2(-true_dy, -true_dx) * 180 / Math.PI;
+                        const true_mag = Math.max(0.1, 1 - Math.sqrt(true_dx * true_dx + true_dy * true_dy) / 600) * 25;
+
+                        if (true_mag > 3) {
+                            const initial_angle = Math.random() * 360;
+                            const initial_mag = Math.random() * 20 + 5;
+                            const arrow = create('path', { d: "M0,0 L20,0 L15,5 M20,0 L15,-5", stroke: 'var(--accent-green)', 'stroke-width': 3, fill: 'none', transform: `translate(${x}, ${y}) rotate(${initial_angle}) scale(${initial_mag / 20})` });
+                            model_field.appendChild(arrow);
+                            model_arrows.push({
+                                el: arrow,
+                                target_transform: `translate(${x}, ${y}) rotate(${true_angle}) scale(${true_mag / 20})`
+                            });
+                        }
+                    }
+                }
+                model_score_group.appendChild(model_field);
+
+                const loss_group = create('g');
+                const loss_title = create('text', { x: width * 0.7, y: 250, 'font-size': 60, 'text-anchor': 'middle', fill: 'var(--text-color)' });
+                loss_title.innerHTML = "Minimizing Loss J(&theta;)";
+                const loss_axis_x = create('line', { x1: width * 0.7 - 300, y1: 1000, x2: width * 0.7 + 300, y2: 1000, stroke: 'var(--base-color)', 'stroke-width': 3 });
+                const loss_axis_y = create('line', { x1: width * 0.7 - 300, y1: 1000, x2: width * 0.7 - 300, y2: 400, stroke: 'var(--base-color)', 'stroke-width': 3 });
+                const loss_curve = create('path', {
+                    d: `M ${width * 0.7 - 300} 900 Q ${width * 0.7} 400 ${width * 0.7 + 300} 600`,
+                    stroke: 'var(--accent-magenta)', 'stroke-width': 5, fill: 'none'
+                });
+                const loss_point = create('circle', {
+                    cx: width * 0.7 - 300, cy: 900, r: 15, fill: 'var(--accent-red)'
+                });
+                loss_group.append(loss_title, loss_axis_x, loss_axis_y, loss_curve, loss_point);
+
+                tl.add(() => showSubtitle(21))
+                    .from([model_score_group, loss_group], { opacity: 0, duration: 1 })
+                    .add(() => showSubtitle(22))
+                    .to(loss_point, {
+                        motionPath: {
+                            path: loss_curve,
+                            align: loss_curve,
+                            alignOrigin: [0.5, 0.5],
+                            autoRotate: false
+                        },
+                        duration: 5,
+                        ease: "power1.inOut"
+                    }, "+=1")
+                    .add(() => showSubtitle(23))
+                    .to(model_arrows.map(a => a.el), {
+                        attr: { transform: i => model_arrows[i].target_transform },
+                        duration: 5,
+                        ease: "power1.inOut",
+                        stagger: 0.01
+                    }, "<")
+                    .to([model_score_group, loss_group], { opacity: 0, duration: 1 }, "+=2");
+
+                return tl;
+            }
+
+            // Scene 8: Summary and Conclusion
+            function sceneSummary() {
+                const tl = gsap.timeline();
+                const summary_group = create('g', { opacity: 0 });
+
+                const title = create('text', { x: width / 2, y: 200, 'font-size': 90, 'text-anchor': 'middle', 'font-weight': 'bold', fill: 'var(--text-color)' });
+                title.textContent = "Summary";
+
+                const step1 = create('text', { x: 400, y: 400, 'font-size': 60, 'text-anchor': 'start', opacity: 0 });
+                step1.innerHTML = "1. Goal: Model a complex distribution p(x).";
+
+                const step2 = create('text', { x: 400, y: 550, 'font-size': 60, 'text-anchor': 'start', opacity: 0 });
+                step2.innerHTML = "2. Problem: Partition function Z is intractable.";
+
+                const step3 = create('text', { x: 400, y: 700, 'font-size': 60, 'text-anchor': 'start', opacity: 0 });
+                step3.innerHTML = "3. Solution: Model the Score Function s(x) = &nabla;<sub>x</sub> log p(x) instead.";
+
+                const step4 = create('text', { x: 400, y: 850, 'font-size': 60, 'text-anchor': 'start', opacity: 0 });
+                step4.innerHTML = "4. Trick: Use an equivalent objective function that avoids Z and s<sub>p</sub>(x).";
+
+                const step5 = create('text', { x: 400, y: 1000, 'font-size': 60, 'text-anchor': 'start', opacity: 0 });
+                step5.innerHTML = "5. Result: Learn complex distributions efficiently.";
+
+                summary_group.append(title, step1, step2, step3, step4, step5);
+
+                const application = create('text', {
+                    x: width / 2, y: 720, 'font-size': 80, 'text-anchor': 'middle', opacity: 0, fill: 'var(--accent-blue)'
+                });
+                application.textContent = "Cornerstone of Diffusion Models";
+
+                const final_title = create('text', {
+                    'x': width / 2, 'y': height / 2 - 40, 'font-size': 120, 'font-weight': 'bold',
+                    'fill': 'var(--text-color)', 'text-anchor': 'middle', 'opacity': 0
+                });
+                final_title.textContent = "Score Matching";
+                const final_subtitle = create('text', {
+                    'x': width / 2, 'y': height / 2 + 60, 'font-size': 70, 'font-weight': '300',
+                    'fill': 'var(--base-color)', 'text-anchor': 'middle', 'opacity': 0
+                });
+                final_subtitle.textContent = "A smart way to model data.";
+
+                tl.add(() => showSubtitle(24))
+                    .to(summary_group, { opacity: 1, duration: 0.5 })
+                    .to(title, { y: 150, duration: 0.5 })
+                    .to(step1, { opacity: 1, x: 450, duration: 0.7 }, "+=0.5")
+                    .to(step2, { opacity: 1, x: 450, duration: 0.7 }, "+=0.5")
+                    .add(() => showSubtitle(25))
+                    .to(step3, { opacity: 1, x: 450, duration: 0.7 }, "+=1")
+                    .to(step4, { opacity: 1, x: 450, duration: 0.7 }, "+=0.5")
+                    .to(step5, { opacity: 1, x: 450, duration: 0.7 }, "+=0.5")
+                    .to(summary_group, { opacity: 0, duration: 1 }, "+=2.5")
+                    .add(() => showSubtitle(26))
+                    .to(application, { opacity: 1, duration: 1 })
+                    .to(application, { opacity: 0, duration: 1 }, "+=2")
+                    .add(() => showSubtitle(27))
+                    .to(final_title, { opacity: 1, duration: 1 })
+                    .to(final_subtitle, { opacity: 1, duration: 1 }, "-=0.5");
+
+                return tl;
+            }
+
+            // --- Build Master Timeline ---
+            masterTimeline
+                .add(sceneTitle())
+                .add(sceneProblem())
+                .add(sceneMLE())
+                .add(sceneScoreFunction())
+                .add(sceneZVanishes())
+                .add(sceneMatching())
+                .add(sceneTrick())
+                .add(sceneTrainingViz())
+                .add(sceneSummary());
+        });
+    </script>
+</body>
+
+</html>

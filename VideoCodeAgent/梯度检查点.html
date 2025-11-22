@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gradient Checkpointing Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #F7F9FC;
+            --text-color: #333;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --accent-color: #F5A623;
+            --gray-color: #D8D8D8;
+            --light-gray-color: #EAEAEA;
+            --white-color: #FFFFFF;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --font-family: 'Poppins', sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 1920px;
+            height: 1080px;
+            background-color: var(--white-color);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px var(--shadow-color);
+            position: relative;
+            transform-origin: top left;
+            overflow: hidden;
+        }
+
+        #main-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .subtitle-container {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px var(--shadow-color);
+            opacity: 0;
+        }
+
+        .subtitle-zh {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .subtitle-en {
+            font-size: 20px;
+            font-weight: 400;
+            color: #555;
+        }
+
+        /* SVG Element Styles */
+        .network-layer {
+            transition: all 0.3s ease;
+        }
+
+        .layer-rect {
+            stroke: var(--primary-color);
+            stroke-width: 3;
+            fill: rgba(74, 144, 226, 0.1);
+        }
+
+        .layer-text {
+            font-family: var(--font-family);
+            font-size: 24px;
+            fill: var(--primary-color);
+            font-weight: 600;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .connection-line {
+            stroke: var(--gray-color);
+            stroke-width: 2;
+        }
+
+        .activation-blob {
+            fill: var(--secondary-color);
+            stroke: #3BCDA9;
+            stroke-width: 2;
+        }
+
+        .gradient-arrow {
+            fill: var(--accent-color);
+        }
+
+        .memory-bar-bg {
+            fill: var(--light-gray-color);
+            stroke: var(--gray-color);
+            stroke-width: 1;
+        }
+
+        .memory-bar-fill {
+            fill: var(--primary-color);
+        }
+
+        .memory-bar-text {
+            font-family: var(--font-family);
+            font-size: 22px;
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .title-text {
+            font-family: var(--font-family);
+            font-size: 64px;
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .subtitle-text {
+            font-family: var(--font-family);
+            font-size: 32px;
+            font-weight: 300;
+            fill: #555;
+            text-anchor: middle;
+        }
+
+        .checkpoint-icon {
+            fill: var(--accent-color);
+        }
+
+        .recompute-highlight {
+            fill: rgba(245, 166, 35, 0.2);
+            stroke: var(--accent-color);
+            stroke-width: 3;
+            stroke-dasharray: 15 5;
+        }
+
+        .comparison-icon {
+            font-size: 60px;
+            font-family: var(--font-family);
+            text-anchor: middle;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="main-svg" viewBox="0 0 1920 1080">
+            <!-- Title Screen -->
+            <g id="title-screen">
+                <text x="960" y="480" class="title-text">梯度检查点</text>
+                <text x="960" y="550" class="title-text" style="font-size: 56px; fill: var(--primary-color);">Gradient
+                    Checkpointing</text>
+                <text x="960" y="630" class="subtitle-text">一种用计算换取内存的技术</text>
+                <text x="960" y="670" class="subtitle-text" style="font-size: 28px;">A technique to trade computation
+                    for memory</text>
+            </g>
+
+            <!-- Main Animation Scene -->
+            <g id="main-scene" style="opacity: 0;">
+                <!-- Neural Network Layers -->
+                <g id="network-layers">
+                    <g class="network-layer" id="layer-0">
+                        <rect x="250" y="490" width="80" height="100" rx="10" class="layer-rect" />
+                        <text x="290" y="540" class="layer-text">L0</text>
+                    </g>
+                    <line x1="330" y1="540" x2="450" y2="540" class="connection-line" />
+                    <g class="network-layer" id="layer-1">
+                        <rect x="450" y="490" width="80" height="100" rx="10" class="layer-rect" />
+                        <text x="490" y="540" class="layer-text">L1</text>
+                    </g>
+                    <line x1="530" y1="540" x2="650" y2="540" class="connection-line" />
+                    <g class="network-layer" id="layer-2">
+                        <rect x="650" y="490" width="80" height="100" rx="10" class="layer-rect" />
+                        <text x="690" y="540" class="layer-text">L2</text>
+                    </g>
+                    <line x1="730" y1="540" x2="850" y2="540" class="connection-line" />
+                    <g class="network-layer" id="layer-3">
+                        <rect x="850" y="490" width="80" height="100" rx="10" class="layer-rect" />
+                        <text x="890" y="540" class="layer-text">L3</text>
+                    </g>
+                    <line x1="930" y1="540" x2="1050" y2="540" class="connection-line" />
+                    <g class="network-layer" id="layer-4">
+                        <rect x="1050" y="490" width="80" height="100" rx="10" class="layer-rect" />
+                        <text x="1090" y="540" class="layer-text">L4</text>
+                    </g>
+                    <line x1="1130" y1="540" x2="1250" y2="540" class="connection-line" />
+                    <g class="network-layer" id="layer-5">
+                        <rect x="1250" y="490" width="80" height="100" rx="10" class="layer-rect" />
+                        <text x="1290" y="540" class="layer-text">L5</text>
+                    </g>
+                    <line x1="1330" y1="540" x2="1450" y2="540" class="connection-line" />
+                    <g class="network-layer" id="layer-6">
+                        <rect x="1450" y="490" width="80" height="100" rx="10" class="layer-rect" />
+                        <text x="1490" y="540" class="layer-text">L6</text>
+                    </g>
+                </g>
+
+                <!-- Activations -->
+                <g id="activations">
+                    <circle id="act-0" cx="290" cy="350" r="20" class="activation-blob" opacity="0" />
+                    <circle id="act-1" cx="490" cy="350" r="20" class="activation-blob" opacity="0" />
+                    <circle id="act-2" cx="690" cy="350" r="20" class="activation-blob" opacity="0" />
+                    <circle id="act-3" cx="890" cy="350" r="20" class="activation-blob" opacity="0" />
+                    <circle id="act-4" cx="1090" cy="350" r="20" class="activation-blob" opacity="0" />
+                    <circle id="act-5" cx="1290" cy="350" r="20" class="activation-blob" opacity="0" />
+                    <circle id="act-6" cx="1490" cy="350" r="20" class="activation-blob" opacity="0" />
+                </g>
+
+                <!-- Process labels -->
+                <text id="forward-pass-label" x="960" y="150" class="subtitle-text" opacity="0">Forward Pass /
+                    前向传播</text>
+                <text id="backward-pass-label" x="960" y="150" class="subtitle-text" opacity="0">Backward Pass /
+                    反向传播</text>
+
+                <!-- Checkpoint Icons -->
+                <g id="checkpoint-icons" opacity="0">
+                    <path d="M890 440 L870 420 L890 400 L910 420 Z" class="checkpoint-icon" />
+                    <path d="M1490 440 L1470 420 L1490 400 L1510 420 Z" class="checkpoint-icon" />
+                </g>
+
+                <!-- Recompute Highlight -->
+                <rect id="recompute-highlight-1" x="430" y="300" width="320" height="350" rx="20"
+                    class="recompute-highlight" opacity="0" />
+                <rect id="recompute-highlight-2" x="1030" y="300" width="320" height="350" rx="20"
+                    class="recompute-highlight" opacity="0" />
+                <text id="recompute-text" x="960" y="750" class="subtitle-text" style="fill: var(--accent-color);"
+                    opacity="0">Recomputing... / 重新计算...</text>
+
+                <!-- Memory Bar -->
+                <g id="memory-bar" transform="translate(1650, 200)">
+                    <text x="80" y="-20" class="memory-bar-text">Memory / 内存</text>
+                    <rect width="160" height="680" rx="20" class="memory-bar-bg" />
+                    <rect id="memory-bar-fill" width="160" height="0" y="680" rx="20" class="memory-bar-fill" />
+                    <text id="memory-peak-text" x="80" y="730" class="memory-bar-text" opacity="0">Peak / 峰值</text>
+                    <line id="memory-peak-line" x1="0" x2="160" stroke-width="3" stroke="var(--accent-color)"
+                        stroke-dasharray="8 4" opacity="0" />
+                </g>
+
+                <!-- Comparison Scene -->
+                <g id="comparison-scene" opacity="0">
+                    <rect x="100" y="100" width="840" height="880" rx="20" fill="rgba(255,255,255,0.8)"
+                        stroke="var(--gray-color)" stroke-width="2" />
+                    <rect x="980" y="100" width="840" height="880" rx="20" fill="rgba(255,255,255,0.8)"
+                        stroke="var(--gray-color)" stroke-width="2" />
+
+                    <text x="520" y="200" class="title-text" font-size="48">Standard Method</text>
+                    <text x="520" y="250" class="subtitle-text" font-size="32">标准方法</text>
+
+                    <text x="1400" y="200" class="title-text" font-size="48">Gradient Checkpointing</text>
+                    <text x="1400" y="250" class="subtitle-text" font-size="32">梯度检查点</text>
+
+                    <!-- Left Side -->
+                    <text x="520" y="400" class="comparison-icon">🧠</text>
+                    <text x="520" y="500" class="subtitle-text">High Memory Usage</text>
+                    <text x="520" y="540" class="subtitle-text" font-size="28">高内存占用</text>
+
+                    <text x="520" y="700" class="comparison-icon">⏱️</text>
+                    <text x="520" y="800" class="subtitle-text">Faster Computation</text>
+                    <text x="520" y="840" class="subtitle-text" font-size="28">计算速度快</text>
+
+                    <!-- Right Side -->
+                    <text x="1400" y="400" class="comparison-icon"
+                        style="transform: scale(0.6); transform-origin: center;">🧠</text>
+                    <text x="1400" y="500" class="subtitle-text" style="fill: var(--secondary-color);">Low Memory
+                        Usage</text>
+                    <text x="1400" y="540" class="subtitle-text" font-size="28"
+                        style="fill: var(--secondary-color);">低内存占用</text>
+
+                    <text x="1400" y="700" class="comparison-icon">🐢</text>
+                    <text x="1400" y="800" class="subtitle-text" style="fill: var(--accent-color);">Slower
+                        Computation</text>
+                    <text x="1400" y="840" class="subtitle-text" font-size="28"
+                        style="fill: var(--accent-color);">计算速度慢</text>
+                </g>
+            </g>
+        </svg>
+
+        <div class="subtitle-container" id="subtitle-box">
+            <p class="subtitle-zh" id="subtitle-zh-text"></p>
+            <p class="subtitle-en" id="subtitle-en-text"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        // --- Responsive Scaling ---
+        function scaleAnimation() {
+            const container = document.getElementById('animation-container');
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const scaleX = windowWidth / 1920;
+            const scaleY = windowHeight / 1080;
+            const scale = Math.min(scaleX, scaleY);
+            container.style.transform = `scale(${scale})`;
+            container.style.left = `${(windowWidth - 1920 * scale) / 2}px`;
+            container.style.top = `${(windowHeight - 1080 * scale) / 2}px`;
+        }
+        window.addEventListener('resize', scaleAnimation);
+        scaleAnimation();
+
+        // --- Animation Setup ---
+        const timeline = gsap.timeline({ delay: 1 });
+        const subtitleBox = document.getElementById('subtitle-box');
+        const subtitleZh = document.getElementById('subtitle-zh-text');
+        const subtitleEn = document.getElementById('subtitle-en-text');
+
+        const subtitles = [
+            { zh: "训练大型神经网络需要大量的内存。", en: "Training large neural networks requires a lot of memory." },
+            { zh: "在前向传播中，我们为每一层计算激活值。", en: "During the forward pass, we compute activations for each layer." },
+            { zh: "这些激活值必须存储在内存中...", en: "These activations must be stored in memory..." },
+            { zh: "...因为在反向传播计算梯度时需要用到它们。", en: "...because they are needed for the backward pass to calculate gradients." },
+            { zh: "这会导致非常高的内存峰值，有时甚至超出硬件限制。", en: "This can lead to very high peak memory usage, sometimes exceeding hardware limits." },
+            { zh: "那么，有没有更好的办法呢？", en: "So, is there a better way?" },
+            { zh: "这就是梯度检查点技术。", en: "Introducing: Gradient Checkpointing." },
+            { zh: "一种用额外的计算来换取内存空间的技术。", en: "A technique to trade extra computation for memory space." },
+            { zh: "现在，我们只在特定的“检查点”层保存激活值。", en: "Now, we only save activations at specific 'checkpoint' layers." },
+            { zh: "其他层的激活值在使用后立即被丢弃。", en: "Activations from other layers are discarded immediately after use." },
+            { zh: "注意，内存的峰值占用被显著降低了。", en: "Notice how the peak memory usage is significantly lower." },
+            { zh: "在反向传播时，当需要一个被丢弃的激活值...", en: "During the backward pass, when a discarded activation is needed..." },
+            { zh: "...我们暂停，并从前一个最近的检查点开始重新计算。", en: "...we pause and recompute it, starting from the nearest previous checkpoint." },
+            { zh: "这是一个小范围、局部的正向传播。", en: "This is a small, local forward pass." },
+            { zh: "重新计算后，我们用它来计算梯度，然后继续反向传播。", en: "Once recomputed, we use it for the gradient and then continue the backward pass." },
+            { zh: "这个过程在每个非检查点片段中重复进行。", en: "This process repeats for each non-checkpointed segment." },
+            { zh: "让我们来对比一下。", en: "Let's compare the two methods." },
+            { zh: "标准方法：速度快，但内存占用高。", en: "Standard Method: Fast, but with high memory usage." },
+            { zh: "梯度检查点：内存占用低得多，但由于重计算而速度较慢。", en: "Gradient Checkpointing: Much lower memory usage, but slower due to recomputation." },
+            { zh: "梯度检查点让我们可以在相同的硬件上，训练规模大得多的模型。", en: "Gradient Checkpointing enables us to train much larger models on the same hardware." },
+            { zh: "它是推动深度学习极限的一项关键技术。", en: "It's a key technique for pushing the limits of deep learning." },
+        ];
+
+        function showSubtitle(index) {
+            gsap.to(subtitleBox, {
+                opacity: 1,
+                duration: 0.5,
+                onStart: () => {
+                    subtitleZh.textContent = subtitles[index].zh;
+                    subtitleEn.textContent = subtitles[index].en;
+                }
+            });
+        }
+
+        function hideSubtitle() {
+            gsap.to(subtitleBox, { opacity: 0, duration: 0.5 });
+        }
+
+        // --- GSAP Timeline ---
+
+        // Scene 1: Intro
+        timeline.to("#title-screen", { opacity: 0, duration: 1, delay: 2 })
+            .to("#main-scene", { opacity: 1, duration: 1 }, "-=0.5");
+
+        // Scene 2: Standard Forward Pass
+        timeline.add(() => showSubtitle(0))
+            .to("#forward-pass-label", { opacity: 1, duration: 0.5 })
+            .add(() => showSubtitle(1), "+=1");
+
+        const totalMemory = 680;
+        const memPerActivation = totalMemory / 7;
+
+        for (let i = 0; i <= 6; i++) {
+            timeline.to(`#layer-${i}`, { scale: 1.1, transformOrigin: "center", duration: 0.2 })
+                .to(`#act-${i}`, { opacity: 1, y: 350, duration: 0.3 }, "-=0.1")
+                .to("#memory-bar-fill", { height: `+=${memPerActivation}`, y: `-=${memPerActivation}`, duration: 0.5 }, "<")
+                .to(`#layer-${i}`, { scale: 1, duration: 0.2 });
+        }
+
+        // Scene 3: Standard Backward Pass
+        timeline.add(() => showSubtitle(2), "+=1")
+            .add(() => showSubtitle(3), "+=3")
+            .to("#memory-peak-line", { y: 680 - totalMemory, opacity: 1, duration: 0.5 })
+            .to("#memory-peak-text", { opacity: 1, duration: 0.5 }, "<")
+            .to("#forward-pass-label", { opacity: 0, duration: 0.5 }, "+=1")
+            .to("#backward-pass-label", { opacity: 1, duration: 0.5 });
+
+        for (let i = 6; i >= 0; i--) {
+            timeline.to(`#layer-${i}`, { fill: 'rgba(245, 166, 35, 0.2)', duration: 0.2 })
+                .to(`#act-${i}`, { opacity: 0.2, duration: 0.3 }, "+=0.2")
+                .to("#memory-bar-fill", { height: `-=${memPerActivation}`, y: `+=${memPerActivation}`, duration: 0.5 }, "<")
+                .to(`#layer-${i}`, { fill: 'rgba(74, 144, 226, 0.1)', duration: 0.2 });
+        }
+
+        // Scene 4: Reset for Checkpointing explanation
+        timeline.add(() => showSubtitle(4), "+=1")
+            .add(hideSubtitle, "+=3")
+            .to(["#backward-pass-label", "#memory-peak-line", "#memory-peak-text"], { opacity: 0, duration: 0.5 })
+            .to(".activation-blob", { opacity: 0, y: 300, duration: 0.5 })
+            .to("#memory-bar-fill", { height: 0, y: 680, duration: 1 })
+            .add(() => showSubtitle(5), "+=1")
+            .add(() => showSubtitle(6), "+=2");
+
+        // Scene 5: Checkpointing Forward Pass
+        timeline.to("#checkpoint-icons", { opacity: 1, duration: 1 })
+            .add(() => showSubtitle(7), "+=1")
+            .to("#forward-pass-label", { opacity: 1, duration: 0.5 });
+
+        const memPerCheckpoint = totalMemory / 7; // Smaller memory footprint
+
+        timeline.add(() => showSubtitle(8));
+        // Pass 0 -> 3 (checkpoint)
+        for (let i = 0; i <= 3; i++) {
+            let isCheckpoint = (i === 3);
+            timeline.to(`#layer-${i}`, { scale: 1.1, duration: 0.2 })
+                .to(`#act-${i}`, { opacity: 1, y: 350, duration: 0.3 }, "-=0.1")
+                .to("#memory-bar-fill", { height: `+=${memPerCheckpoint}`, y: `-=${memPerCheckpoint}`, duration: 0.3 }, "<")
+                .to(`#layer-${i}`, { scale: 1, duration: 0.2 });
+            if (!isCheckpoint) {
+                timeline.to(`#act-${i}`, { opacity: 0, y: 300, duration: 0.3 }, "+=0.1")
+                    .to("#memory-bar-fill", { height: `-=${memPerCheckpoint}`, y: `+=${memPerCheckpoint}`, duration: 0.3 }, "<");
+            }
+        }
+
+        timeline.add(() => showSubtitle(9), "+=0.5");
+        // Pass 4 -> 6 (checkpoint)
+        for (let i = 4; i <= 6; i++) {
+            let isCheckpoint = (i === 6);
+            timeline.to(`#layer-${i}`, { scale: 1.1, duration: 0.2 })
+                .to(`#act-${i}`, { opacity: 1, y: 350, duration: 0.3 }, "-=0.1")
+                .to("#memory-bar-fill", { height: `+=${memPerCheckpoint}`, y: `-=${memPerCheckpoint}`, duration: 0.3 }, "<")
+                .to(`#layer-${i}`, { scale: 1, duration: 0.2 });
+            if (!isCheckpoint) {
+                timeline.to(`#act-${i}`, { opacity: 0, y: 300, duration: 0.3 }, "+=0.1")
+                    .to("#memory-bar-fill", { height: `-=${memPerCheckpoint}`, y: `+=${memPerCheckpoint}`, duration: 0.3 }, "<");
+            }
+        }
+
+        // Show new memory peak
+        timeline.add(() => showSubtitle(10), "+=1")
+            .to("#memory-peak-line", { y: 680 - 3 * memPerCheckpoint, opacity: 1, duration: 0.5 })
+            .to("#memory-peak-text", { opacity: 1, duration: 0.5 }, "<");
+
+        // Scene 6: Checkpointing Backward Pass
+        timeline.to("#forward-pass-label", { opacity: 0, duration: 0.5 }, "+=1")
+            .to("#backward-pass-label", { opacity: 1, duration: 0.5 })
+            .add(() => showSubtitle(11));
+
+        // Backward from L6 to L4
+        for (let i = 6; i >= 4; i--) {
+            timeline.to(`#layer-${i}`, { fill: 'rgba(245, 166, 35, 0.2)', duration: 0.2 })
+                .to(`#layer-${i}`, { fill: 'rgba(74, 144, 226, 0.1)', duration: 0.2 }, "+=0.3");
+        }
+        timeline.to(`#act-6`, { opacity: 0.2, duration: 0.3 })
+            .to("#memory-bar-fill", { height: `-=${memPerCheckpoint}`, y: `+=${memPerCheckpoint}`, duration: 0.5 }, "<");
+
+        // Recomputation L4, L5
+        timeline.add(() => showSubtitle(12), "+=1")
+            .to("#recompute-highlight-2", { opacity: 1, duration: 0.5 })
+            .to("#recompute-text", { opacity: 1, duration: 0.5 }, "<")
+            .add(() => showSubtitle(13), "+=1.5");
+
+        for (let i = 4; i <= 5; i++) {
+            timeline.to(`#layer-${i}`, { scale: 1.05, duration: 0.1 })
+                .to(`#act-${i}`, { opacity: 1, y: 350, duration: 0.15 }, "-=0.05")
+                .to(`#layer-${i}`, { scale: 1, duration: 0.1 });
+        }
+
+        timeline.to(["#recompute-highlight-2", "#recompute-text"], { opacity: 0, duration: 0.5 })
+            .add(() => showSubtitle(14), "+=0.5");
+
+        // Continue backward L3
+        timeline.to(`#layer-3`, { fill: 'rgba(245, 166, 35, 0.2)', duration: 0.2 })
+            .to(".activation-blob", { opacity: (i, target) => target.id === 'act-3' ? 1 : 0.2, duration: 0.3 })
+            .to(`#layer-3`, { fill: 'rgba(74, 144, 226, 0.1)', duration: 0.2 }, "+=0.3");
+
+        // Recomputation L1, L2
+        timeline.add(() => showSubtitle(15), "+=1")
+            .to("#recompute-highlight-1", { opacity: 1, duration: 0.5 })
+            .to("#recompute-text", { opacity: 1, duration: 0.5 }, "<");
+
+        for (let i = 1; i <= 2; i++) {
+            timeline.to(`#layer-${i}`, { scale: 1.05, duration: 0.1 })
+                .to(`#act-${i}`, { opacity: 1, y: 350, duration: 0.15 }, "-=0.05")
+                .to(`#layer-${i}`, { scale: 1, duration: 0.1 });
+        }
+
+        // Finish backward pass
+        timeline.to(["#recompute-highlight-1", "#recompute-text"], { opacity: 0, duration: 0.5 });
+        for (let i = 2; i >= 0; i--) {
+            timeline.to(`#layer-${i}`, { fill: 'rgba(245, 166, 35, 0.2)', duration: 0.2 })
+                .to(`#act-${i}`, { opacity: 0.2, duration: 0.3 }, "+=0.2")
+                .to(`#layer-${i}`, { fill: 'rgba(74, 144, 226, 0.1)', duration: 0.2 });
+        }
+        timeline.to(`#act-3`, { opacity: 0.2, duration: 0.3 })
+            .to("#memory-bar-fill", { height: 0, y: 680, duration: 1 }, "<");
+
+
+        // Scene 7: Comparison
+        timeline.add(hideSubtitle, "+=1")
+            .to("#main-scene", { filter: "blur(10px) brightness(0.9)", duration: 1 })
+            .to("#comparison-scene", { opacity: 1, duration: 1 }, "-=0.5")
+            .add(() => showSubtitle(16), "-=0.5")
+            .add(() => showSubtitle(17), "+=3")
+            .add(() => showSubtitle(18), "+=4");
+
+        // Scene 8: Conclusion
+        timeline.to("#comparison-scene", { opacity: 0, duration: 1, delay: 4 })
+            .to("#main-scene", { filter: "blur(0px) brightness(1)", duration: 1 }, "<")
+            .add(hideSubtitle, "<")
+            .add(() => showSubtitle(19))
+            .to("#network-layers .layer-rect", {
+                fill: "rgba(80, 227, 194, 0.2)",
+                stroke: "var(--secondary-color)",
+                duration: 1,
+                stagger: 0.1
+            }, "+=0.5")
+            .add(() => showSubtitle(20), "+=2");
+
+        timeline.play();
+    </script>
+
+</body>
+
+</html>

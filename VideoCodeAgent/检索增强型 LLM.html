@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Story of Retrieval-Augmented LLM | RAG 动画解说</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-color: #4a90e2;
+            --secondary-color: #50e3c2;
+            --accent-color: #f5a623;
+            --text-color: #343a40;
+            --light-text-color: #f8f9fa;
+            --border-color: #dee2e6;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+            background-color: #e9ecef;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #animation-container {
+            position: relative;
+            width: 90vw;
+            max-width: var(--container-width);
+            aspect-ratio: 16 / 9;
+            background-color: var(--bg-color);
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transform: scale(var(--scale-factor, 1));
+        }
+
+        /* Elements */
+        .actor {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+            will-change: opacity, transform;
+        }
+
+        .icon {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background-color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .icon svg {
+            width: 60px;
+            height: 60px;
+        }
+
+        .label {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        /* Specific Actor Positions */
+        #user-group {
+            top: 40%;
+            left: 10%;
+            transform: translate(-50%, -50%);
+        }
+
+        #llm-group {
+            top: 40%;
+            left: 85%;
+            transform: translate(-50%, -50%);
+        }
+
+        #knowledge-base-group {
+            top: 75%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #retriever-group {
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Communication Elements */
+        .comm-element {
+            position: absolute;
+            padding: 20px 30px;
+            border-radius: 15px;
+            font-size: 22px;
+            line-height: 1.5;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            will-change: opacity, transform;
+            max-width: 400px;
+            background-color: #fff;
+            border: 1px solid var(--border-color);
+        }
+
+        #query-bubble {
+            background-color: var(--primary-color);
+            color: var(--light-text-color);
+        }
+
+        #llm-response {
+            background-color: var(--accent-color);
+            color: var(--light-text-color);
+        }
+
+        #augmented-prompt {
+            background-color: var(--secondary-color);
+            color: #1a6c5a;
+            border: 2px dashed #1a6c5a;
+        }
+
+        .doc-chunk {
+            background-color: #ffffff;
+            border: 1px solid var(--primary-color);
+            color: var(--text-color);
+            width: 250px;
+            height: 80px;
+            font-size: 16px;
+            padding: 10px;
+        }
+
+        /* Subtitles */
+        #subtitles {
+            position: absolute;
+            bottom: 3%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+        }
+
+        #subtitles.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn {
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        #subtitle-en {
+            font-size: 20px;
+            font-weight: 400;
+            color: #6c757d;
+            margin: 5px 0 0 0;
+        }
+
+        /* Dashed Lines for paths */
+        .path-line {
+            position: absolute;
+            stroke: var(--primary-color);
+            stroke-width: 3;
+            fill: none;
+            stroke-dasharray: 10 10;
+            stroke-dashoffset: 1000;
+            opacity: 0.7;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        @keyframes scaleUp {
+            from {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+
+            to {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 4px 15px rgba(74, 144, 226, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 4px 30px rgba(74, 144, 226, 0.6);
+            }
+
+            100% {
+                box-shadow: 0 4px 15px rgba(74, 144, 226, 0.2);
+            }
+        }
+
+        @keyframes thinking {
+            0% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+
+            100% {
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes draw-line {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes glow {
+
+            0%,
+            100% {
+                filter: drop-shadow(0 0 5px var(--secondary-color));
+            }
+
+            50% {
+                filter: drop-shadow(0 0 20px var(--secondary-color));
+            }
+        }
+
+        .anim-fade-in {
+            animation: fadeIn 1s forwards;
+        }
+
+        .anim-fade-out {
+            animation: fadeOut 1s forwards;
+        }
+
+        .anim-scale-up {
+            animation: scaleUp 1s forwards;
+        }
+
+        .anim-pulse {
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .anim-thinking {
+            animation: thinking 1.5s infinite ease-in-out;
+        }
+
+        .anim-draw-line {
+            animation: draw-line 1.5s ease-in-out forwards;
+        }
+
+        .anim-glow {
+            animation: glow 2.5s infinite ease-in-out;
+        }
+
+        .hidden {
+            opacity: 0 !important;
+            pointer-events: none;
+            transform: scale(0.8);
+        }
+
+        .visible {
+            opacity: 1 !important;
+            transform: scale(1);
+        }
+
+        .actor.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+
+        <!-- SVG Definitions -->
+        <svg width="0" height="0" style="position:absolute;">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#4a90e2" />
+                </marker>
+            </defs>
+        </svg>
+
+        <!-- Dynamic Lines -->
+        <svg id="path-svg-container"
+            style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></svg>
+
+        <!-- Actors -->
+        <div id="user-group" class="actor">
+            <div class="icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    style="color: var(--primary-color);">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </div>
+            <div class="label">用户 / User</div>
+        </div>
+
+        <div id="llm-group" class="actor">
+            <div class="icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-color);">
+                    <path
+                        d="M12 2a10 10 0 0 0-2.88 19.12A10 10 0 0 0 12 22a10 10 0 0 0 10-10c0-5.52-4.48-10-10-10zM2 12h2m16 0h2M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41">
+                    </path>
+                    <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"></path>
+                </svg>
+            </div>
+            <div class="label">大语言模型 / LLM</div>
+        </div>
+
+        <div id="retriever-group" class="actor">
+            <div class="icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    style="color: var(--primary-color);">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </div>
+            <div class="label">检索器 / Retriever</div>
+        </div>
+
+        <div id="knowledge-base-group" class="actor">
+            <div class="icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    style="color: var(--secondary-color);">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                </svg>
+            </div>
+            <div class="label">知识库 / Knowledge Base</div>
+        </div>
+
+        <!-- Communication Elements -->
+        <div id="query-bubble" class="comm-element"></div>
+        <div id="llm-response" class="comm-element"></div>
+        <div id="augmented-prompt" class="comm-element"></div>
+        <div id="doc-chunk-1" class="comm-element doc-chunk"></div>
+        <div id="doc-chunk-2" class="comm-element doc-chunk"></div>
+
+        <!-- Subtitles -->
+        <div id="subtitles">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+
+    </div>
+
+    <script>
+        const container = document.getElementById('animation-container');
+
+        function adjustScale() {
+            const containerWidth = 2560;
+            const actualWidth = container.offsetWidth;
+            const scaleFactor = actualWidth / containerWidth;
+            container.style.setProperty('--scale-factor', scaleFactor);
+        }
+
+        window.addEventListener('resize', adjustScale);
+        adjustScale();
+
+        // Helper functions
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const getElement = (id) => document.getElementById(id);
+        const pathContainer = getElement('path-svg-container');
+
+        const elements = {
+            user: getElement('user-group'),
+            llm: getElement('llm-group'),
+            retriever: getElement('retriever-group'),
+            kb: getElement('knowledge-base-group'),
+            subtitles: getElement('subtitles'),
+            subCn: getElement('subtitle-cn'),
+            subEn: getElement('subtitle-en'),
+            query: getElement('query-bubble'),
+            response: getElement('llm-response'),
+            augPrompt: getElement('augmented-prompt'),
+            doc1: getElement('doc-chunk-1'),
+            doc2: getElement('doc-chunk-2'),
+        };
+
+        function getElementCenter(el) {
+            const rect = el.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            return {
+                x: (rect.left - containerRect.left + rect.width / 2) / (containerRect.width / 100) + '%',
+                y: (rect.top - containerRect.top + rect.height / 2) / (containerRect.height / 100) + '%'
+            };
+        }
+
+        function getElementPosition(el, side = 'right', offsetX = 0, offsetY = 0) {
+            const rect = el.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const scale = parseFloat(container.style.getPropertyValue('--scale-factor'));
+
+            let x, y;
+            y = (rect.top - containerRect.top + rect.height / 2) / scale + offsetY;
+
+            if (side === 'right') {
+                x = (rect.right - containerRect.left) / scale + 20 + offsetX;
+            } else if (side === 'left') {
+                x = (rect.left - containerRect.left) / scale - 20 - 400 + offsetX; // 400 is approx width
+            } else if (side === 'top') {
+                x = (rect.left - containerRect.left + rect.width / 2) / scale - 200 + offsetX; // 200 is half width
+                y = (rect.top - containerRect.top) / scale - 150 + offsetY; // 150 is height + margin
+            } else { //bottom
+                x = (rect.left - containerRect.left + rect.width / 2) / scale - 200 + offsetX; // 200 is half width
+                y = (rect.bottom - containerRect.top) / scale + 20 + offsetY;
+            }
+
+            return { x, y };
+        }
+
+
+        function show(el, pos) {
+            el.style.left = pos.x + 'px';
+            el.style.top = pos.y + 'px';
+            el.style.transform = `translateY(-50%) scale(0.8)`;
+            el.classList.remove('hidden');
+            el.classList.add('visible');
+        }
+
+        function hide(el) {
+            el.classList.remove('visible');
+            el.classList.add('hidden');
+        }
+
+        async function updateSubtitles(cn, en, duration = 4000) {
+            elements.subtitles.classList.remove('visible');
+            await sleep(500);
+            elements.subCn.textContent = cn;
+            elements.subEn.textContent = en;
+            elements.subtitles.classList.add('visible');
+            await sleep(duration);
+        }
+
+        function drawPath(el1, el2, id) {
+            const start = el1.getBoundingClientRect();
+            const end = el2.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const scale = parseFloat(container.style.getPropertyValue('--scale-factor'));
+
+            const startX = (start.left - containerRect.left + start.width / 2) / scale;
+            const startY = (start.top - containerRect.top + start.height / 2) / scale;
+            const endX = (end.left - containerRect.left + end.width / 2) / scale;
+            const endY = (end.top - containerRect.top + end.height / 2) / scale;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('id', id);
+            path.setAttribute('class', 'path-line');
+            path.setAttribute('d', `M${startX},${startY} C${startX + (endX - startX) * 0.5},${startY} ${endX - (endX - startX) * 0.5},${endY} ${endX},${endY}`);
+            path.setAttribute('marker-end', 'url(#arrowhead)');
+            pathContainer.appendChild(path);
+
+            // Trigger animation
+            setTimeout(() => path.classList.add('anim-draw-line'), 100);
+        }
+
+        function removePath(id) {
+            const path = document.getElementById(id);
+            if (path) {
+                path.style.transition = 'opacity 0.5s ease';
+                path.style.opacity = '0';
+                setTimeout(() => path.remove(), 500);
+            }
+        }
+
+        async function animateElementTo(el, targetEl, side = 'right', offsetX = 0, offsetY = 0) {
+            const pos = getElementPosition(targetEl, side, offsetX, offsetY);
+            el.style.transition = 'all 1.5s cubic-bezier(0.45, 0, 0.55, 1)';
+            el.style.left = pos.x + 'px';
+            el.style.top = pos.y + 'px';
+            el.style.transform = `translateY(-50%) scale(1)`;
+            await sleep(1500);
+        }
+
+        async function runAnimation() {
+            // SCENE 1: The Problem with Standard LLMs
+            elements.user.classList.add('visible');
+            elements.llm.classList.add('visible');
+
+            await updateSubtitles(
+                '传统的大语言模型(LLM)知识是静态的，仅限于其训练数据。',
+                'Traditional Large Language Models (LLMs) have static knowledge, limited to their training data.',
+                4000
+            );
+
+            await updateSubtitles(
+                '当用户提出一个关于最新或私有信息的问题时...',
+                'When a user asks about recent or private information...',
+                3000
+            );
+
+            elements.query.innerHTML = "“星际探索者号”飞船<br>上周的任务报告是什么？<br><em>(What was last week's mission report for the Starship 'Explorer'?)</em>";
+            const userPos = getElementPosition(elements.user, 'right');
+            show(elements.query, userPos);
+            await animateElementTo(elements.query, elements.llm, 'left', -20);
+            elements.llm.querySelector('.icon').classList.add('anim-pulse');
+
+            await updateSubtitles(
+                'LLM 无法回答，因为它没有这些新知识，可能会“幻觉”出一个答案。',
+                "The LLM can't answer as it lacks this new knowledge, and might 'hallucinate' a response.",
+                5000
+            );
+
+            elements.response.innerHTML = "对不起，我的知识截止于2023年，无法提供该信息。<br><em>(I'm sorry, my knowledge cutoff is 2023 and I cannot provide that information.)</em>";
+            const llmPos = getElementPosition(elements.llm, 'left');
+            show(elements.response, llmPos);
+            hide(elements.query);
+            elements.llm.querySelector('.icon').classList.remove('anim-pulse');
+            await sleep(3000);
+
+            // Transition to RAG
+            hide(elements.response);
+            elements.user.classList.remove('visible');
+            elements.llm.classList.remove('visible');
+            await sleep(1000);
+
+            // SCENE 2: Introducing RAG
+            elements.user.classList.add('visible');
+            elements.llm.classList.add('visible');
+            elements.retriever.classList.add('visible');
+            elements.kb.classList.add('visible');
+
+            await updateSubtitles(
+                '这就是检索增强生成 (RAG) 发挥作用的地方。',
+                'This is where Retrieval-Augmented Generation (RAG) comes into play.',
+                3000
+            );
+
+            await updateSubtitles(
+                '它将LLM与一个外部的、实时更新的知识库连接起来。',
+                'It connects the LLM with an external, up-to-date knowledge base.',
+                4000
+            );
+
+            // SCENE 3: The RAG Process
+            await updateSubtitles(
+                '第一步：用户的提问首先被发送给“检索器”。',
+                'Step 1: The user\'s query is first sent to a "Retriever".',
+                4000
+            );
+            show(elements.query, userPos);
+            drawPath(elements.user, elements.retriever, 'path1');
+            await animateElementTo(elements.query, elements.retriever, 'left', -20);
+            elements.retriever.querySelector('.icon').classList.add('anim-thinking');
+
+            await updateSubtitles(
+                '第二步：检索器在知识库中搜索最相关的信息片段。',
+                'Step 2: The Retriever searches the knowledge base for the most relevant information chunks.',
+                5000
+            );
+            hide(elements.query);
+            removePath('path1');
+            drawPath(elements.retriever, elements.kb, 'path2');
+            await sleep(2000);
+            elements.retriever.querySelector('.icon').classList.remove('anim-thinking');
+
+            const kbPos = getElementPosition(elements.kb, 'top');
+            elements.doc1.innerHTML = "<strong>报告片段A:</strong><br>“星际探索者号”在C-137星云收集了...<br><em>Doc A: Starship 'Explorer' collected...</em>";
+            elements.doc2.innerHTML = "<strong>报告片段B:</strong><br>...任务结论：能源读数稳定。<br><em>Doc B: ...mission conclusion: energy readings stable.</em>";
+            show(elements.doc1, { x: kbPos.x - 150, y: kbPos.y });
+            show(elements.doc2, { x: kbPos.x + 150, y: kbPos.y });
+            removePath('path2');
+
+            await updateSubtitles(
+                '第三步：将检索到的信息和原始问题一起“增强”成一个新的提示。',
+                'Step 3: This retrieved info is combined with the original query to "augment" a new prompt.',
+                6000
+            );
+
+            const retrieverPos = getElementPosition(elements.retriever, 'top', 0, 50);
+            elements.augPrompt.style.left = retrieverPos.x + 'px';
+            elements.augPrompt.style.top = retrieverPos.y + 'px';
+            elements.augPrompt.classList.remove('hidden');
+            elements.augPrompt.classList.add('visible');
+            elements.augPrompt.innerHTML = `
+                <strong>Context:</strong><br>
+                Doc A: Starship 'Explorer' collected...<br>
+                Doc B: ...mission conclusion: energy readings stable.<br>
+                <strong>Question:</strong><br>
+                What was last week's mission report for the Starship 'Explorer'?
+            `;
+
+            elements.doc1.style.transition = 'all 1.5s ease-in-out';
+            elements.doc2.style.transition = 'all 1.5s ease-in-out';
+            elements.doc1.style.left = retrieverPos.x + 'px';
+            elements.doc1.style.top = retrieverPos.y + 'px';
+            elements.doc1.style.opacity = '0';
+            elements.doc2.style.left = retrieverPos.x + 'px';
+            elements.doc2.style.top = retrieverPos.y + 'px';
+            elements.doc2.style.opacity = '0';
+            await sleep(1500);
+            hide(elements.doc1);
+            hide(elements.doc2);
+
+            await updateSubtitles(
+                '第四步：这个包含了上下文的增强提示被发送给LLM。',
+                'Step 4: This augmented prompt, rich with context, is then sent to the LLM.',
+                5000
+            );
+            drawPath(elements.retriever, elements.llm, 'path3');
+            await animateElementTo(elements.augPrompt, elements.llm, 'left');
+            elements.llm.querySelector('.icon').classList.add('anim-glow');
+
+            await updateSubtitles(
+                '现在，LLM可以利用提供的准确信息，生成一个基于事实的、精确的回答。',
+                'Now, the LLM can generate a factual, precise answer using the provided information.',
+                5000
+            );
+            hide(elements.augPrompt);
+            removePath('path3');
+            elements.response.innerHTML = "根据上周的报告，“星际探索者号”在C-137星云的任务显示能源读数稳定。<br><em>(Based on last week's report, Starship 'Explorer's' mission in nebula C-137 showed stable energy readings.)</em>";
+            elements.response.style.backgroundColor = 'var(--secondary-color)';
+            elements.response.style.color = '#1a6c5a';
+            show(elements.response, llmPos);
+            await animateElementTo(elements.response, elements.user, 'right');
+            elements.llm.querySelector('.icon').classList.remove('anim-glow');
+            await sleep(2000);
+            hide(elements.response);
+
+            // SCENE 4: Conclusion
+            await updateSubtitles(
+                '这就是RAG！它结合了LLM的推理能力和外部知识的准确性。',
+                'This is RAG! Combining the reasoning of LLMs with the accuracy of external knowledge.',
+                5000
+            );
+
+            await updateSubtitles(
+                '从而提供更可靠、更及时、更值得信赖的AI答案。',
+                'Resulting in more reliable, timely, and trustworthy AI answers.',
+                5000
+            );
+
+            elements.subtitles.classList.remove('visible');
+        }
+
+        window.onload = runAnimation;
+
+    </script>
+</body>
+
+</html>

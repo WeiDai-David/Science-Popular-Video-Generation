@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embedding (Word Vector) Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-text-color: #343A40;
+            --secondary-text-color: #6C757D;
+            --accent-color-1: #74C0FC;
+            --accent-color-2: #A5D8FF;
+            --accent-color-3: #FAB005;
+            --accent-color-4: #FFDE66;
+            --vector-color: #495057;
+            --highlight-color: #845EF7;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
+        }
+
+        #scaler {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background: linear-gradient(135deg, #FDFEFE, #F1F3F5);
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            transform-origin: center center;
+        }
+
+        /* Elements for Animation */
+        .word-token {
+            position: absolute;
+            font-size: 80px;
+            font-weight: 600;
+            color: var(--primary-text-color);
+            padding: 20px 40px;
+            background-color: #FFFFFF;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        #word-king {
+            top: 300px;
+            left: 300px;
+        }
+
+        #word-queen {
+            top: 300px;
+            left: 800px;
+        }
+
+        #word-man {
+            top: 600px;
+            left: 300px;
+        }
+
+        #word-woman {
+            top: 600px;
+            left: 800px;
+        }
+
+        .binary-code {
+            position: absolute;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 24px;
+            color: var(--secondary-text-color);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #binary-king {
+            top: 460px;
+            left: 310px;
+        }
+
+        #binary-queen {
+            top: 460px;
+            left: 810px;
+        }
+
+        #magic-box {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            top: 470px;
+            left: 1030px;
+            background: linear-gradient(45deg, var(--accent-color-2), var(--accent-color-1));
+            border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(116, 192, 252, 0.3);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 50px;
+            color: white;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .vector-rep {
+            position: absolute;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 32px;
+            color: var(--primary-text-color);
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(5px);
+            border-radius: 10px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease-out;
+        }
+
+        #vector-space {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        #vector-space .grid-line {
+            stroke: #E9ECEF;
+            stroke-width: 2;
+        }
+
+        #vector-space .axis-line {
+            stroke: #CED4DA;
+            stroke-width: 4;
+        }
+
+        #vector-space .point {
+            transition: all 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #vector-space .point-label {
+            font-size: 48px;
+            font-weight: 600;
+            fill: var(--primary-text-color);
+            text-anchor: middle;
+            transition: all 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #vector-space .vector-arrow {
+            stroke: var(--vector-color);
+            stroke-width: 6;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            marker-end: url(#arrowhead);
+        }
+
+        #vector-space .highlight-arrow {
+            stroke: var(--highlight-color);
+            stroke-width: 8;
+            stroke-dasharray: 20 20;
+            stroke-dashoffset: 200;
+            opacity: 0;
+            marker-end: url(#arrowhead-highlight);
+        }
+
+        #final-title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 120px;
+            font-weight: 600;
+            text-align: center;
+            color: var(--primary-text-color);
+            opacity: 0;
+            transition: opacity 1.5s ease;
+            line-height: 1.4;
+        }
+
+        #final-title span {
+            font-size: 60px;
+            color: var(--secondary-text-color);
+            font-weight: 400;
+        }
+
+        /* Subtitles */
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #subtitles p {
+            margin: 5px 0;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+        }
+
+        #subtitle-cn {
+            font-size: 48px;
+            font-weight: 600;
+            color: var(--primary-text-color);
+        }
+
+        #subtitle-en {
+            font-size: 32px;
+            font-weight: 400;
+            color: var(--secondary-text-color);
+        }
+
+        /* Animation Classes */
+        .visible {
+            opacity: 1 !important;
+        }
+
+        .scale-in {
+            transform: scale(1) !important;
+            opacity: 1 !important;
+        }
+
+        .move-to-box {
+            transform: translate(700px, 350px) scale(0.2) !important;
+            opacity: 0 !important;
+        }
+
+        .fade-out {
+            opacity: 0 !important;
+        }
+
+        .draw-in {
+            animation: draw 2s ease-out forwards;
+        }
+
+        @keyframes draw {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="scaler">
+        <div id="container">
+
+            <!-- Scene 1 Elements -->
+            <div id="word-king" class="word-token">King</div>
+            <div id="word-queen" class="word-token">Queen</div>
+            <div id="word-man" class="word-token">Man</div>
+            <div id="word-woman" class="word-token">Woman</div>
+            <div id="binary-king" class="binary-code">01001011 01101001...</div>
+            <div id="binary-queen" class="binary-code">01010001 01110101...</div>
+
+            <!-- Scene 2 Element -->
+            <div id="magic-box">
+                <span>Embedding Model</span>
+            </div>
+
+            <!-- Scene 3 & 4: Vector Space -->
+            <svg id="vector-space" viewBox="0 0 2560 1440">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="var(--vector-color)" />
+                    </marker>
+                    <marker id="arrowhead-highlight" markerWidth="10" markerHeight="7" refX="8" refY="3.5"
+                        orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="var(--highlight-color)" />
+                    </marker>
+                </defs>
+
+                <!-- Grid -->
+                <g id="grid">
+                    <line class="grid-line" x1="200" y1="0" x2="200" y2="1440" />
+                    <line class="grid-line" x1="400" y1="0" x2="400" y2="1440" />
+                    <line class="grid-line" x1="600" y1="0" x2="600" y2="1440" />
+                    <line class="grid-line" x1="800" y1="0" x2="800" y2="1440" />
+                    <line class="grid-line" x1="1000" y1="0" x2="1000" y2="1440" />
+                    <line class="grid-line" x1="1200" y1="0" x2="1200" y2="1440" />
+                    <line class="grid-line" x1="1400" y1="0" x2="1400" y2="1440" />
+                    <line class="grid-line" x1="1600" y1="0" x2="1600" y2="1440" />
+                    <line class="grid-line" x1="1800" y1="0" x2="1800" y2="1440" />
+                    <line class="grid-line" x1="2000" y1="0" x2="2000" y2="1440" />
+                    <line class="grid-line" x1="2200" y1="0" x2="2200" y2="1440" />
+                    <line class="grid-line" x1="2400" y1="0" x2="2400" y2="1440" />
+
+                    <line class="grid-line" y1="200" x1="0" y2="200" x2="2560" />
+                    <line class="grid-line" y1="400" x1="0" y2="400" x2="2560" />
+                    <line class="grid-line" y1="600" x1="0" y2="600" x2="2560" />
+                    <line class="grid-line" y1="800" x1="0" y2="800" x2="2560" />
+                    <line class="grid-line" y1="1000" x1="0" y2="1000" x2="2560" />
+                    <line class="grid-line" y1="1200" x1="0" y2="1200" x2="2560" />
+                </g>
+
+                <!-- Axis -->
+                <line class="axis-line" x1="100" y1="1340" x2="2460" y2="1340" />
+                <line class="axis-line" x1="100" y1="1340" x2="100" y2="100" />
+
+                <!-- Vectors and Points -->
+                <g id="vectors-group" style="opacity: 0; transition: opacity 0.5s;">
+                    <!-- Man -> Woman Vector -->
+                    <line id="vec-man-woman" class="highlight-arrow" x1="800" y1="1000" x2="1500" y2="1000" />
+                    <!-- King -> Queen Vector (copy of man-woman) -->
+                    <line id="vec-king-queen" class="highlight-arrow" x1="900" y1="500" x2="1600" y2="500" />
+
+                    <!-- Points -->
+                    <circle id="point-man" class="point" cx="800" cy="1000" r="20" fill="var(--accent-color-1)" />
+                    <text id="label-man" class="point-label" x="800" y="1080">Man</text>
+
+                    <circle id="point-woman" class="point" cx="1500" cy="1000" r="20" fill="var(--accent-color-1)" />
+                    <text id="label-woman" class="point-label" x="1500" y="1080">Woman</text>
+
+                    <circle id="point-king" class="point" cx="900" cy="500" r="20" fill="var(--accent-color-3)" />
+                    <text id="label-king" class="point-label" x="900" y="420">King</text>
+
+                    <circle id="point-queen" class="point" cx="1600" cy="500" r="20" fill="var(--accent-color-3)" />
+                    <text id="label-queen" class="point-label" x="1600" y="420">Queen</text>
+                </g>
+
+                <!-- Scene 3 vector representations -->
+                <g id="vector-text-group" style="opacity:0; transition: opacity 0.5s;">
+                    <text class="vector-rep" x="1000" y="200">King = [0.92, 0.15, -0.54, ...]</text>
+                    <text class="vector-rep" x="1000" y="300">Queen = [0.98, 0.88, -0.51, ...]</text>
+                    <text class="vector-rep" x="1000" y="400">Man = [0.21, 0.18, -0.88, ...]</text>
+                    <text class="vector-rep" x="1000" y="500">Woman = [0.28, 0.91, -0.85, ...]</text>
+                </g>
+            </svg>
+
+            <!-- Scene 5: Final Title -->
+            <div id="final-title">
+                Embedding
+                <br>
+                <span>赋予文字在数字世界中的意义</span>
+                <br>
+                <span>Giving Words Meaning in the World of Numbers</span>
+            </div>
+
+
+            <!-- Subtitles -->
+            <div id="subtitles">
+                <p id="subtitle-cn"></p>
+                <p id="subtitle-en"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- UTILITY ---
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        const subtitles = document.getElementById('subtitles');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        async function updateSubtitles(cn, en) {
+            subtitles.classList.remove('visible');
+            await sleep(500); // fade out duration
+            subtitleCN.innerHTML = cn;
+            subtitleEN.innerHTML = en;
+            subtitles.classList.add('visible');
+        }
+
+        // --- DOM ELEMENTS ---
+        const wordKing = document.getElementById('word-king');
+        const wordQueen = document.getElementById('word-queen');
+        const wordMan = document.getElementById('word-man');
+        const wordWoman = document.getElementById('word-woman');
+        const allWords = [wordKing, wordQueen, wordMan, wordWoman];
+
+        const binaryKing = document.getElementById('binary-king');
+        const binaryQueen = document.getElementById('binary-queen');
+
+        const magicBox = document.getElementById('magic-box');
+
+        const vectorSpaceSVG = document.getElementById('vector-space');
+        const vectorsGroup = document.getElementById('vectors-group');
+        const vectorTextGroup = document.getElementById('vector-text-group');
+        const vecManWoman = document.getElementById('vec-man-woman');
+        const vecKingQueen = document.getElementById('vec-king-queen');
+
+        const finalTitle = document.getElementById('final-title');
+
+        // --- ANIMATION TIMELINE ---
+        async function playAnimation() {
+            // --- SCENE 1: The Problem ---
+            await sleep(1000);
+            await updateSubtitles(
+                '在计算机眼中，单词本身只是没有意义的符号。',
+                'To a computer, words are just meaningless symbols.'
+            );
+
+            allWords.forEach((word, i) => {
+                setTimeout(() => word.classList.add('visible'), i * 200);
+            });
+            await sleep(3000);
+
+            await updateSubtitles(
+                '它们无法理解 "国王" 和 "女王" 之间的关系。',
+                'It can\'t understand the relationship between "King" and "Queen".'
+            );
+            binaryKing.classList.add('visible');
+            binaryQueen.classList.add('visible');
+            await sleep(4000);
+
+            // --- SCENE 2: The Solution - Embedding Model ---
+            await updateSubtitles(
+                '我们需要一种方法，将词语转换成计算机可以理解的数字。',
+                'We need a way to convert words into numbers that computers can understand.'
+            );
+            binaryKing.classList.remove('visible');
+            binaryQueen.classList.remove('visible');
+            await sleep(2000);
+
+            await updateSubtitles(
+                '这就是 Embedding（词向量）的作用：一个将词语映射到数字向量的模型。',
+                'This is where Embedding comes in: a model that maps words to vectors of numbers.'
+            );
+            magicBox.classList.add('scale-in');
+            await sleep(2000);
+
+            allWords.forEach(word => word.classList.add('move-to-box'));
+            await sleep(1000);
+
+            // --- SCENE 3: The Output - Vectors ---
+            magicBox.classList.remove('scale-in');
+            magicBox.classList.add('fade-out');
+            await sleep(1000);
+
+            await updateSubtitles(
+                '每个单词都变成了一个多维空间中的坐标，也就是一个“向量”。',
+                'Each word becomes a coordinate in a multi-dimensional space, a "vector".'
+            );
+            vectorTextGroup.style.opacity = '1';
+            await sleep(5000);
+            vectorTextGroup.style.opacity = '0';
+
+
+            // --- SCENE 4: The Power of Vectors ---
+            await updateSubtitles(
+                '这些向量的神奇之处在于，它们抓住了词语之间的关系。',
+                'The magic of these vectors is that they capture the relationships between words.'
+            );
+            vectorSpaceSVG.classList.add('visible');
+            await sleep(1000);
+
+            await updateSubtitles(
+                '意义相近的词语，在空间中的位置也更接近。',
+                'Words with similar meanings are placed closer to each other in this space.'
+            );
+            vectorsGroup.style.opacity = '1';
+            await sleep(4000);
+
+            await updateSubtitles(
+                '向量的方向和距离代表了语义上的关联。',
+                'The direction and distance between vectors represent semantic relationships.'
+            );
+            await sleep(2000);
+
+            await updateSubtitles(
+                '例如，“从男人到女人”的向量...',
+                'For example, the vector from "Man" to "Woman"...'
+            );
+            vecManWoman.style.opacity = '1';
+            vecManWoman.classList.add('draw-in');
+            await sleep(3000);
+
+            await updateSubtitles(
+                '...和“从国王到女王”的向量，几乎是完全相同的。',
+                '...is almost identical to the vector from "King" to "Queen".'
+            );
+            vecKingQueen.style.opacity = '1';
+            vecKingQueen.classList.add('draw-in');
+            await sleep(5000);
+
+            // --- SCENE 5: Conclusion ---
+            await updateSubtitles(
+                '通过这种方式，计算机就“理解”了语言的奥秘。',
+                'In this way, the computer begins to "understand" the nuances of language.'
+            );
+            await sleep(4000);
+
+            subtitles.classList.remove('visible');
+            vectorSpaceSVG.classList.remove('visible');
+            await sleep(1000);
+
+            finalTitle.classList.add('visible');
+
+        }
+
+        function handleResize() {
+            const container = document.getElementById('container');
+            const scaler = document.getElementById('scaler');
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+
+            const scalerWidth = scaler.clientWidth;
+            const scalerHeight = scaler.clientHeight;
+
+            const scale = Math.min(scalerWidth / containerWidth, scalerHeight / containerHeight);
+
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('load', () => {
+            handleResize();
+            playAnimation();
+        });
+
+        window.addEventListener('resize', handleResize);
+
+    </script>
+</body>
+
+</html>

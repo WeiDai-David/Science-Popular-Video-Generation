@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Optimization Path</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --subtitle-color: #495057;
+            --accent-color: #ff6b6b;
+            --path-color: #ff6b6b;
+            --momentum-path-color: #4dabf7;
+            --contour-color-light: #e9ecef;
+            --contour-color-dark: #ced4da;
+            --point-stroke-color: #ffffff;
+            --gradient-color: #fca311;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            transform-origin: center center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border-radius: 16px;
+        }
+
+        #title-card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            z-index: 100;
+            opacity: 0;
+        }
+
+        #title-card h1 {
+            font-size: 120px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        #title-card h2 {
+            font-size: 70px;
+            font-weight: 400;
+            color: var(--subtitle-color);
+            margin-top: 20px;
+        }
+
+        #landscape-svg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2000px;
+            height: 1200px;
+        }
+
+        .contour {
+            fill: none;
+            stroke-width: 3px;
+            opacity: 0.6;
+        }
+
+        #optimization-path {
+            fill: none;
+            stroke-width: 12px;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        #current-point {
+            r: 20px;
+            stroke-width: 8px;
+            stroke: var(--point-stroke-color);
+            transition: fill 0.5s ease;
+        }
+
+        #gradient-arrow {
+            opacity: 0;
+        }
+
+        #gradient-arrow line {
+            stroke-width: 10px;
+            stroke-linecap: round;
+        }
+
+        #gradient-arrow polygon {
+            stroke-width: 2px;
+            stroke-linejoin: round;
+        }
+
+        .label-text {
+            font-size: 48px;
+            font-weight: 600;
+            fill: var(--subtitle-color);
+            text-anchor: middle;
+            opacity: 0;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 80px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 50;
+        }
+
+        .subtitle {
+            font-size: 42px;
+            margin: 5px 0;
+            padding: 10px 30px;
+            display: inline-block;
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .subtitle.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .subtitle-cn {
+            color: var(--text-color);
+            font-weight: 600;
+        }
+
+        .subtitle-en {
+            color: var(--subtitle-color);
+            font-size: 36px;
+        }
+
+        /* Responsive Scaling */
+        @media (max-width: 2560px) {
+            #animation-container {
+                width: 100vw;
+                height: 56.25vw;
+                /* 16:9 Aspect Ratio */
+            }
+        }
+
+        @media (max-height: 1440px) {
+            #animation-container {
+                height: 100vh;
+                width: 177.78vh;
+                /* 16:9 Aspect Ratio */
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <div id="title-card">
+            <h1>Optimization Path</h1>
+            <h2>优化路径</h2>
+        </div>
+
+        <svg id="landscape-svg" viewBox="0 0 2000 1200">
+            <!-- Landscape Contours -->
+            <g id="contours-group"></g>
+
+            <!-- Optimization Path -->
+            <path id="optimization-path" d=""></path>
+
+            <!-- Moving Point -->
+            <circle id="current-point" cx="0" cy="0" style="opacity: 0;"></circle>
+
+            <!-- Gradient Arrow -->
+            <g id="gradient-arrow">
+                <line x1="0" y1="0" x2="0" y2="0" stroke="var(--gradient-color)"></line>
+                <polygon points="0,0 0,0 0,0" fill="var(--gradient-color)" stroke="var(--gradient-color)"></polygon>
+            </g>
+
+            <!-- Labels -->
+            <text id="label-start" class="label-text" x="0" y="0">Start / 起点</text>
+            <text id="label-global-min" class="label-text" x="0" y="0">Global Minimum / 全局最优</text>
+            <text id="label-local-min" class="label-text" x="0" y="0">Local Minimum / 局部最优</text>
+            <text id="label-saddle" class="label-text" x="0" y="0">Saddle Point / 鞍点</text>
+        </svg>
+
+        <div id="subtitle-container">
+            <p id="subtitle-cn" class="subtitle subtitle-cn"></p>
+            <p id="subtitle-en" class="subtitle subtitle-en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script>
+        const subsCN = document.getElementById('subtitle-cn');
+        const subsEN = document.getElementById('subtitle-en');
+        const titleCard = document.getElementById('title-card');
+        const point = document.getElementById('current-point');
+        const path = document.getElementById('optimization-path');
+        const contoursGroup = document.getElementById('contours-group');
+        const gradientArrow = document.getElementById('gradient-arrow');
+
+        const labels = {
+            start: document.getElementById('label-start'),
+            globalMin: document.getElementById('label-global-min'),
+            localMin: document.getElementById('label-local-min'),
+            saddle: document.getElementById('label-saddle'),
+        };
+
+        // Pre-defined Landscapes (SVG path data for contours)
+        const landscapes = {
+            simple: [
+                { d: "M1000 600 m-700,0 a700,400 0 1,0 1400,0 a700,400 0 1,0 -1400,0", stroke: "var(--contour-color-light)" },
+                { d: "M1000 600 m-600,0 a600,340 0 1,0 1200,0 a600,340 0 1,0 -1200,0", stroke: "var(--contour-color-light)" },
+                { d: "M1000 600 m-500,0 a500,280 0 1,0 1000,0 a500,280 0 1,0 -1000,0", stroke: "var(--contour-color-dark)" },
+                { d: "M1000 600 m-400,0 a400,220 0 1,0 800,0 a400,220 0 1,0 -800,0", stroke: "var(--contour-color-dark)" },
+                { d: "M1000 600 m-300,0 a300,160 0 1,0 600,0 a300,160 0 1,0 -600,0", stroke: "var(--contour-color-dark)" },
+                { d: "M1000 600 m-200,0 a200,100 0 1,0 400,0 a200,100 0 1,0 -400,0", stroke: "var(--contour-color-dark)" },
+            ],
+            localMinima: [
+                { d: "M1350 700 m-550,0 a550,350 0 1,0 1100,0 a550,350 0 1,0 -1100,0", stroke: "var(--contour-color-light)" },
+                { d: "M1350 700 m-450,0 a450,280 0 1,0 900,0 a450,280 0 1,0 -900,0", stroke: "var(--contour-color-dark)" },
+                { d: "M1350 700 m-350,0 a350,210 0 1,0 700,0 a350,210 0 1,0 -700,0", stroke: "var(--contour-color-dark)" },
+                { d: "M550 450 m-300,0 a300,200 0 1,0 600,0 a300,200 0 1,0 -600,0", stroke: "var(--contour-color-light)" },
+                { d: "M550 450 m-220,0 a220,150 0 1,0 440,0 a220,150 0 1,0 -440,0", stroke: "var(--contour-color-dark)" },
+                { d: "M550 450 m-140,0 a140,100 0 1,0 280,0 a140,100 0 1,0 -280,0", stroke: "var(--contour-color-dark)" },
+            ],
+            momentum: [
+                { d: "M1350 700 m-550,0 a550,350 0 1,0 1100,0 a550,350 0 1,0 -1100,0", stroke: "var(--contour-color-light)" },
+                { d: "M1350 700 m-450,0 a450,280 0 1,0 900,0 a450,280 0 1,0 -900,0", stroke: "var(--contour-color-dark)" },
+                { d: "M1350 700 m-350,0 a350,210 0 1,0 700,0 a350,210 0 1,0 -700,0", stroke: "var(--contour-color-dark)" },
+                { d: "M550 450 m-300,0 a300,200 0 1,0 600,0 a300,200 0 1,0 -600,0", stroke: "var(--contour-color-light)" },
+                { d: "M550 450 m-220,0 a220,150 0 1,0 440,0 a220,150 0 1,0 -440,0", stroke: "var(--contour-color-dark)" },
+                { d: "M550 450 m-140,0 a140,100 0 1,0 280,0 a140,100 0 1,0 -280,0", stroke: "var(--contour-color-dark)" },
+            ],
+        };
+
+        // Pre-defined paths for the animation
+        const paths = {
+            simple: [
+                { x: 400, y: 300 }, { x: 550, y: 400 }, { x: 680, y: 480 }, { x: 780, y: 530 },
+                { x: 860, y: 560 }, { x: 920, y: 580 }, { x: 960, y: 590 }, { x: 1000, y: 600 }
+            ],
+            localMinima: [
+                { x: 300, y: 250 }, { x: 400, y: 350 }, { x: 480, y: 410 }, { x: 520, y: 440 },
+                { x: 540, y: 450 }, { x: 545, y: 450 }, { x: 550, y: 450 }
+            ],
+            momentum: [
+                { x: 300, y: 250 }, { x: 450, y: 380 }, { x: 600, y: 480 }, // Overshoots the local minimum
+                { x: 800, y: 550 }, { x: 1050, y: 650 }, { x: 1200, y: 680 }, { x: 1300, y: 695 }, { x: 1350, y: 700 }
+            ],
+        };
+
+        // Animation Timeline
+        const timeline = [
+            { duration: 2000, action: 'intro' },
+            { duration: 4000, subs: ["想象一下，我们的目标是找到这座山谷的最低点。", "Imagine our goal is to find the lowest point in this valley."], action: 'showSimpleLandscape' },
+            { duration: 4000, subs: ["这个“山谷”被称为损失函数曲面。", "This 'valley' is called the Loss Landscape."], action: 'showLabelsSimple' },
+            { duration: 4000, subs: ["我们从一个随机的起点开始。", "We begin at a random starting point."], action: 'showStartPoint' },
+            { duration: 4000, subs: ["为了找到下山最快的方向，我们计算“梯度”。", "To find the steepest way down, we calculate the 'gradient'."], action: 'showGradient', params: { from: paths.simple[0], to: { x: 450, y: 380 } } },
+            { duration: 4000, subs: ["梯度指向最陡峭的上升方向。", "The gradient points in the direction of the steepest ascent."], action: 'noop' },
+            { duration: 4000, subs: ["所以，我们沿着梯度的反方向前进一步。", "So, we take a step in the opposite direction of the gradient."], action: 'step1' },
+            { duration: 4000, subs: ["我们重复这个过程：计算梯度，前进一步。", "We repeat this process: calculate gradient, take a step."], action: 'step2' },
+            { duration: 8000, subs: ["这一步步的轨迹，就构成了“优化路径”。", "This step-by-step trajectory forms the 'Optimization Path'."], action: 'finishSimplePath' },
+            { duration: 4000, subs: ["最终，我们到达了全局最优点。", "Finally, we reach the global minimum."], action: 'noop' },
+            { duration: 2000, action: 'fadeOutAll' },
+            { duration: 4000, subs: ["但优化之路并非总是一帆风顺。", "But the path to optimization isn't always so smooth."], action: 'showLocalMinimaLandscape' },
+            { duration: 4000, subs: ["有时，我们会陷入“局部最小值”。", "Sometimes, we can get stuck in a 'local minimum'."], action: 'showLabelsLocalMinima' },
+            { duration: 8000, subs: ["在这里，梯度变得非常小，算法以为已经到达了最低点。", "Here, the gradient becomes very small, and the algorithm thinks it has reached the bottom."], action: 'animateToLocalMinima' },
+            { duration: 2000, action: 'fadeOutAll' },
+            { duration: 4000, subs: ["为了解决这个问题，我们引入了“动量”。", "To solve this, we can introduce 'Momentum'."], action: 'showMomentumLandscape' },
+            { duration: 4000, subs: ["想象成一个从山上滚下来的球，它带有惯性。", "Think of it as a ball rolling down a hill; it has inertia."], action: 'showLabelsMomentum' },
+            { duration: 8000, subs: ["凭借动量，我们可以“冲”出局部最小值的陷阱。", "With momentum, we can 'overshoot' the trap of the local minimum."], action: 'animateWithMomentum' },
+            { duration: 6000, subs: ["并继续向着真正的全局最优前进。", "And continue our journey towards the true global minimum."], action: 'finishMomentumPath' },
+            { duration: 4000, subs: ["这就是优化路径的故事。", "This is the story of the Optimization Path."], action: 'noop' },
+            { duration: 4000, action: 'endScene' },
+        ];
+
+        let currentScene = 0;
+
+        function setSubtitles(cn, en) {
+            subsCN.classList.remove('visible');
+            subsEN.classList.remove('visible');
+            setTimeout(() => {
+                subsCN.textContent = cn || '';
+                subsEN.textContent = en || '';
+                if (cn || en) {
+                    subsCN.classList.add('visible');
+                    subsEN.classList.add('visible');
+                }
+            }, 500);
+        }
+
+        function drawContours(landscapeKey) {
+            contoursGroup.innerHTML = '';
+            landscapes[landscapeKey].forEach(contour => {
+                const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                p.setAttribute('d', contour.d);
+                p.setAttribute('class', 'contour');
+                p.style.stroke = contour.stroke;
+                contoursGroup.appendChild(p);
+            });
+            anime({
+                targets: '#contours-group path',
+                strokeDashoffset: [anime.setDashoffset, 0],
+                easing: 'easeInOutSine',
+                duration: 2000,
+                delay: anime.stagger(100)
+            });
+        }
+
+        function animatePath(pathPoints, color, durationPerStep) {
+            let pathString = `M ${pathPoints[0].x} ${pathPoints[0].y}`;
+            path.setAttribute('d', pathString);
+            path.style.stroke = color;
+            point.style.fill = color;
+
+            const tl = anime.timeline({
+                easing: 'easeOutSine',
+            });
+
+            for (let i = 0; i < pathPoints.length - 1; i++) {
+                pathString += ` L ${pathPoints[i + 1].x} ${pathPoints[i + 1].y}`;
+                tl.add({
+                    targets: point,
+                    cx: pathPoints[i + 1].x,
+                    cy: pathPoints[i + 1].y,
+                    duration: durationPerStep,
+                }).add({
+                    targets: path,
+                    d: pathString,
+                    duration: durationPerStep,
+                }, `-=${durationPerStep}`);
+            }
+            return tl;
+        }
+
+        function showLabel(labelKey, x, y, delay = 0) {
+            const l = labels[labelKey];
+            l.setAttribute('x', x);
+            l.setAttribute('y', y);
+            anime({
+                targets: l,
+                opacity: [0, 1],
+                translateY: [-20, 0],
+                duration: 1000,
+                delay: delay,
+                easing: 'easeOutExpo'
+            });
+        }
+
+        function hideLabels() {
+            anime({
+                targets: '.label-text',
+                opacity: 0,
+                duration: 500,
+                easing: 'easeInExpo'
+            });
+        }
+
+        const actions = {
+            intro: () => {
+                anime({ targets: titleCard, opacity: [0, 1], duration: 1500, easing: 'easeInExpo' });
+            },
+            showSimpleLandscape: () => {
+                anime({ targets: titleCard, opacity: 0, duration: 1000, easing: 'easeOutExpo', complete: () => titleCard.style.zIndex = -1 });
+                drawContours('simple');
+            },
+            showLabelsSimple: () => {
+                showLabel('globalMin', 1000, 700);
+            },
+            showStartPoint: () => {
+                const startPos = paths.simple[0];
+                point.setAttribute('cx', startPos.x);
+                point.setAttribute('cy', startPos.y);
+                point.style.fill = 'var(--accent-color)';
+                path.style.stroke = 'var(--accent-color)';
+                anime({ targets: point, opacity: [0, 1], r: [0, 20], duration: 1000 });
+                showLabel('start', startPos.x, startPos.y - 70, 500);
+            },
+            showGradient: ({ from, to }) => {
+                const angle = Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
+                const length = 200;
+                const endX = from.x - Math.cos(angle * Math.PI / 180) * length;
+                const endY = from.y - Math.sin(angle * Math.PI / 180) * length;
+
+                const arrow = gradientArrow.children;
+                arrow[0].setAttribute('x1', from.x);
+                arrow[0].setAttribute('y1', from.y);
+                arrow[0].setAttribute('x2', endX);
+                arrow[0].setAttribute('y2', endY);
+
+                const arrowHeadSize = 30;
+                const p1x = endX + Math.cos((angle - 150) * Math.PI / 180) * arrowHeadSize;
+                const p1y = endY + Math.sin((angle - 150) * Math.PI / 180) * arrowHeadSize;
+                const p2x = endX + Math.cos((angle + 150) * Math.PI / 180) * arrowHeadSize;
+                const p2y = endY + Math.sin((angle + 150) * Math.PI / 180) * arrowHeadSize;
+                arrow[1].setAttribute('points', `${endX},${endY} ${p1x},${p1y} ${p2x},${p2y}`);
+
+                anime({ targets: gradientArrow, opacity: [0, 1], duration: 1000 });
+            },
+            step1: () => {
+                anime({ targets: gradientArrow, opacity: 0, duration: 500 });
+                animatePath(paths.simple.slice(0, 2), 'var(--path-color)', 2000);
+            },
+            step2: () => {
+                actions.showGradient({ from: paths.simple[1], to: { x: 620, y: 460 } });
+            },
+            finishSimplePath: () => {
+                anime({ targets: gradientArrow, opacity: 0, duration: 500 });
+                animatePath(paths.simple, 'var(--path-color)', 800);
+            },
+            fadeOutAll: () => {
+                setSubtitles('', '');
+                hideLabels();
+                anime({
+                    targets: '#landscape-svg > *',
+                    opacity: 0,
+                    duration: 1500,
+                    easing: 'easeInExpo'
+                });
+            },
+            showLocalMinimaLandscape: () => {
+                path.setAttribute('d', '');
+                drawContours('localMinima');
+            },
+            showLabelsLocalMinima: () => {
+                showLabel('localMin', 550, 350);
+                showLabel('globalMin', 1350, 800, 500);
+            },
+            animateToLocalMinima: () => {
+                const startPos = paths.localMinima[0];
+                point.setAttribute('cx', startPos.x);
+                point.setAttribute('cy', startPos.y);
+                point.style.fill = 'var(--accent-color)';
+                path.style.stroke = 'var(--accent-color)';
+                anime({ targets: point, opacity: 1, r: 20, duration: 500 });
+                showLabel('start', startPos.x - 50, startPos.y - 70);
+                animatePath(paths.localMinima, 'var(--path-color)', 1000);
+            },
+            showMomentumLandscape: () => {
+                path.setAttribute('d', '');
+                drawContours('momentum');
+            },
+            showLabelsMomentum: () => {
+                showLabel('localMin', 550, 350);
+                showLabel('globalMin', 1350, 800, 500);
+            },
+            animateWithMomentum: () => {
+                const startPos = paths.momentum[0];
+                point.setAttribute('cx', startPos.x);
+                point.setAttribute('cy', startPos.y);
+                point.style.fill = 'var(--momentum-path-color)';
+                anime({ targets: point, opacity: 1, r: 20, duration: 500 });
+                showLabel('start', startPos.x - 50, startPos.y - 70);
+                animatePath(paths.momentum.slice(0, 4), 'var(--momentum-path-color)', 1500);
+            },
+            finishMomentumPath: () => {
+                animatePath(paths.momentum, 'var(--momentum-path-color)', 1000);
+            },
+            endScene: () => {
+                actions.fadeOutAll();
+                setTimeout(() => {
+                    titleCard.style.zIndex = 100;
+                    anime({ targets: titleCard, opacity: 1, duration: 1500, easing: 'easeInExpo' });
+                }, 1500);
+            },
+            noop: () => { }
+        };
+
+        function playScene() {
+            if (currentScene >= timeline.length) {
+                console.log("Animation finished.");
+                return;
+            }
+
+            const scene = timeline[currentScene];
+            if (scene.subs) {
+                setSubtitles(scene.subs[0], scene.subs[1]);
+            }
+
+            if (actions[scene.action]) {
+                actions[scene.action](scene.params || {});
+            }
+
+            setTimeout(() => {
+                currentScene++;
+                playScene();
+            }, scene.duration);
+        }
+
+        window.onload = () => {
+            playScene();
+        };
+
+    </script>
+</body>
+
+</html>

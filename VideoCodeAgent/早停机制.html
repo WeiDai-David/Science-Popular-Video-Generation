@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Early Stopping Explained | 早停机制详解</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A40;
+            --primary-color: #007BFF;
+            --secondary-color: #FD7E14;
+            --accent-color: #E83E8C;
+            --success-color: #28A745;
+            --grid-color: #E9ECEF;
+            --font-main: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-main);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            transform-origin: center center;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Scaling for different viewports */
+        @media (max-width: 2560px) {
+            #animation-container {
+                transform: scale(calc(100vw / 2560));
+            }
+        }
+
+        @media (max-height: 1440px) {
+            #animation-container {
+                transform: scale(calc(100vh / 1440));
+            }
+        }
+
+        @media (max-width: 2560px) and (max-height: 1440px) {
+            #animation-container {
+                transform: scale(min(calc(100vw / 2560), calc(100vh / 1440)));
+            }
+        }
+
+
+        .title-card {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .title-card h1 {
+            font-size: 120px;
+            color: var(--text-color);
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .title-card p {
+            font-size: 48px;
+            color: #6c757d;
+            margin-top: 20px;
+            font-weight: 300;
+        }
+
+        .subtitle-box {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+        }
+
+        .subtitle-box p {
+            margin: 5px 0;
+            font-size: 42px;
+            font-weight: 500;
+            color: var(--text-color);
+            text-shadow: 0 0 10px #ffffff;
+        }
+
+        .subtitle-box p.en {
+            font-size: 28px;
+            font-weight: 400;
+            color: #495057;
+        }
+
+        .visible {
+            opacity: 1 !important;
+        }
+
+        #graph-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2000px;
+            height: 1100px;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        #graph-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* SVG Styles */
+        .grid-line {
+            stroke: var(--grid-color);
+            stroke-width: 2;
+        }
+
+        .axis {
+            stroke: var(--text-color);
+            stroke-width: 4;
+        }
+
+        .axis-label {
+            font-size: 36px;
+            fill: var(--text-color);
+            font-weight: 500;
+        }
+
+        .tick-label {
+            font-size: 28px;
+            fill: #6c757d;
+        }
+
+        .loss-line {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        #train-loss-line {
+            stroke: var(--primary-color);
+        }
+
+        #val-loss-line {
+            stroke: var(--secondary-color);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .legend-color-box {
+            width: 50px;
+            height: 10px;
+            border-radius: 5px;
+        }
+
+        .legend-text {
+            font-size: 32px;
+            color: var(--text-color);
+        }
+
+        .annotation {
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #optimal-point-dot {
+            fill: var(--success-color);
+        }
+
+        #optimal-point-line {
+            stroke: var(--success-color);
+            stroke-width: 4;
+            stroke-dasharray: 15, 10;
+        }
+
+        .annotation-text {
+            font-size: 32px;
+            font-weight: 600;
+        }
+
+        #optimal-text {
+            fill: var(--success-color);
+        }
+
+        #overfitting-text {
+            fill: var(--accent-color);
+        }
+
+        .highlight-zone {
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #overfitting-zone {
+            fill: var(--accent-color);
+            fill-opacity: 0.1;
+        }
+
+        #underfitting-zone {
+            fill: var(--primary-color);
+            fill-opacity: 0.1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+
+        <!-- Title Card -->
+        <div id="title-card" class="title-card">
+            <h1>早停机制</h1>
+            <p>Early Stopping</p>
+        </div>
+
+        <!-- Main Graph -->
+        <div id="graph-container">
+            <svg id="graph-svg" viewBox="0 0 2000 1100">
+                <!-- Grid and Axes -->
+                <g id="grid-and-axes">
+                    <!-- Grid Lines -->
+                    <g class="grid">
+                        <line class="grid-line" x1="150" y1="100" x2="150" y2="950"></line>
+                        <line class="grid-line" x1="150" y1="950" x2="1850" y2="950"></line>
+                        <!-- Vertical Grid -->
+                        <line class="grid-line" x1="490" y1="100" x2="490" y2="950"></line>
+                        <line class="grid-line" x1="830" y1="100" x2="830" y2="950"></line>
+                        <line class="grid-line" x1="1170" y1="100" x2="1170" y2="950"></line>
+                        <line class="grid-line" x1="1510" y1="100" x2="1510" y2="950"></line>
+                        <!-- Horizontal Grid -->
+                        <line class="grid-line" x1="150" y1="783" x2="1850" y2="783"></line>
+                        <line class="grid-line" x1="150" y1="616" x2="1850" y2="616"></line>
+                        <line class="grid-line" x1="150" y1="449" x2="1850" y2="449"></line>
+                        <line class="grid-line" x1="150" y1="282" x2="1850" y2="282"></line>
+                    </g>
+                    <!-- Axes -->
+                    <g class="axes">
+                        <line class="axis" x1="150" y1="100" x2="150" y2="950"></line>
+                        <line class="axis" x1="150" y1="950" x2="1850" y2="950"></line>
+                    </g>
+                    <!-- Labels and Ticks -->
+                    <g class="labels">
+                        <text class="axis-label" x="950" y="1050" text-anchor="middle">训练轮数 (Training Epochs)</text>
+                        <text class="axis-label" x="50" y="525" text-anchor="middle" transform="rotate(-90, 50, 525)">损失
+                            (Loss)</text>
+                        <!-- Y Ticks -->
+                        <text class="tick-label" x="130" y="955" text-anchor="end">0.0</text>
+                        <text class="tick-label" x="130" y="287" text-anchor="end">1.0</text>
+                        <!-- X Ticks -->
+                        <text class="tick-label" x="150" y="985" text-anchor="middle">0</text>
+                        <text class="tick-label" x="1850" y="985" text-anchor="middle">100</text>
+                    </g>
+                </g>
+
+                <!-- Data Lines -->
+                <path id="train-loss-line" class="loss-line"
+                    d="M 150,850 C 400,400 600,250 1000,200 C 1400,150 1600,140 1850,135" />
+                <path id="val-loss-line" class="loss-line"
+                    d="M 150,880 C 400,450 600,300 850,280 C 1100,260 1400,400 1850,600" />
+
+                <!-- Legend -->
+                <g id="legend" class="annotation" transform="translate(1450, 150)">
+                    <g class="legend-item">
+                        <rect class="legend-color-box" y="0"
+                            style="background-color: var(--primary-color); fill: var(--primary-color);"></rect>
+                        <text class="legend-text" x="70" y="10" dominant-baseline="middle">训练损失 (Training Loss)</text>
+                    </g>
+                    <g class="legend-item" transform="translate(0, 50)">
+                        <rect class="legend-color-box" y="0"
+                            style="background-color: var(--secondary-color); fill: var(--secondary-color);"></rect>
+                        <text class="legend-text" x="70" y="10" dominant-baseline="middle">验证损失 (Validation Loss)</text>
+                    </g>
+                </g>
+
+                <!-- Annotations -->
+                <g id="annotations">
+                    <g id="optimal-point" class="annotation" transform="translate(850, 280)">
+                        <line id="optimal-point-line" x1="0" y1="0" x2="0" y2="670"></line>
+                        <circle id="optimal-point-dot" cx="0" cy="0" r="12"></circle>
+                        <text id="optimal-text" class="annotation-text" x="15" y="-15">最佳点 (Best Point)</text>
+                    </g>
+
+                    <g id="overfitting-label" class="annotation" transform="translate(1350, 450)">
+                        <text id="overfitting-text" class="annotation-text" text-anchor="middle">过拟合区域</text>
+                        <text id="overfitting-text" class="annotation-text" y="40" text-anchor="middle">(Overfitting
+                            Zone)</text>
+                    </g>
+
+                    <g id="underfitting-label" class="annotation" transform="translate(450, 550)">
+                        <text class="annotation-text" style="fill: var(--primary-color);"
+                            text-anchor="middle">欠拟合区域</text>
+                        <text class="annotation-text" style="fill: var(--primary-color);" y="40"
+                            text-anchor="middle">(Underfitting Zone)</text>
+                    </g>
+
+                    <rect id="overfitting-zone" class="highlight-zone" x="850" y="100" width="1000" height="850"></rect>
+                    <rect id="underfitting-zone" class="highlight-zone" x="150" y="100" width="700" height="850"></rect>
+                </g>
+
+            </svg>
+        </div>
+
+        <!-- Subtitles -->
+        <div id="sub-1" class="subtitle-box">
+            <p>在机器学习训练中，我们希望模型能同时在训练数据和新数据上表现良好。</p>
+            <p class="en">In machine learning, we want our model to perform well on both training data and new, unseen
+                data.</p>
+        </div>
+        <div id="sub-2" class="subtitle-box">
+            <p>开始时，训练损失和验证损失都会下降。这说明模型正在有效学习。</p>
+            <p class="en">Initially, both training loss and validation loss decrease. This means the model is learning
+                effectively.</p>
+        </div>
+        <div id="sub-3" class="subtitle-box">
+            <p>但随着训练继续，模型可能会开始“死记硬背”训练数据，导致过拟合。</p>
+            <p class="en">But as training continues, the model might start to "memorize" the training data, leading to
+                overfitting.</p>
+        </div>
+        <div id="sub-4" class="subtitle-box">
+            <p>这时，训练损失持续下降，但验证损失反而开始上升。</p>
+            <p class="en">At this point, the training loss keeps decreasing, but the validation loss starts to rise.</p>
+        </div>
+        <div id="sub-5" class="subtitle-box">
+            <p>“早停”机制就是为了找到这个转折点——验证损失的最低点。</p>
+            <p class="en">"Early Stopping" is a technique to find this turning point—the minimum of the validation loss.
+            </p>
+        </div>
+        <div id="sub-6" class="subtitle-box">
+            <p>我们在这个最佳点停止训练，并保存此时的模型。</p>
+            <p class="en">We stop the training at this best point and save the model's state.</p>
+        </div>
+        <div id="sub-7" class="subtitle-box">
+            <p>这样可以防止过拟合，获得泛化能力最好的模型，同时节约了训练时间。</p>
+            <p class="en">This prevents overfitting, yields a model with the best generalization, and saves training
+                time.</p>
+        </div>
+        <div id="sub-8" class="subtitle-box">
+            <p>早停机制 (Early Stopping)</p>
+            <p class="en">A simple and effective regularization technique.</p>
+        </div>
+
+
+    </div>
+
+    <script>
+        const $ = (selector) => document.querySelector(selector);
+
+        // DOM Elements
+        const titleCard = $('#title-card');
+        const graphContainer = $('#graph-container');
+        const trainLossLine = $('#train-loss-line');
+        const valLossLine = $('#val-loss-line');
+        const legend = $('#legend');
+        const optimalPoint = $('#optimal-point');
+        const overfittingLabel = $('#overfitting-label');
+        const underfittingLabel = $('#underfitting-label');
+        const overfittingZone = $('#overfitting-zone');
+        const underfittingZone = $('#underfitting-zone');
+
+        const subs = [
+            $('#sub-1'), $('#sub-2'), $('#sub-3'), $('#sub-4'),
+            $('#sub-5'), $('#sub-6'), $('#sub-7'), $('#sub-8')
+        ];
+
+        // Animation Helper
+        const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function show(element) {
+            element.classList.add('visible');
+        }
+
+        function hide(element) {
+            element.classList.remove('visible');
+        }
+
+        function animatePath(pathElement, duration, delay = 0) {
+            const length = pathElement.getTotalLength();
+            pathElement.style.strokeDasharray = length;
+            pathElement.style.strokeDashoffset = length;
+            pathElement.style.transition = 'none';
+
+            setTimeout(() => {
+                pathElement.style.transition = `stroke-dashoffset ${duration}ms ease-in-out`;
+                pathElement.style.strokeDashoffset = '0';
+            }, 100 + delay);
+        }
+
+        // Main Animation Timeline
+        async function playAnimation() {
+            // --- SCENE 1: Title ---
+            await wait(500);
+            show(titleCard);
+            await wait(3000);
+            hide(titleCard);
+
+            // --- SCENE 2: Setup Graph ---
+            await wait(1000);
+            show(graphContainer);
+            show(subs[0]);
+            await wait(4000);
+
+            // --- SCENE 3: Good Training Phase ---
+            hide(subs[0]);
+            await wait(500);
+            show(subs[1]);
+            show(legend);
+
+            // Animate first part of the curves
+            animatePath(trainLossLine, 3000);
+            animatePath(valLossLine, 3000);
+
+            await wait(4500);
+
+            // --- SCENE 4: Overfitting Starts ---
+            hide(subs[1]);
+            await wait(500);
+            show(subs[2]);
+            await wait(4000);
+            hide(subs[2]);
+            await wait(500);
+            show(subs[3]);
+            show(overfittingLabel);
+            show(overfittingZone);
+            await wait(4500);
+
+            // --- SCENE 5: Introducing Early Stopping ---
+            hide(subs[3]);
+            hide(overfittingLabel);
+            await wait(500);
+            show(subs[4]);
+
+            // Highlight optimal point
+            optimalPoint.style.transition = 'opacity 1s ease 0.5s';
+            show(optimalPoint);
+
+            await wait(4500);
+
+            // --- SCENE 6: The Solution ---
+            hide(subs[4]);
+            await wait(500);
+            show(subs[5]);
+            await wait(4000);
+
+            // --- SCENE 7: Benefits ---
+            hide(subs[5]);
+            await wait(500);
+            show(subs[6]);
+            show(underfittingLabel);
+            show(underfittingZone);
+            await wait(5500);
+
+            // --- SCENE 8: Conclusion ---
+            hide(subs[6]);
+            hide(underfittingLabel);
+            hide(underfittingZone);
+            hide(overfittingZone);
+            await wait(500);
+            show(subs[7]);
+
+            await wait(6000);
+
+            // --- RESTART ---
+            hide(subs[7]);
+            hide(graphContainer);
+            hide(legend);
+            hide(optimalPoint);
+            await wait(1500);
+            playAnimation(); // Loop the animation
+        }
+
+        // Initialize animation
+        window.onload = () => {
+            // Reset paths for animation
+            [trainLossLine, valLossLine].forEach(path => {
+                const length = path.getTotalLength();
+                path.style.strokeDasharray = length;
+                path.style.strokeDashoffset = length;
+            });
+            playAnimation();
+        };
+
+    </script>
+</body>
+
+</html>

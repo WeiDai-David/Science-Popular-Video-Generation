@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Layout Understanding Animation</title>
+    <style>
+        /* --- Base Setup --- */
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #f4f7f9;
+            --primary-text-color: #333;
+            --secondary-text-color: #555;
+            --accent-color-1: #4A90E2;
+            /* Blue */
+            --accent-color-2: #50E3C2;
+            /* Teal */
+            --accent-color-3: #F5A623;
+            /* Orange */
+            --accent-color-4: #BD10E0;
+            /* Purple */
+            --accent-color-5: #7ED321;
+            /* Green */
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        /* --- Animation Container (2K Aspect Ratio) --- */
+        #animation-container {
+            position: relative;
+            width: var(--container-width);
+            height: var(--container-height);
+            background-color: #ffffff;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            transform-origin: top left;
+        }
+
+        /* --- SVG Stage --- */
+        #main-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- Background Elements --- */
+        .bg-grid {
+            stroke: #e8eef2;
+            stroke-width: 2;
+        }
+
+        .bg-circle {
+            fill: #e8eef2;
+            opacity: 0.5;
+        }
+
+        /* --- Document Elements --- */
+        .doc-page {
+            fill: #fff;
+            stroke: #dbe2e8;
+            stroke-width: 4;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .doc-text-line {
+            fill: #d0d8e0;
+        }
+
+        .doc-title-line {
+            fill: #b0b8c0;
+        }
+
+        .doc-image-placeholder {
+            fill: #e0e6ec;
+        }
+
+        .doc-image-cross {
+            stroke: #c0c8d0;
+            stroke-width: 10;
+        }
+
+        .doc-table-grid {
+            stroke: #c0c8d0;
+            stroke-width: 3;
+            fill: none;
+        }
+
+        /* --- Analysis & Overlay Elements --- */
+        #scanner {
+            fill: var(--accent-color-1);
+            opacity: 0;
+            filter: blur(10px);
+        }
+
+        .bounding-box {
+            fill: rgba(0, 0, 0, 0.05);
+            stroke-width: 6;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .box-title {
+            stroke: var(--accent-color-1);
+        }
+
+        .box-paragraph {
+            stroke: var(--accent-color-2);
+        }
+
+        .box-image {
+            stroke: var(--accent-color-3);
+        }
+
+        .box-table {
+            stroke: var(--accent-color-4);
+        }
+
+        .label {
+            font-size: 32px;
+            font-weight: 600;
+            fill: #fff;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .label-bg {
+            stroke-width: 0;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .label-title-bg {
+            fill: var(--accent-color-1);
+        }
+
+        .label-paragraph-bg {
+            fill: var(--accent-color-2);
+        }
+
+        .label-image-bg {
+            fill: var(--accent-color-3);
+        }
+
+        .label-table-bg {
+            fill: var(--accent-color-4);
+        }
+
+        .flow-arrow {
+            stroke: var(--primary-text-color);
+            stroke-width: 4;
+            fill: none;
+            stroke-dasharray: 500;
+            stroke-dashoffset: 500;
+            opacity: 0;
+            marker-end: url(#arrowhead);
+        }
+
+        /* --- Extracted Data Elements --- */
+        #extracted-view {
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+        }
+
+        .extracted-bg {
+            fill: #f0f4f8;
+        }
+
+        .extracted-header {
+            fill: var(--accent-color-4);
+        }
+
+        .extracted-header-text {
+            font-size: 40px;
+            fill: #fff;
+            font-weight: 600;
+        }
+
+        .extracted-cell {
+            fill: #fff;
+            stroke: #dbe2e8;
+            stroke-width: 2;
+        }
+
+        .extracted-cell-text {
+            font-size: 28px;
+            fill: var(--secondary-text-color);
+        }
+
+        /* --- Final Screen Elements --- */
+        #final-screen {
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .final-icon-bg {
+            fill: var(--accent-color-1);
+            opacity: 0.1;
+        }
+
+        .final-icon-path {
+            stroke: var(--accent-color-1);
+            stroke-width: 12;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .final-title {
+            font-size: 80px;
+            font-weight: 600;
+            fill: var(--primary-text-color);
+        }
+
+        .final-subtitle {
+            font-size: 48px;
+            fill: var(--secondary-text-color);
+        }
+
+
+        /* --- Subtitles --- */
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(20, 30, 40, 0.7);
+            border-radius: 15px;
+            color: #fff;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        }
+
+        #sub-zh {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 400;
+        }
+
+        #sub-en {
+            font-size: 24px;
+            display: block;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+
+        /* --- General Animation Classes --- */
+        .fade-in {
+            opacity: 1 !important;
+        }
+
+        .fade-out {
+            opacity: 0 !important;
+        }
+
+        .draw-in {
+            animation: draw 1.5s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+        }
+
+        @keyframes draw {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* --- Responsive Scaling --- */
+        @media (max-width: 2560px) {
+            #animation-container {
+                width: 100vw;
+                height: calc(100vw * (var(--container-height) / var(--container-width)));
+            }
+        }
+
+        @media (max-height: 1440px) {
+            #animation-container {
+                height: 100vh;
+                width: calc(100vh * (var(--container-width) / var(--container-height)));
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+        <svg id="main-svg" viewBox="0 0 2560 1440">
+            <!-- Background Elements -->
+            <defs>
+                <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+                    <path d="M 80 0 L 0 0 0 80" fill="none" class="bg-grid" />
+                </pattern>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+                </marker>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+            <circle class="bg-circle" cx="200" cy="200" r="300" />
+            <circle class="bg-circle" cx="2400" cy="1300" r="400" />
+
+            <!-- The Document -->
+            <g id="document-group">
+                <rect id="doc-page" class="doc-page" x="680" y="120" width="1200" height="1200" rx="15" />
+
+                <!-- Title -->
+                <rect class="doc-title-line" x="850" y="200" width="860" height="40" rx="10" />
+                <rect class="doc-title-line" x="980" y="260" width="600" height="40" rx="10" />
+
+                <!-- Paragraph 1 -->
+                <rect class="doc-text-line" x="780" y="380" width="900" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="410" width="900" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="440" width="400" height="20" rx="5" />
+
+                <!-- Image -->
+                <g id="doc-image">
+                    <rect class="doc-image-placeholder" x="1250" y="440" width="430" height="300" rx="10" />
+                    <line class="doc-image-cross" x1="1250" y1="440" x2="1680" y2="740" />
+                    <line class="doc-image-cross" x1="1680" y1="440" x2="1250" y2="740" />
+                </g>
+
+                <!-- Paragraph 2 -->
+                <rect class="doc-text-line" x="780" y="500" width="400" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="530" width="400" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="560" width="400" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="590" width="400" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="620" width="400" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="650" width="400" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="680" width="400" height="20" rx="5" />
+                <rect class="doc-text-line" x="780" y="710" width="400" height="20" rx="5" />
+
+                <!-- Table -->
+                <g id="doc-table">
+                    <rect class="doc-text-line" x="780" y="800" width="900" height="20" rx="5" />
+                    <rect class="doc-text-line" x="780" y="830" width="900" height="20" rx="5" />
+                    <path class="doc-table-grid" d="
+                        M 780 880 H 1680 V 1220 H 780 Z
+                        M 780 960 H 1680
+                        M 780 1040 H 1680
+                        M 780 1120 H 1680
+                        M 1080 880 V 1220
+                        M 1380 880 V 1220
+                    " />
+                </g>
+            </g>
+
+            <!-- Analysis Overlays -->
+            <g id="analysis-overlays">
+                <!-- Scanner Line -->
+                <rect id="scanner" x="680" y="120" width="1200" height="15" />
+
+                <!-- Bounding Boxes -->
+                <rect id="box-title" class="bounding-box box-title" x="830" y="180" width="920" height="140" rx="10" />
+                <rect id="box-p1" class="bounding-box box-paragraph" x="760" y="360" width="940" height="110" rx="10" />
+                <rect id="box-p2" class="bounding-box box-paragraph" x="760" y="480" width="440" height="260" rx="10" />
+                <rect id="box-image" class="bounding-box box-image" x="1230" y="420" width="470" height="340" rx="10" />
+                <rect id="box-table" class="bounding-box box-table" x="760" y="780" width="940" height="460" rx="10" />
+
+                <!-- Labels -->
+                <g id="label-title">
+                    <rect class="label-bg label-title-bg" x="1770" y="220" width="130" height="60" rx="8" />
+                    <text class="label" x="1835" y="265" text-anchor="middle">Title</text>
+                </g>
+                <g id="label-p1">
+                    <rect class="label-bg label-paragraph-bg" x="1720" y="385" width="200" height="60" rx="8" />
+                    <text class="label" x="1820" y="430" text-anchor="middle">Paragraph</text>
+                </g>
+                <g id="label-p2">
+                    <rect class="label-bg label-paragraph-bg" x="1220" y="580" width="200" height="60" rx="8" />
+                    <text class="label" x="1320" y="625" text-anchor="middle">Paragraph</text>
+                </g>
+                <g id="label-image">
+                    <rect class="label-bg label-image-bg" x="1720" y="560" width="140" height="60" rx="8" />
+                    <text class="label" x="1790" y="605" text-anchor="middle">Image</text>
+                </g>
+                <g id="label-table">
+                    <rect class="label-bg label-table-bg" x="1720" y="980" width="130" height="60" rx="8" />
+                    <text class="label" x="1785" y="1025" text-anchor="middle">Table</text>
+                </g>
+
+                <!-- Flow Arrows -->
+                <path id="arrow1" class="flow-arrow" d="M 1290 330 Q 1290 345 1290 360" />
+                <path id="arrow2" class="flow-arrow" d="M 980 480 L 980 480" /> <!-- Placeholder, animated in JS -->
+                <path id="arrow3" class="flow-arrow" d="M 1200 610 H 1230" />
+                <path id="arrow4" class="flow-arrow" d="M 1290 750 V 780" />
+
+            </g>
+
+            <!-- Extracted Data View -->
+            <g id="extracted-view" transform="translate(1400, 200)">
+                <rect class="extracted-bg" x="0" y="0" width="1000" height="600" rx="15" />
+                <rect class="extracted-header" x="0" y="0" width="1000" height="80" rx="15" ry="15" />
+                <text class="extracted-header-text" x="50" y="55">Extracted Table Data</text>
+                <!-- Table Content -->
+                <g>
+                    <rect class="extracted-cell" x="50" y="120" width="280" height="60" />
+                    <text class="extracted-cell-text" x="190" y="160" text-anchor="middle">Product</text>
+                    <rect class="extracted-cell" x="350" y="120" width="280" height="60" />
+                    <text class="extracted-cell-text" x="490" y="160" text-anchor="middle">Region</text>
+                    <rect class="extracted-cell" x="650" y="120" width="280" height="60" />
+                    <text class="extracted-cell-text" x="790" y="160" text-anchor="middle">Sales</text>
+
+                    <rect class="extracted-cell" x="50" y="200" width="280" height="60" />
+                    <text class="extracted-cell-text" x="190" y="240" text-anchor="middle">Model A</text>
+                    <rect class="extracted-cell" x="350" y="200" width="280" height="60" />
+                    <text class="extracted-cell-text" x="490" y="240" text-anchor="middle">North</text>
+                    <rect class="extracted-cell" x="650" y="200" width="280" height="60" />
+                    <text class="extracted-cell-text" x="790" y="240" text-anchor="middle">1,200</text>
+
+                    <rect class="extracted-cell" x="50" y="280" width="280" height="60" />
+                    <text class="extracted-cell-text" x="190" y="320" text-anchor="middle">Model B</text>
+                    <rect class="extracted-cell" x="350" y="280" width="280" height="60" />
+                    <text class="extracted-cell-text" x="490" y="320" text-anchor="middle">South</text>
+                    <rect class="extracted-cell" x="650" y="280" width="280" height="60" />
+                    <text class="extracted-cell-text" x="790" y="320" text-anchor="middle">950</text>
+
+                    <rect class="extracted-cell" x="50" y="360" width="280" height="60" />
+                    <text class="extracted-cell-text" x="190" y="400" text-anchor="middle">Model C</text>
+                    <rect class="extracted-cell" x="350" y="360" width="280" height="60" />
+                    <text class="extracted-cell-text" x="490" y="400" text-anchor="middle">West</text>
+                    <rect class="extracted-cell" x="650" y="360" width="280" height="60" />
+                    <text class="extracted-cell-text" x="790" y="400" text-anchor="middle">1,540</text>
+                </g>
+            </g>
+
+            <!-- Final Screen -->
+            <g id="final-screen" transform="translate(1280, 720)">
+                <circle class="final-icon-bg" r="150" />
+                <path class="final-icon-path"
+                    d="M -50 -70 L 50 -70 M -70 -40 L 70 -40 M -70 0 L 70 0 M -50 40 L 50 40" />
+                <path class="final-icon-path" d="M 0 0 L 100 0" transform="translate(10, 80) rotate(-45)" />
+                <path class="final-icon-path" d="M -25 70 L 25 70 M -40 100 L 40 100" transform="translate(100, -20)" />
+                <text class="final-title" y="-250" text-anchor="middle">Layout Understanding</text>
+                <text class="final-subtitle" y="-180" text-anchor="middle">From Pixels to Meaning</text>
+            </g>
+
+        </svg>
+
+        <div id="subtitles">
+            <span id="sub-zh"></span>
+            <span id="sub-en"></span>
+        </div>
+    </div>
+
+    <script>
+        const $ = (selector) => document.querySelector(selector);
+        const $$ = (selector) => document.querySelectorAll(selector);
+
+        const subtitlesEl = $('#subtitles');
+        const subZhEl = $('#sub-zh');
+        const subEnEl = $('#sub-en');
+
+        // Animation Timeline
+        const timeline = [
+            {
+                duration: 3000,
+                action: () => {
+                    showSubtitles(
+                        "这是一份文档页面。对于计算机来说，它最初只是一堆像素的集合。",
+                        "This is a document page. To a computer, it's just a collection of pixels."
+                    );
+                    $('#document-group').classList.add('fade-in');
+                }
+            },
+            {
+                duration: 3000,
+                action: () => {
+                    showSubtitles(
+                        "但借助“布局理解”技术，机器能够感知其内在结构。",
+                        "But with Layout Understanding, the machine can perceive its inner structure."
+                    );
+                    animateScanner();
+                }
+            },
+            {
+                duration: 3500,
+                action: () => {
+                    showSubtitles(
+                        "首先，进行区域分割，识别出独立的内容区块。",
+                        "First, it performs segmentation, identifying distinct blocks of content."
+                    );
+                    drawBoundingBoxes(['#box-title', '#box-p1', '#box-p2', '#box-image', '#box-table']);
+                }
+            },
+            {
+                duration: 3500,
+                action: () => {
+                    showSubtitles(
+                        "接着，对每个区块进行分类，理解其具体用途。",
+                        "Then, it classifies each block, understanding its specific purpose."
+                    );
+                    showLabels(['#label-title', '#label-p1', '#label-p2', '#label-image', '#label-table']);
+                }
+            },
+            {
+                duration: 4000,
+                action: () => {
+                    showSubtitles(
+                        "模型甚至能推断出区块间的逻辑关系和阅读顺序。",
+                        "The model can even infer the logical flow and reading order between blocks."
+                    );
+                    drawArrows();
+                }
+            },
+            {
+                duration: 2500,
+                action: () => {
+                    showSubtitles(
+                        "这种结构化的数据具有极高的应用价值。",
+                        "This structured data is incredibly valuable for applications."
+                    );
+                    $('#document-group').classList.add('fade-out');
+                    $$('.bounding-box, .label-bg, .label, .flow-arrow').forEach(el => el.classList.add('fade-out'));
+                }
+            },
+            {
+                duration: 4000,
+                action: () => {
+                    showSubtitles(
+                        "例如，可以精确地提取表格内容，并转化为可用的数据格式。",
+                        "For example, it can accurately extract table contents into a usable data format."
+                    );
+                    $('#extracted-view').classList.add('fade-in');
+                }
+            },
+            {
+                duration: 3000,
+                action: () => {
+                    hideSubtitles();
+                    $('#extracted-view').classList.add('fade-out');
+                }
+            },
+            {
+                duration: 4000,
+                action: () => {
+                    showSubtitles(
+                        "从像素到意义，这就是布局理解的精髓。",
+                        "From pixels to meaning. This is the essence of Layout Understanding."
+                    );
+                    $('#final-screen').classList.add('fade-in');
+                }
+            },
+            {
+                duration: 5000,
+                action: () => {
+                    // End or loop
+                    $('#final-screen').classList.remove('fade-in');
+                    $('#final-screen').classList.add('fade-out');
+                    hideSubtitles();
+                }
+            }
+        ];
+
+        // --- Helper Functions ---
+        function showSubtitles(zh, en) {
+            subZhEl.textContent = zh;
+            subEnEl.textContent = en;
+            subtitlesEl.classList.add('fade-in');
+        }
+
+        function hideSubtitles() {
+            subtitlesEl.classList.remove('fade-in');
+        }
+
+        function animateScanner() {
+            const scanner = $('#scanner');
+            scanner.style.transition = 'transform 2.5s ease-in-out, opacity 0.5s ease';
+            scanner.style.opacity = '0.6';
+            scanner.style.transform = 'translateY(1200px)';
+            setTimeout(() => {
+                scanner.style.opacity = '0';
+            }, 2500);
+        }
+
+        function drawBoundingBoxes(selectors) {
+            selectors.forEach((sel, index) => {
+                setTimeout(() => {
+                    const el = $(sel);
+                    el.style.opacity = '1';
+                    el.classList.add('draw-in');
+                }, index * 200);
+            });
+        }
+
+        function showLabels(selectors) {
+            selectors.forEach((sel, index) => {
+                setTimeout(() => {
+                    const g = $(sel);
+                    g.querySelector('.label-bg').style.opacity = '1';
+                    g.querySelector('.label').style.opacity = '1';
+                }, index * 200);
+            });
+        }
+
+        function drawArrows() {
+            const arrows = [
+                { el: $('#arrow1'), d: 'M 1290 330 Q 1290 345 1290 360' },
+                // A curved path from p1 to p2
+                { el: $('#arrow2'), d: 'M 980 470 C 980 490, 980 500, 980 520' },
+                { el: $('#arrow3'), d: 'M 1200 610 H 1230' },
+                { el: $('#arrow4'), d: 'M 1290 760 Q 1290 775, 1290 790' },
+            ];
+
+            arrows.forEach((arrow, index) => {
+                setTimeout(() => {
+                    arrow.el.setAttribute('d', arrow.d);
+                    arrow.el.style.opacity = '1';
+                    arrow.el.style.animation = 'draw 1s ease-out forwards';
+                }, index * 400);
+            });
+        }
+
+        // --- Main Animation Runner ---
+        async function playAnimation() {
+            // Initial state reset
+            $('#document-group').style.opacity = '0';
+            $('#extracted-view').style.opacity = '0';
+            $('#final-screen').style.opacity = '0';
+
+            for (const step of timeline) {
+                step.action();
+                await new Promise(resolve => setTimeout(resolve, step.duration));
+            }
+            // Loop animation
+            playAnimation();
+        }
+
+        // --- Start animation on load ---
+        window.addEventListener('load', () => {
+            // Auto-resize logic
+            const container = $('#animation-container');
+            function resize() {
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+                const scaleX = screenWidth / 2560;
+                const scaleY = screenHeight / 1440;
+                const scale = Math.min(scaleX, scaleY);
+                container.style.transform = `scale(${scale})`;
+                container.style.left = `${(screenWidth - 2560 * scale) / 2}px`;
+                container.style.top = `${(screenHeight - 1440 * scale) / 2}px`;
+            }
+            window.addEventListener('resize', resize);
+            resize(); // Initial resize
+
+            playAnimation();
+        });
+
+    </script>
+</body>
+
+</html>

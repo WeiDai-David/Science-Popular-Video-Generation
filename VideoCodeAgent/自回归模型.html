@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoregressive Model Explained</title>
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --primary-text-color: #2c3e50;
+            --secondary-text-color: #576b80;
+            --accent-color-1: #4a90e2;
+            --accent-color-2: #50e3c2;
+            --accent-color-3: #f5a623;
+            --white-color: #ffffff;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            70% {
+                transform: scale(1.05);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes drawPath {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        @keyframes fillPixel {
+            to {
+                fill-opacity: 1;
+            }
+        }
+
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            overflow: hidden;
+        }
+
+        #container {
+            width: var(--container-width);
+            height: var(--container-height);
+            background-color: var(--bg-color);
+            position: relative;
+            transform-origin: top left;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        .scene {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+            pointer-events: none;
+        }
+
+        .scene.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+        }
+
+        #subtitles p {
+            margin: 5px 0;
+            font-size: 36px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        #subtitles p.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #subtitle-zh {
+            color: var(--primary-text-color);
+            font-weight: 500;
+        }
+
+        #subtitle-en {
+            color: var(--secondary-text-color);
+            font-size: 28px;
+        }
+
+        /* Scene 1: Title */
+        #scene-1 .title-container {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        #scene-1 .title-zh {
+            font-size: 120px;
+            color: var(--primary-text-color);
+            font-weight: bold;
+            animation: slideInUp 1s ease-out forwards;
+        }
+
+        #scene-1 .title-en {
+            font-size: 70px;
+            color: var(--secondary-text-color);
+            letter-spacing: 2px;
+            margin-top: 20px;
+            animation: slideInUp 1s ease-out 0.2s forwards;
+        }
+
+        /* Scene 2: Core Idea */
+        #scene-2 .timeline {
+            position: absolute;
+            top: 50%;
+            left: 15%;
+            width: 70%;
+            height: 10px;
+            background-color: #d8e2ec;
+            border-radius: 5px;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: var(--accent-color-1);
+            opacity: 0;
+        }
+
+        .timeline-dot.question-mark {
+            background-color: var(--accent-color-3);
+            color: var(--white-color);
+            font-size: 35px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+        }
+
+        .arrow {
+            position: absolute;
+            stroke: var(--accent-color-2);
+            stroke-width: 8;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+        }
+
+        /* Scene 3: Text Generation */
+        #scene-3 .text-container {
+            position: absolute;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 20px;
+            font-size: 100px;
+            font-weight: bold;
+            color: var(--primary-text-color);
+        }
+
+        .text-word {
+            padding: 20px 30px;
+            background: var(--white-color);
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .text-word.highlight {
+            background-color: var(--accent-color-1);
+            color: var(--white-color);
+        }
+
+        .text-word.predicted {
+            background-color: var(--accent-color-2);
+            color: var(--white-color);
+        }
+
+        #scene-3 .model-box {
+            position: absolute;
+            top: 65%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 150px;
+            border: 5px solid var(--accent-color-1);
+            border-radius: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            font-weight: bold;
+            color: var(--accent-color-1);
+            opacity: 0;
+        }
+
+        /* Scene 4: Formula */
+        #scene-4 .formula-container {
+            position: absolute;
+            width: 100%;
+            top: 48%;
+            transform: translateY(-50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 40px;
+            font-size: 120px;
+            font-family: "Georgia", "Times New Roman", serif;
+            color: var(--primary-text-color);
+        }
+
+        .formula-term {
+            opacity: 0;
+        }
+
+        .formula-term i {
+            font-style: italic;
+        }
+
+        .formula-blackbox {
+            width: 250px;
+            height: 250px;
+            border: 8px solid var(--accent-color-1);
+            border-radius: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 150px;
+            font-style: italic;
+            font-weight: bold;
+            color: var(--accent-color-1);
+        }
+
+        /* Scene 5: Applications */
+        #scene-5 .app-grid {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 150px;
+        }
+
+        .app-item {
+            width: 400px;
+            height: 400px;
+            background: var(--white-color);
+            border-radius: 40px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            opacity: 0;
+        }
+
+        .app-item .icon {
+            width: 200px;
+            height: 200px;
+        }
+
+        .app-item .label {
+            font-size: 48px;
+            font-weight: 500;
+            color: var(--primary-text-color);
+        }
+
+        .app-item .icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Scene 6: Conclusion */
+        #scene-6 .summary-container {
+            position: absolute;
+            width: 100%;
+            top: 48%;
+            transform: translateY(-50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 80px;
+            font-weight: bold;
+        }
+
+        .summary-item {
+            font-size: 100px;
+            color: var(--primary-text-color);
+            padding: 40px 60px;
+            background: var(--white-color);
+            border-radius: 30px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            opacity: 0;
+        }
+
+        #scene-6 .arrow-svg {
+            width: 150px;
+            height: 150px;
+            opacity: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <!-- Scene 1: Title -->
+        <div id="scene-1" class="scene">
+            <div class="title-container">
+                <h1 class="title-zh">自回归模型</h1>
+                <h2 class="title-en">Autoregressive Models</h2>
+            </div>
+        </div>
+
+        <!-- Scene 2: Core Idea -->
+        <div id="scene-2" class="scene">
+            <div class="timeline"></div>
+            <div id="dot-1" class="timeline-dot" style="left: 10%;"></div>
+            <div id="dot-2" class="timeline-dot" style="left: 25%;"></div>
+            <div id="dot-3" class="timeline-dot" style="left: 40%;"></div>
+            <div id="dot-q" class="timeline-dot question-mark" style="left: 70%;">?</div>
+            <svg id="arrow-svg" width="100%" height="100%"
+                style="position:absolute; top:0; left:0; pointer-events:none;">
+                <path id="arrow-1" class="arrow" d="M 384 830 C 500 950, 1150 950, 1692 830"
+                    marker-end="url(#arrowhead)" />
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#50e3c2" />
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+
+        <!-- Scene 3: Text Generation -->
+        <div id="scene-3" class="scene">
+            <div class="text-container">
+                <div id="word-1" class="text-word">The</div>
+                <div id="word-2" class="text-word">cat</div>
+                <div id="word-3" class="text-word">sat</div>
+                <div id="word-4" class="text-word">on</div>
+                <div id="word-5" class="text-word">the</div>
+                <div id="word-6" class="text-word">...</div>
+            </div>
+            <div class="model-box">
+                <span>Model</span>
+            </div>
+        </div>
+
+        <!-- Scene 4: Formula -->
+        <div id="scene-4" class="scene">
+            <div class="formula-container">
+                <div id="formula-xt" class="formula-term"><i>X<sub>t</sub></i></div>
+                <div id="formula-eq" class="formula-term" style="font-weight: normal;">=</div>
+                <div id="formula-f" class="formula-term formula-blackbox"><i>f</i></div>
+                <div id="formula-open" class="formula-term" style="font-weight: normal;">(</div>
+                <div id="formula-xtm1" class="formula-term"><i>X<sub>t-1</sub></i>,</div>
+                <div id="formula-xtm2" class="formula-term"><i>X<sub>t-2</sub></i>,</div>
+                <div id="formula-dots" class="formula-term">...</div>
+                <div id="formula-close" class="formula-term" style="font-weight: normal;">)</div>
+            </div>
+        </div>
+
+        <!-- Scene 5: Applications -->
+        <div id="scene-5" class="scene">
+            <div class="app-grid">
+                <div class="app-item" id="app-text">
+                    <div class="icon">
+                        <svg viewBox="0 0 100 100">
+                            <path d="M20,25 h60" stroke="#333" stroke-width="5" stroke-linecap="round" />
+                            <path d="M20,40 h60" stroke="#333" stroke-width="5" stroke-linecap="round" />
+                            <path d="M20,55 h40" stroke="#333" stroke-width="5" stroke-linecap="round" />
+                            <path d="M20,70 h50" stroke="#333" stroke-width="5" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="label">语言模型</div>
+                </div>
+                <div class="app-item" id="app-audio">
+                    <div class="icon">
+                        <svg viewBox="0 0 100 100">
+                            <path id="waveform" d="M10 50 Q 20 20, 30 50 T 50 50 T 70 50 T 90 50" stroke="#4a90e2"
+                                stroke-width="6" fill="none" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="label">语音合成</div>
+                </div>
+                <div class="app-item" id="app-image">
+                    <div class="icon">
+                        <svg viewBox="0 0 100 100">
+                            <rect class="pixel" x="20" y="20" width="20" height="20" fill="#f5a623" fill-opacity="0" />
+                            <rect class="pixel" x="40" y="20" width="20" height="20" fill="#f5a623" fill-opacity="0" />
+                            <rect class="pixel" x="60" y="20" width="20" height="20" fill="#f5a623" fill-opacity="0" />
+                            <rect class="pixel" x="20" y="40" width="20" height="20" fill="#50e3c2" fill-opacity="0" />
+                            <rect class="pixel" x="40" y="40" width="20" height="20" fill="#50e3c2" fill-opacity="0" />
+                            <rect class="pixel" x="60" y="40" width="20" height="20" fill="#4a90e2" fill-opacity="0" />
+                            <rect class="pixel" x="20" y="60" width="20" height="20" fill="#4a90e2" fill-opacity="0" />
+                            <rect class="pixel" x="40" y="60" width="20" height="20" fill="#4a90e2" fill-opacity="0" />
+                            <rect class="pixel" x="60" y="60" width="20" height="20" fill="#f5a623" fill-opacity="0" />
+                        </svg>
+                    </div>
+                    <div class="label">图像生成</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scene 6: Conclusion -->
+        <div id="scene-6" class="scene">
+            <div class="summary-container">
+                <div id="summary-past" class="summary-item">Past 历史</div>
+                <svg id="summary-arrow1" class="arrow-svg" viewBox="0 0 100 100">
+                    <line x1="10" y1="50" x2="80" y2="50" stroke="#333" stroke-width="8" stroke-linecap="round" />
+                    <polyline points="70,35 90,50 70,65" stroke="#333" stroke-width="8" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <div id="summary-predict" class="summary-item">Predicts 预测</div>
+                <svg id="summary-arrow2" class="arrow-svg" viewBox="0 0 100 100">
+                    <line x1="10" y1="50" x2="80" y2="50" stroke="#333" stroke-width="8" stroke-linecap="round" />
+                    <polyline points="70,35 90,50 70,65" stroke="#333" stroke-width="8" fill="none"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <div id="summary-future" class="summary-item">Future 未来</div>
+            </div>
+        </div>
+
+        <!-- Subtitles -->
+        <div id="subtitles">
+            <p id="subtitle-zh"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const scenes = document.querySelectorAll('.scene');
+        const subtitleZh = document.getElementById('subtitle-zh');
+        const subtitleEn = document.getElementById('subtitle-en');
+        let currentScene = 0;
+
+        function switchScene(sceneIndex) {
+            scenes.forEach((scene, index) => {
+                if (index === sceneIndex) {
+                    scene.classList.add('active');
+                } else {
+                    scene.classList.remove('active');
+                }
+            });
+            currentScene = sceneIndex;
+        }
+
+        async function updateSubtitles(zh, en) {
+            subtitleZh.classList.remove('visible');
+            subtitleEn.classList.remove('visible');
+            await sleep(100); // Short delay for fade out
+            subtitleZh.textContent = zh;
+            subtitleEn.textContent = en;
+            subtitleZh.classList.add('visible');
+            subtitleEn.classList.add('visible');
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        const script = [
+            { scene: 0, zh: "让我们一起探索序列建模中的一个基本概念...", en: "Let's explore a fundamental concept in sequence modeling...", duration: 3500 },
+            { scene: 0, zh: "自回归模型。", en: "The Autoregressive Model.", duration: 3000, action: () => switchScene(1) },
+
+            { scene: 1, zh: "什么是自回归模型？", en: "What is an autoregressive model?", duration: 2000 },
+            { scene: 1, zh: "简单来说，它根据一个序列中过去的值...", en: "Simply put, it uses the past values in a sequence...", duration: 3000, action: animateScene2_Part1 },
+            { scene: 1, zh: "...来预测下一个值。", en: "...to predict the next value.", duration: 3000, action: animateScene2_Part2 },
+            { scene: 1, zh: "其中的“自”(Auto)就意味着它对自己进行回归。", en: "The 'auto' part means it regresses on itself.", duration: 4000, action: () => switchScene(2) },
+
+            { scene: 2, zh: "我们来看一个常见的例子：文本生成。", en: "Let's see a common example: text generation.", duration: 3000 },
+            { scene: 2, zh: "给定一句话 “The cat sat on the”...", en: "Given the words 'The cat sat on the'...", duration: 3500, action: animateScene3_Part1 },
+            { scene: 2, zh: "模型会利用这些过去的信息...", en: "The model uses this past information...", duration: 3000, action: animateScene3_Part2 },
+            { scene: 2, zh: "...来预测下一个最可能的词：“mat”。", en: "...to predict the most likely next word: 'mat'.", duration: 3500, action: animateScene3_Part3 },
+            { scene: 2, zh: "接着，它会把这个新生成的完整序列...", en: "Then, it takes the whole new sequence...", duration: 3000 },
+            { scene: 2, zh: "...作为新的输入，去预测再下一个词。", en: "...as the new input to predict the word that follows.", duration: 4000, action: () => { animateScene3_Part4(); switchScene(3); } },
+
+            { scene: 3, zh: "在数学上，我们可以这样直观地理解：", en: "Mathematically, we can understand it intuitively like this:", duration: 3500 },
+            { scene: 3, zh: "在时间点 't' 的值，也就是 Xₜ...", en: "The value at time 't', denoted as Xₜ...", duration: 3000, action: animateScene4_Part1 },
+            { scene: 3, zh: "...是它之前所有值的一个函数。", en: "...is a function of the values that came before it.", duration: 4000, action: animateScene4_Part2 },
+            { scene: 3, zh: "模型的作用，就是从数据中学习这个函数 'f'。", en: "The model's job is to learn this function 'f' from data.", duration: 4500, action: () => switchScene(4) },
+
+            { scene: 4, zh: "这个强大的理念是许多AI技术的基础...", en: "This powerful idea is the foundation for many AI technologies...", duration: 3500 },
+            { scene: 4, zh: "...包括语言模型、语音合成...", en: "...including language models, speech synthesis...", duration: 3500, action: animateScene5_Part1 },
+            { scene: 4, zh: "...甚至还有图像生成。", en: "...and even image generation.", duration: 3000, action: animateScene5_Part2 },
+            { scene: 4, zh: "它们都以一种循序渐进的方式构建复杂的内容。", en: "They all build complex content in a sequential, step-by-step manner.", duration: 4500, action: () => switchScene(5) },
+
+            { scene: 5, zh: "总而言之，自回归模型...", en: "In essence, autoregressive models...", duration: 2500, action: animateScene6_Part1 },
+            { scene: 5, zh: "...通过学习过去的模式，一步一步地创造未来。", en: "...learn patterns from the past to create the future, one step at a time.", duration: 4500, action: animateScene6_Part2 },
+            { scene: 5, zh: "一个简单而又深刻的概念。", en: "A simple yet profound concept.", duration: 5000 },
+        ];
+
+        // --- Animation Functions ---
+
+        async function animateScene2_Part1() {
+            const dots = ['#dot-1', '#dot-2', '#dot-3'];
+            for (const dotId of dots) {
+                const dot = document.querySelector(dotId);
+                dot.style.animation = 'popIn 0.5s ease-out forwards';
+                await sleep(300);
+            }
+        }
+
+        async function animateScene2_Part2() {
+            const qMark = document.querySelector('#dot-q');
+            qMark.style.animation = 'popIn 0.5s ease-out forwards';
+            await sleep(500);
+            const arrow = document.getElementById('arrow-1');
+            arrow.style.animation = 'drawPath 1.5s ease-out forwards';
+        }
+
+        async function animateScene3_Part1() {
+            const words = ['#word-1', '#word-2', '#word-3', '#word-4', '#word-5', '#word-6'];
+            for (const wordId of words) {
+                const word = document.querySelector(wordId);
+                word.style.animation = `slideInUp 0.5s ease forwards`;
+                await sleep(200);
+            }
+        }
+
+        async function animateScene3_Part2() {
+            document.querySelector('#scene-3 .model-box').style.animation = 'fadeIn 1s ease forwards';
+            const words = ['#word-1', '#word-2', '#word-3', '#word-4', '#word-5'];
+            for (const wordId of words) {
+                const word = document.querySelector(wordId);
+                word.classList.add('highlight');
+                await sleep(300);
+            }
+        }
+
+        async function animateScene3_Part3() {
+            const word6 = document.querySelector('#word-6');
+            word6.classList.add('predicted');
+            word6.textContent = 'mat';
+        }
+
+        async function animateScene3_Part4() {
+            const words = document.querySelectorAll('#scene-3 .text-word');
+            words.forEach(w => w.classList.remove('highlight'));
+            words[words.length - 1].classList.remove('predicted');
+        }
+
+        async function animateScene4_Part1() {
+            document.getElementById('formula-xt').style.animation = 'popIn 0.5s forwards';
+        }
+
+        async function animateScene4_Part2() {
+            const elements = ['#formula-eq', '#formula-f', '#formula-open', '#formula-xtm1', '#formula-xtm2', '#formula-dots', '#formula-close'];
+            for (const elId of elements) {
+                document.querySelector(elId).style.animation = 'popIn 0.5s forwards';
+                await sleep(300);
+            }
+            document.getElementById('formula-f').style.animation = 'popIn 0.5s forwards, pulse 2s infinite 1s';
+        }
+
+        async function animateScene5_Part1() {
+            document.getElementById('app-text').style.animation = 'popIn 0.7s forwards';
+            await sleep(300);
+            document.getElementById('app-audio').style.animation = 'popIn 0.7s forwards';
+            document.getElementById('waveform').style.animation = 'drawPath 1.5s ease-in-out infinite alternate';
+        }
+
+        async function animateScene5_Part2() {
+            document.getElementById('app-image').style.animation = 'popIn 0.7s forwards';
+            await sleep(500);
+            const pixels = document.querySelectorAll('.pixel');
+            for (const pixel of pixels) {
+                pixel.style.animation = 'fillPixel 0.2s forwards';
+                await sleep(100);
+            }
+        }
+
+        async function animateScene6_Part1() {
+            document.getElementById('summary-past').style.animation = 'slideInUp 0.7s forwards';
+        }
+
+        async function animateScene6_Part2() {
+            document.getElementById('summary-arrow1').style.animation = 'fadeIn 0.5s 0.2s forwards';
+            document.getElementById('summary-predict').style.animation = 'slideInUp 0.7s 0.4s forwards';
+            await sleep(600);
+            document.getElementById('summary-arrow2').style.animation = 'fadeIn 0.5s 0.2s forwards';
+            document.getElementById('summary-future').style.animation = 'slideInUp 0.7s 0.4s forwards';
+        }
+
+
+        // --- Main Playback Logic ---
+        async function playAnimation() {
+            // Initial setup for responsiveness
+            const container = document.getElementById('container');
+            const resize = () => {
+                const scale = Math.min(
+                    window.innerWidth / Number(getComputedStyle(container).getPropertyValue('--container-width').replace('px', '')),
+                    window.innerHeight / Number(getComputedStyle(container).getPropertyValue('--container-height').replace('px', ''))
+                );
+                container.style.transform = `scale(${scale})`;
+            };
+            window.addEventListener('resize', resize);
+            resize();
+
+            switchScene(0);
+
+            for (const item of script) {
+                await updateSubtitles(item.zh, item.en);
+                if (item.action) {
+                    item.action();
+                }
+                await sleep(item.duration);
+            }
+
+            // Fade out last subtitle
+            await updateSubtitles('', '');
+        }
+
+        window.onload = playAnimation;
+    </script>
+
+</body>
+
+</html>

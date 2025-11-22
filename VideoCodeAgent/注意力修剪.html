@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attention Pruning Explained</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-text-color: #212529;
+            --secondary-text-color: #6c757d;
+            --accent-color-strong: #007BFF;
+            --accent-color-medium: #64a9f3;
+            --accent-color-light: #cce5ff;
+            --highlight-color: #ffc107;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --pruned-color: #e9ecef;
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #e0e0e0;
+            overflow: hidden;
+            font-family: var(--font-family);
+        }
+
+        #scaler {
+            width: 2560px;
+            height: 1440px;
+            transform-origin: center center;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+        }
+
+        .scene {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            pointer-events: none;
+        }
+
+        .scene.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .title-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .main-title {
+            font-size: 160px;
+            font-weight: bold;
+            color: var(--primary-text-color);
+            margin: 0;
+            transform: translateY(-50px);
+            opacity: 0;
+            animation: fadeInDown 1s ease-out forwards;
+        }
+
+        .subtitle {
+            font-size: 60px;
+            color: var(--secondary-text-color);
+            margin-top: 20px;
+            transform: translateY(50px);
+            opacity: 0;
+            animation: fadeInUp 1s ease-out 0.5s forwards;
+        }
+
+        @keyframes fadeInDown {
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInUp {
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fade-in {
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fade-out {
+            to {
+                opacity: 0;
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .narration {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+        }
+
+        .narration p {
+            margin: 5px 0;
+            line-height: 1.5;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+        }
+
+        .narration .zh {
+            font-size: 56px;
+            font-weight: 500;
+            color: var(--primary-text-color);
+        }
+
+        .narration .en {
+            font-size: 36px;
+            font-weight: 400;
+            color: var(--secondary-text-color);
+        }
+
+        #scene-2-container,
+        #scene-3-container,
+        #scene-4-container,
+        #scene-5-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 150px;
+            box-sizing: border-box;
+        }
+
+        .viz-area {
+            width: 45%;
+            height: 80%;
+            position: relative;
+        }
+
+        #network-viz,
+        #matrix-viz {
+            width: 100%;
+            height: 100%;
+        }
+
+        #network-viz .node {
+            transition: all 0.5s ease;
+        }
+
+        #network-viz .link {
+            transition: all 0.5s ease;
+        }
+
+        #network-viz .node.input {
+            fill: var(--accent-color-strong);
+        }
+
+        #network-viz .node.output {
+            fill: var(--success-color);
+        }
+
+        #network-viz .link.important {
+            stroke: var(--accent-color-medium);
+            stroke-width: 4px;
+        }
+
+        #network-viz .link.unimportant {
+            stroke: var(--pruned-color);
+            stroke-width: 2px;
+        }
+
+        #network-viz .link.pruned {
+            stroke-opacity: 0;
+        }
+
+        #matrix-viz .cell {
+            transition: all 0.5s ease;
+        }
+
+        #matrix-viz .cell.important {
+            fill: var(--accent-color-strong);
+        }
+
+        #matrix-viz .cell.unimportant {
+            fill: var(--accent-color-light);
+        }
+
+        #matrix-viz .cell.pruned {
+            fill: var(--pruned-color);
+        }
+
+        .viz-label {
+            position: absolute;
+            bottom: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 48px;
+            color: var(--secondary-text-color);
+        }
+
+        #heads-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 60px;
+        }
+
+        .head-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .head-viz {
+            width: 120px;
+            height: 120px;
+            background-color: var(--accent-color-light);
+            border: 5px solid var(--accent-color-strong);
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--accent-color-strong);
+            transition: all 0.5s ease;
+        }
+
+        .head-viz.pruning {
+            background-color: var(--danger-color);
+            border-color: var(--danger-color);
+            color: white;
+            transform: scale(0);
+        }
+
+        .importance-bar {
+            width: 60px;
+            height: 200px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .importance-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0;
+            background-color: var(--highlight-color);
+            transition: height 1s ease-out;
+        }
+
+        .threshold-line {
+            position: absolute;
+            left: -30%;
+            width: 160%;
+            height: 4px;
+            background-color: var(--danger-color);
+            opacity: 0;
+            transition: all 0.5s ease;
+            transform: translateY(100px);
+            /* Start below */
+        }
+
+        .threshold-line.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .threshold-label {
+            position: absolute;
+            right: 170%;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 36px;
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+
+        #final-benefits {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 80%;
+            margin: 0 auto;
+        }
+
+        .benefit-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            opacity: 0;
+            transform: translateY(50px);
+            animation: fadeInUp 1s ease-out forwards;
+        }
+
+        .benefit-item svg {
+            width: 200px;
+            height: 200px;
+        }
+
+        .benefit-item .icon-label {
+            font-size: 52px;
+            font-weight: 500;
+            color: var(--primary-text-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="scaler">
+        <div id="container">
+
+            <!-- Scene 1: Title and Problem -->
+            <div class="scene" id="scene-1">
+                <div class="title-card">
+                    <h1 class="main-title">Attention Pruning</h1>
+                    <h2 class="subtitle">注意力修剪</h2>
+                </div>
+                <div class="narration" id="narration-1">
+                    <p class="zh">Transformer模型中的自注意力机制虽然强大，但也带来了巨大的计算开销。</p>
+                    <p class="en">The self-attention mechanism in Transformer models is powerful, but comes with immense
+                        computational costs.</p>
+                </div>
+            </div>
+
+            <!-- Scene 2: The Problem Illustrated -->
+            <div class="scene" id="scene-2">
+                <div id="scene-2-container">
+                    <div class="viz-area">
+                        <svg id="network-viz" viewBox="0 0 1000 1000"></svg>
+                        <div class="viz-label">密集的注意力连接 (Dense Attention Connections)</div>
+                    </div>
+                    <div class="viz-area">
+                        <svg id="matrix-viz" viewBox="0 0 1000 1000"></svg>
+                        <div class="viz-label">完整的注意力矩阵 (Full Attention Matrix)</div>
+                    </div>
+                </div>
+                <div class="narration" id="narration-2">
+                    <p class="zh">在多头注意力机制中，并非所有的“头”都同等重要。</p>
+                    <p class="en">In multi-head attention, not all "heads" are equally important.</p>
+                </div>
+            </div>
+
+            <!-- Scene 3: Introducing Importance Score -->
+            <div class="scene" id="scene-3">
+                <div id="heads-container">
+                    <!-- Heads will be generated by JS -->
+                </div>
+                <div class="narration" id="narration-3">
+                    <p class="zh">我们可以为每个注意力头计算一个“重要性分数”，并设定一个阈值。</p>
+                    <p class="en">We can calculate an "importance score" for each attention head and set a threshold.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Scene 4: The Pruning Action -->
+            <div class="scene" id="scene-4">
+                <div id="scene-4-container">
+                    <div class="viz-area">
+                        <svg id="network-viz-pruned" viewBox="0 0 1000 1000"></svg>
+                        <div class="viz-label">连接被修剪 (Connections are Pruned)</div>
+                    </div>
+                    <div class="viz-area">
+                        <svg id="matrix-viz-pruned" viewBox="0 0 1000 1000"></svg>
+                        <div class="viz-label">矩阵变得稀疏 (Matrix becomes Sparse)</div>
+                    </div>
+                </div>
+                <div class="narration" id="narration-4">
+                    <p class="zh">低于阈值的注意力头将被“修剪”掉，从而减少计算量。</p>
+                    <p class="en">Attention heads with scores below the threshold are "pruned," reducing computation.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Scene 5: The Result -->
+            <div class="scene" id="scene-5">
+                <div class="title-card">
+                    <div id="final-benefits">
+                        <div class="benefit-item" style="animation-delay: 0.2s;">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M12 2L12 5M12 19L12 22M22 12L19 12M5 12L2 12M19.0708 4.9292L16.9495 7.05051M7.05029 16.9497L4.92896 19.0711M19.0711 19.0711L16.9497 16.9497M7.05051 7.05051L4.9292 4.9292M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3431 10.3431 9 12 9C13.6569 9 15 10.3431 15 12Z"
+                                    stroke="#28a745" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span class="icon-label">更快 (Faster)</span>
+                        </div>
+                        <div class="benefit-item" style="animation-delay: 0.4s;">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 3L5 8.25L12 13.5L19 8.25L12 3Z" stroke="#007BFF" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M5 15.75L12 21L19 15.75" stroke="#007BFF" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.6" />
+                                <path d="M5 12L12 17.25L19 12" stroke="#007BFF" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-opacity="0.8" />
+                            </svg>
+                            <span class="icon-label">更小 (Smaller)</span>
+                        </div>
+                        <div class="benefit-item" style="animation-delay: 0.6s;">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path
+                                    d="M20 9L20 5C20 3.89543 19.1046 3 18 3H6C4.89543 3 4 3.89543 4 5V19C4 20.1046 4.89543 21 6 21H18C19.1046 21 20 20.1046 20 19V14M20 11.5H13C12.4477 11.5 12 11.0523 12 10.5V10.5C12 9.94772 12.4477 9.5 13 9.5H20V11.5ZM8 7H10M8 11H10M8 15H10"
+                                    stroke="#ffc107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span class="icon-label">更高效 (More Efficient)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="narration" id="narration-5">
+                    <p class="zh">注意力修剪最终实现了更快速、更轻量、更高效的模型。</p>
+                    <p class="en">Attention pruning leads to faster, smaller, and more efficient models.</p>
+                </div>
+            </div>
+
+            <!-- Scene 6: End Card -->
+            <div class="scene" id="scene-6">
+                <div class="title-card">
+                    <h1 class="main-title" style="opacity: 1; transform: none;">Attention Pruning</h1>
+                    <h2 class="subtitle" style="opacity: 1; transform: none;">Efficiency in Focus</h2>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const scenes = document.querySelectorAll('.scene');
+        const narrations = document.querySelectorAll('.narration');
+        let currentScene = 0;
+
+        function showNarration(id, delay = 500, duration = 4000) {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.transition = 'opacity 0.5s ease-in-out';
+                        el.style.opacity = '1';
+                    }
+                    setTimeout(resolve, duration);
+                }, delay);
+            });
+        }
+
+        function hideNarration(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+            }
+        }
+
+        function switchScene(sceneIndex) {
+            scenes.forEach((scene, index) => {
+                if (index === sceneIndex) {
+                    scene.classList.add('active');
+                } else {
+                    scene.classList.remove('active');
+                }
+            });
+            currentScene = sceneIndex;
+        }
+
+        // --- Visualization Generation ---
+        const NS = "http://www.w3.org/2000/svg";
+        const NUM_NODES = 8;
+        const NUM_HEADS = 6;
+        const HEAD_IMPORTANCE = [0.9, 0.2, 0.95, 0.8, 0.15, 0.7];
+        const PRUNING_THRESHOLD = 0.4;
+
+        function createNetwork(svgId, isPruned = false) {
+            const svg = document.getElementById(svgId);
+            svg.innerHTML = '';
+            const nodes = [];
+            const links = [];
+
+            // Create input nodes
+            for (let i = 0; i < NUM_NODES; i++) {
+                const node = document.createElementNS(NS, 'circle');
+                node.setAttribute('cx', 100);
+                node.setAttribute('cy', 100 + i * 110);
+                node.setAttribute('r', 25);
+                node.setAttribute('class', 'node input');
+                svg.appendChild(node);
+                nodes.push(node);
+            }
+
+            // Create output nodes
+            for (let i = 0; i < NUM_NODES; i++) {
+                const node = document.createElementNS(NS, 'circle');
+                node.setAttribute('cx', 900);
+                node.setAttribute('cy', 100 + i * 110);
+                node.setAttribute('r', 25);
+                node.setAttribute('class', 'node output');
+                svg.appendChild(node);
+                nodes.push(node);
+            }
+
+            // Create links
+            for (let i = 0; i < NUM_NODES; i++) {
+                for (let j = 0; j < NUM_NODES; j++) {
+                    const link = document.createElementNS(NS, 'line');
+                    link.setAttribute('x1', 100);
+                    link.setAttribute('y1', 100 + i * 110);
+                    link.setAttribute('x2', 900);
+                    link.setAttribute('y2', 100 + j * 110);
+
+                    const headIndex = (i * NUM_NODES + j) % NUM_HEADS;
+                    const importance = HEAD_IMPORTANCE[headIndex];
+                    let linkClass = importance > 0.5 ? 'important' : 'unimportant';
+
+                    if (isPruned && importance < PRUNING_THRESHOLD) {
+                        linkClass += ' pruned';
+                    }
+
+                    link.setAttribute('class', `link ${linkClass}`);
+                    svg.insertBefore(link, svg.firstChild);
+                    links.push(link);
+                }
+            }
+            return { nodes, links };
+        }
+
+        function createMatrix(svgId, isPruned = false) {
+            const svg = document.getElementById(svgId);
+            svg.innerHTML = '';
+            const cells = [];
+            const gridSize = 12;
+            const cellSize = 1000 / gridSize;
+
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const cell = document.createElementNS(NS, 'rect');
+                    cell.setAttribute('x', i * cellSize);
+                    cell.setAttribute('y', j * cellSize);
+                    cell.setAttribute('width', cellSize - 5);
+                    cell.setAttribute('height', cellSize - 5);
+                    cell.setAttribute('rx', 10);
+
+                    const headIndex = (i * gridSize + j) % NUM_HEADS;
+                    const importance = HEAD_IMPORTANCE[headIndex];
+                    let cellClass = importance > 0.5 ? 'important' : 'unimportant';
+
+                    if (isPruned && importance < PRUNING_THRESHOLD) {
+                        cellClass = 'pruned';
+                    }
+
+                    cell.setAttribute('class', `cell ${cellClass}`);
+                    svg.appendChild(cell);
+                    cells.push(cell);
+                }
+            }
+            return { cells };
+        }
+
+        // --- Animation Timeline ---
+        const timeline = [
+            // Scene 1: Title
+            async () => {
+                switchScene(0);
+                await showNarration('narration-1', 1500, 5000);
+                hideNarration('narration-1');
+            },
+            // Scene 2: The Problem
+            async () => {
+                switchScene(1);
+                createNetwork('network-viz');
+                createMatrix('matrix-viz');
+                await showNarration('narration-2', 1000, 4000);
+                hideNarration('narration-2');
+            },
+            // Scene 3: Importance Scores
+            async () => {
+                switchScene(2);
+                const headsContainer = document.getElementById('heads-container');
+                headsContainer.innerHTML = '';
+                HEAD_IMPORTANCE.forEach((imp, i) => {
+                    const group = document.createElement('div');
+                    group.className = 'head-group';
+                    group.innerHTML = `
+                        <div class="head-viz">Head ${i + 1}</div>
+                        <div class="importance-bar">
+                            <div class="importance-fill" data-importance="${imp}"></div>
+                        </div>
+                    `;
+                    headsContainer.appendChild(group);
+                });
+
+                await showNarration('narration-3', 500, 2000);
+
+                // Animate bars
+                document.querySelectorAll('.importance-fill').forEach(fill => {
+                    const importance = parseFloat(fill.getAttribute('data-importance'));
+                    setTimeout(() => {
+                        fill.style.height = `${importance * 100}%`;
+                    }, 500);
+                });
+
+                // Show threshold
+                setTimeout(() => {
+                    const thresholdLine = document.createElement('div');
+                    thresholdLine.className = 'threshold-line';
+                    thresholdLine.innerHTML = '<div class="threshold-label">Threshold</div>';
+                    thresholdLine.style.bottom = `${PRUNING_THRESHOLD * 200}px`;
+                    document.querySelector('.importance-bar').parentNode.appendChild(thresholdLine);
+                    setTimeout(() => thresholdLine.classList.add('visible'), 100);
+                }, 2500);
+
+                await new Promise(r => setTimeout(r, 4500));
+                hideNarration('narration-3');
+            },
+            // Scene 4: Pruning
+            async () => {
+                // First, show pruning on the heads view
+                switchScene(2); // Stay on scene 3 for a moment
+                document.querySelectorAll('.head-group').forEach((group, i) => {
+                    if (HEAD_IMPORTANCE[i] < PRUNING_THRESHOLD) {
+                        group.querySelector('.head-viz').classList.add('pruning');
+                    }
+                });
+                await new Promise(r => setTimeout(r, 1500));
+
+                // Then switch to scene 4 showing the result
+                switchScene(3);
+                createNetwork('network-viz-pruned', false); // Start with full network
+                createMatrix('matrix-viz-pruned', false); // Start with full matrix
+
+                // Animate the pruning
+                setTimeout(() => {
+                    createNetwork('network-viz-pruned', true);
+                    createMatrix('matrix-viz-pruned', true);
+                }, 500);
+
+                await showNarration('narration-4', 1000, 4000);
+                hideNarration('narration-4');
+            },
+            // Scene 5: Benefits
+            async () => {
+                switchScene(4);
+                await showNarration('narration-5', 1000, 4000);
+                hideNarration('narration-5');
+            },
+            // Scene 6: End card
+            async () => {
+                switchScene(5);
+                await new Promise(r => setTimeout(r, 5000));
+            }
+        ];
+
+        async function playTimeline() {
+            for (const sceneFunc of timeline) {
+                await sceneFunc();
+                await new Promise(r => setTimeout(r, 1000)); // Wait between scenes
+            }
+            // Optional: loop animation
+            // playTimeline();
+        }
+
+        window.onload = () => {
+            // Auto-scaling logic
+            const scaler = document.getElementById('scaler');
+            function resize() {
+                const ww = window.innerWidth;
+                const wh = window.innerHeight;
+                const scale = Math.min(ww / 2560, wh / 1440);
+                scaler.style.transform = `scale(${scale})`;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            playTimeline();
+        };
+
+    </script>
+</body>
+
+</html>

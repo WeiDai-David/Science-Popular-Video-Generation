@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Loss Function Explained | 损失函数详解</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A40;
+            --primary-color: #4C6EF5;
+            --secondary-color: #12B886;
+            --error-color: #F03E3E;
+            --light-gray: #CED4DA;
+            --font-family: 'Poppins', 'Helvetica Neue', 'Arial', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #E9ECEF;
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-viewport {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transform-origin: center center;
+        }
+
+        /* Elements Styling */
+        .element {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out, transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform: translateY(20px);
+        }
+
+        .visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* --- Scene Specific Styles --- */
+
+        /* Background particles */
+        #particles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            opacity: 0.1;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(0);
+            }
+
+            50% {
+                transform: translateY(-50px) translateX(20px);
+            }
+
+            100% {
+                transform: translateY(0) translateX(0);
+            }
+        }
+
+        /* Subtitles */
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            text-align: center;
+            z-index: 1000;
+            color: var(--text-color);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        #subtitle-en {
+            font-size: 36px;
+            font-weight: 600;
+            margin: 0 0 10px 0;
+        }
+
+        #subtitle-zh {
+            font-size: 28px;
+            margin: 0;
+            color: #495057;
+        }
+
+        /* Scene 1: Model & Goal */
+        #model-box {
+            width: 400px;
+            height: 400px;
+            top: 520px;
+            left: 1080px;
+            z-index: 10;
+        }
+
+        #input-image {
+            width: 300px;
+            height: 300px;
+            top: 570px;
+            left: 300px;
+            z-index: 10;
+        }
+
+        #output-label-correct {
+            top: 655px;
+            left: 1950px;
+            font-size: 80px;
+            font-weight: 600;
+            color: var(--secondary-color);
+            padding: 20px 40px;
+            background: #E6FCF5;
+            border-radius: 20px;
+            z-index: 10;
+        }
+
+        #arrow-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        #arrow-path {
+            stroke: var(--primary-color);
+            stroke-width: 10;
+            fill: none;
+            stroke-dasharray: 2000;
+            stroke-dashoffset: 2000;
+        }
+
+        /* Scene 2: Prediction vs Reality */
+        #output-label-predict {
+            top: 550px;
+            left: 1950px;
+            font-size: 80px;
+            font-weight: 600;
+            color: var(--error-color);
+            padding: 20px 40px;
+            background: #FFF5F5;
+            border-radius: 20px;
+            z-index: 10;
+        }
+
+        #ground-truth-label {
+            top: 760px;
+            left: 1950px;
+            font-size: 60px;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+
+        #error-measurement-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 11;
+            pointer-events: none;
+        }
+
+        #error-path {
+            stroke-width: 8;
+            stroke: var(--error-color);
+            fill: none;
+            stroke-dasharray: 500;
+            stroke-dashoffset: 500;
+        }
+
+        /* Scene 3: Loss Function Definition */
+        #loss-value-display {
+            top: 655px;
+            left: 1130px;
+            font-size: 100px;
+            font-weight: 600;
+            color: var(--error-color);
+            z-index: 12;
+            transform-origin: center center;
+        }
+
+        #loss-function-formula {
+            top: 400px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 90px;
+            font-family: 'Georgia', serif;
+            color: var(--text-color);
+            letter-spacing: 2px;
+            z-index: 12;
+        }
+
+        #loss-function-formula span {
+            font-family: var(--font-family);
+            font-style: normal;
+            font-size: 70px;
+        }
+
+        /* Scene 4: High vs Low Loss */
+        #scatter-plot-svg {
+            top: 250px;
+            left: 380px;
+            width: 1800px;
+            height: 900px;
+            z-index: 20;
+        }
+
+        #scatter-plot-svg .axis {
+            stroke: var(--light-gray);
+            stroke-width: 5;
+        }
+
+        #scatter-plot-svg .point {
+            fill: var(--primary-color);
+            transition: all 0.5s ease;
+        }
+
+        #scatter-plot-svg #model-line {
+            stroke: var(--secondary-color);
+            stroke-width: 10;
+            stroke-linecap: round;
+            transition: all 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        #scatter-plot-svg .error-bar {
+            stroke: var(--error-color);
+            stroke-width: 5;
+            opacity: 0.8;
+            stroke-dasharray: 10 10;
+            transition: all 1s ease;
+        }
+
+        #loss-meter {
+            top: 450px;
+            left: 2050px;
+            width: 150px;
+            height: 500px;
+            background: #E9ECEF;
+            border-radius: 20px;
+            z-index: 21;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+
+        #loss-meter-bar {
+            width: 100%;
+            background: linear-gradient(to top, var(--secondary-color), #FFD43B, var(--error-color));
+            border-radius: 10px;
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            right: 15px;
+            transition: height 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        #loss-meter-label {
+            position: absolute;
+            top: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 40px;
+            font-weight: 600;
+            width: 200px;
+            text-align: center;
+            color: var(--text-color);
+        }
+
+        /* Scene 5: Minimizing Loss */
+        #loss-landscape-svg {
+            top: 200px;
+            left: 280px;
+            width: 2000px;
+            height: 1000px;
+            z-index: 30;
+        }
+
+        #loss-landscape-svg #ball {
+            fill: url(#ball-gradient);
+            filter: drop-shadow(0px 10px 15px rgba(0, 0, 0, 0.3));
+            transition: all 4s cubic-bezier(0.42, 0, 0.58, 1);
+        }
+
+        /* Scene 6: Final Result */
+        #final-checkmark {
+            width: 200px;
+            height: 200px;
+            top: 620px;
+            left: 1550px;
+            z-index: 15;
+            transform: scale(0);
+        }
+
+        #final-title {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 150px;
+            font-weight: 600;
+            color: var(--primary-color);
+            text-align: center;
+            line-height: 1.2;
+            z-index: 40;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-viewport">
+        <div id="container">
+            <!-- Background Elements -->
+            <div id="particles"></div>
+
+            <!-- Subtitles -->
+            <div id="subtitles" class="element">
+                <p id="subtitle-en"></p>
+                <p id="subtitle-zh"></p>
+            </div>
+
+            <!-- Scene 1: The Goal -->
+            <svg id="model-box" class="element" viewBox="0 0 100 100">
+                <defs>
+                    <linearGradient id="model-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#A5B4FC;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#4C6EF5;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect width="100" height="100" rx="15" fill="url(#model-grad)" />
+                <path d="M20 50 L35 50 M35 35 L35 65 M65 35 L65 65 M65 50 L80 50 M45 20 L55 20 M45 80 L55 80"
+                    stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.3" />
+                <text x="50" y="55" font-size="20" fill="white" text-anchor="middle" font-family="var(--font-family)"
+                    font-weight="600">Model</text>
+            </svg>
+
+            <svg id="input-image" class="element" viewBox="0 0 100 100">
+                <rect width="100" height="100" rx="15" fill="#E9ECEF" />
+                <path
+                    d="M85.3,57.3c-2.5,0-4.8,1.2-6.2,3.1c-1.3-3.6-4.6-6.2-8.6-6.2c-4.9,0-8.9,3.9-9.1,8.8c-0.6-0.3-1.3-0.5-2-0.5c-2.8,0-5.1,2.3-5.1,5.1c0,0.1,0,0.2,0,0.3c-2.9,0.5-5.1,3-5.1,6c0,3.3,2.7,6,6,6h29.3c3.3,0,6-2.7,6-6C91.3,59.9,88.6,57.3,85.3,57.3z M34.9,45l-9.8,13.1l-6.5-6.5L6,65.1h38.8L34.9,45z M34,34c-3.3,0-6-2.7-6-6s2.7-6,6-6s6,2.7,6,6S37.3,34,34,34z"
+                    fill="#ADB5BD" />
+                <text x="50" y="90" font-size="10" fill="#495057" text-anchor="middle"
+                    font-family="var(--font-family)">Input</text>
+            </svg>
+
+            <div id="output-label-correct" class="element">Cat 🐱</div>
+
+            <svg id="arrow-svg" class="element">
+                <path id="arrow-path" d="M 620 720 C 800 720, 900 720, 1080 720" marker-end="url(#arrowhead)" />
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#4C6EF5" />
+                    </marker>
+                </defs>
+            </svg>
+
+            <!-- Scene 2: Prediction vs Reality -->
+            <div id="output-label-predict" class="element">Dog 🐶</div>
+            <div id="ground-truth-label" class="element">True Value: Cat 🐱</div>
+            <svg id="error-measurement-svg" class="element">
+                <path id="error-path" d="M 2150 640 Q 2200 700 2150 760" />
+            </svg>
+
+            <!-- Scene 3: Loss -->
+            <div id="loss-value-display" class="element">Loss!</div>
+            <div id="loss-function-formula" class="element">
+                L = <span>ƒ</span> ( prediction , truth )
+            </div>
+
+            <!-- Scene 4: High vs Low Loss -->
+            <svg id="scatter-plot-svg" class="element" viewBox="0 0 1800 900">
+                <line class="axis" x1="50" y1="850" x2="1750" y2="850" />
+                <line class="axis" x1="50" y1="50" x2="50" y2="850" />
+                <g id="scatter-points"></g>
+                <g id="error-bars"></g>
+                <line id="model-line" x1="100" y1="700" x2="1700" y2="200" />
+            </svg>
+            <div id="loss-meter" class="element">
+                <div id="loss-meter-label">Total Loss</div>
+                <div id="loss-meter-bar"></div>
+            </div>
+
+            <!-- Scene 5: Minimizing Loss -->
+            <svg id="loss-landscape-svg" class="element" viewBox="0 0 2000 1000">
+                <defs>
+                    <linearGradient id="landscape-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#D0BFFF" />
+                        <stop offset="100%" stop-color="#748FFC" />
+                    </linearGradient>
+                    <radialGradient id="ball-gradient">
+                        <stop offset="0%" stop-color="#12B886" />
+                        <stop offset="90%" stop-color="#099268" />
+                        <stop offset="100%" stop-color="#087F5B" />
+                    </radialGradient>
+                </defs>
+                <path
+                    d="M 100 600 C 300 800, 400 200, 700 400 C 1000 600, 1100 300, 1400 500 C 1700 700, 1800 400, 1900 600 L 1900 950 L 100 950 Z"
+                    fill="url(#landscape-grad)" opacity="0.4" />
+                <path id="landscape-path"
+                    d="M 100 600 C 300 800, 400 200, 700 400 C 1000 600, 1100 300, 1400 500 C 1700 700, 1800 400, 1900 600"
+                    stroke="#4C6EF5" stroke-width="12" fill="none" stroke-linecap="round" />
+                <circle id="ball" r="40" cx="300" cy="800" />
+            </svg>
+
+            <!-- Scene 6: Final Result -->
+            <svg id="final-checkmark" class="element" viewBox="0 0 52 52">
+                <circle cx="26" cy="26" r="25" fill="none" stroke="#12B886" stroke-width="4" />
+                <path fill="none" stroke="#12B886" stroke-width="5" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+            </svg>
+
+            <div id="final-title" class="element">
+                Loss Function<br />损失函数
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- UTILITY FUNCTIONS ---
+        const getEl = (id) => document.getElementById(id);
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // --- DOM ELEMENTS ---
+        const elements = {
+            subtitles: getEl('subtitles'),
+            subtitleEn: getEl('subtitle-en'),
+            subtitleZh: getEl('subtitle-zh'),
+            modelBox: getEl('model-box'),
+            inputImage: getEl('input-image'),
+            outputCorrect: getEl('output-label-correct'),
+            arrowSvg: getEl('arrow-svg'),
+            arrowPath: getEl('arrow-path'),
+            outputPredict: getEl('output-label-predict'),
+            groundTruth: getEl('ground-truth-label'),
+            errorSvg: getEl('error-measurement-svg'),
+            errorPath: getEl('error-path'),
+            lossValueDisplay: getEl('loss-value-display'),
+            lossFormula: getEl('loss-function-formula'),
+            scatterPlot: getEl('scatter-plot-svg'),
+            scatterPoints: getEl('scatter-points'),
+            errorBars: getEl('error-bars'),
+            modelLine: getEl('model-line'),
+            lossMeter: getEl('loss-meter'),
+            lossMeterBar: getEl('loss-meter-bar'),
+            lossLandscape: getEl('loss-landscape-svg'),
+            ball: getEl('ball'),
+            landscapePath: getEl('landscape-path'),
+            finalCheckmark: getEl('final-checkmark'),
+            finalTitle: getEl('final-title')
+        };
+
+        // --- TIMELINE ---
+        const timeline = [
+            {
+                duration: 4000,
+                en: "In machine learning, our goal is to create a model that makes accurate predictions.",
+                zh: "在机器学习中，我们的目标是创建一个能做出准确预测的模型。",
+                action: async () => {
+                    showElements(['subtitles', 'modelBox', 'inputImage', 'outputCorrect', 'arrowSvg']);
+                    await sleep(500);
+                    elements.arrowPath.style.transition = 'stroke-dashoffset 2s ease-out';
+                    elements.arrowPath.style.strokeDashoffset = '0';
+                }
+            },
+            {
+                duration: 4500,
+                en: "But models aren't perfect. They make predictions...",
+                zh: "但模型并非完美。它们会做出预测...",
+                action: async () => {
+                    hideElements(['outputCorrect']);
+                    await sleep(500);
+                    showElements(['outputPredict']);
+                }
+            },
+            {
+                duration: 4500,
+                en: "...and we compare them to the actual, true values.",
+                zh: "...而我们会将这些预测与真实值进行比较。",
+                action: async () => {
+                    showElements(['groundTruth', 'errorSvg']);
+                    await sleep(500);
+                    elements.errorPath.style.transition = 'stroke-dashoffset 1s cubic-bezier(0.68, -0.55, 0.27, 1.55)';
+                    elements.errorPath.style.strokeDashoffset = '0';
+                }
+            },
+            {
+                duration: 5000,
+                en: "This difference, this error, is what we measure. We call this 'Loss'.",
+                zh: "我们衡量的就是这个差异，这个误差。我们称之为“损失”。",
+                action: async () => {
+                    hideElements(['errorSvg', 'inputImage', 'modelBox', 'outputPredict', 'groundTruth', 'arrowSvg']);
+                    await sleep(1000);
+                    showElements(['lossValueDisplay']);
+                }
+            },
+            {
+                duration: 5000,
+                en: "The function that measures this error is called the Loss Function.",
+                zh: "而衡量这个误差的函数，就叫做损失函数。",
+                action: async () => {
+                    elements.lossValueDisplay.style.transition = 'all 1s ease';
+                    elements.lossValueDisplay.style.transform = 'translateY(-300px) scale(0.7)';
+                    elements.lossValueDisplay.style.opacity = 0;
+                    await sleep(800);
+                    showElements(['lossFormula']);
+                }
+            },
+            {
+                duration: 5000,
+                en: "When the model's predictions are far from the true values, the loss is high.",
+                zh: "当模型的预测远离真实值时，损失就很高。",
+                action: async () => {
+                    hideElements(['lossFormula', 'lossValueDisplay']);
+                    await sleep(800);
+                    showElements(['scatterPlot', 'lossMeter']);
+                    setupScatterPlot(true); // High loss state
+                }
+            },
+            {
+                duration: 5000,
+                en: "When predictions are close to the truth, the loss becomes low.",
+                zh: "当预测接近真实值时，损失就变得很低。",
+                action: async () => {
+                    setupScatterPlot(false); // Low loss state
+                }
+            },
+            {
+                duration: 5000,
+                en: "The goal of training is to adjust the model to find the lowest possible loss.",
+                zh: "训练的目标就是调整模型，以找到可能的最低损失。",
+                action: async () => {
+                    hideElements(['scatterPlot', 'lossMeter']);
+                    await sleep(800);
+                    showElements(['lossLandscape']);
+                    const pathLength = elements.landscapePath.getTotalLength();
+                    const startPoint = elements.landscapePath.getPointAtLength(pathLength * 0.15);
+                    elements.ball.style.transition = 'none';
+                    elements.ball.setAttribute('cx', startPoint.x);
+                    elements.ball.setAttribute('cy', startPoint.y - 40);
+                }
+            },
+            {
+                duration: 5000,
+                en: "It's like rolling a ball downhill to find the bottom of a valley.",
+                zh: "这就像让一个小球滚下山，去寻找山谷的最低点。",
+                action: async () => {
+                    const pathLength = elements.landscapePath.getTotalLength();
+                    const endPoint = elements.landscapePath.getPointAtLength(pathLength * 0.35); // The valley bottom
+                    elements.ball.style.transition = 'all 4s cubic-bezier(0.42, 0, 0.58, 1)';
+                    elements.ball.setAttribute('cx', endPoint.x);
+                    elements.ball.setAttribute('cy', endPoint.y - 40);
+                }
+            },
+            {
+                duration: 5000,
+                en: "By minimizing loss, we guide our model to make accurate predictions.",
+                zh: "通过最小化损失，我们引导模型做出准确的预测。",
+                action: async () => {
+                    hideElements(['lossLandscape']);
+                    await sleep(800);
+                    showElements(['modelBox', 'inputImage', 'outputCorrect']);
+                    elements.outputCorrect.style.transform = 'scale(1.1)';
+                    await sleep(200);
+                    showElements(['finalCheckmark']);
+                    elements.finalCheckmark.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                    elements.finalCheckmark.style.transform = 'scale(1)';
+                }
+            },
+            {
+                duration: 5000,
+                en: "The Loss Function is the compass that guides this journey.",
+                zh: "损失函数就是指引这段旅程的指南针。",
+                action: async () => {
+                    hideElements(['modelBox', 'inputImage', 'outputCorrect', 'finalCheckmark']);
+                    await sleep(1000);
+                    showElements(['finalTitle']);
+                }
+            }
+        ];
+
+        // --- ANIMATION CONTROL ---
+        function showElements(elIds) {
+            elIds.forEach(id => elements[id].classList.add('visible'));
+        }
+
+        function hideElements(elIds) {
+            elIds.forEach(id => elements[id].classList.remove('visible'));
+        }
+
+        async function updateSubtitles(en, zh) {
+            elements.subtitleEn.textContent = en;
+            elements.subtitleZh.textContent = zh;
+        }
+
+        async function playTimeline() {
+            for (const step of timeline) {
+                updateSubtitles(step.en, step.zh);
+                await step.action();
+                await sleep(step.duration);
+            }
+            await sleep(2000);
+            window.location.reload(); // Loop animation
+        }
+
+        // --- SCENE SETUP ---
+        function setupParticles() {
+            const particlesContainer = getEl('particles');
+            for (let i = 0; i < 30; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                const size = Math.random() * 80 + 20;
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+                p.style.top = `${Math.random() * 100}%`;
+                p.style.left = `${Math.random() * 100}%`;
+                p.style.animationDelay = `${Math.random() * 20}s`;
+                p.style.animationDuration = `${Math.random() * 20 + 15}s`;
+                particlesContainer.appendChild(p);
+            }
+        }
+
+        let scatterData = [];
+        function setupScatterPlot(isHighLoss) {
+            if (scatterData.length === 0) {
+                for (let i = 0; i < 20; i++) {
+                    const x = 150 + i * 80 + (Math.random() - 0.5) * 40;
+                    const y_base = 750 - i * 30;
+                    const y = y_base + (Math.random() - 0.5) * 100;
+                    scatterData.push({ x, y });
+                }
+                elements.scatterPoints.innerHTML = scatterData.map(p => `<circle class="point" cx="${p.x}" cy="${p.y}" r="12" />`).join('');
+            }
+
+            const lineY1 = isHighLoss ? 800 : 750;
+            const lineY2 = isHighLoss ? 100 : 150;
+            elements.modelLine.setAttribute('y1', lineY1);
+            elements.modelLine.setAttribute('y2', lineY2);
+
+            elements.lossMeterBar.style.height = isHighLoss ? '90%' : '10%';
+
+            // Calculate line function: y = mx + c
+            const m = (lineY2 - lineY1) / (1700 - 100);
+            const c = lineY1 - m * 100;
+
+            elements.errorBars.innerHTML = scatterData.map(p => {
+                const lineYatX = m * p.x + c;
+                const d = `M ${p.x} ${p.y} L ${p.x} ${lineYatX}`;
+                const length = Math.abs(p.y - lineYatX);
+                return `<path class="error-bar" d="${d}" style="stroke-dashoffset: ${isHighLoss ? 0 : length};"/>`;
+            }).join('');
+        }
+
+        // --- INITIALIZATION ---
+        function init() {
+            // Scale container to fit viewport
+            const container = getEl('container');
+            const viewport = getEl('animation-viewport');
+
+            function resize() {
+                const { clientWidth, clientHeight } = viewport;
+                const scaleX = clientWidth / 2560;
+                const scaleY = clientHeight / 1440;
+                const scale = Math.min(scaleX, scaleY);
+                container.style.transform = `scale(${scale})`;
+            }
+
+            window.addEventListener('resize', resize);
+            resize();
+
+            setupParticles();
+            playTimeline();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+
+</html>

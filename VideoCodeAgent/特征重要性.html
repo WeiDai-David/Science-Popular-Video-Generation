@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feature Importance Explained</title>
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --primary-text-color: #333d47;
+            --secondary-text-color: #5c6a79;
+            --accent-color-1: #00bcd4;
+            /* Cyan */
+            --accent-color-2: #ff9800;
+            /* Orange */
+            --container-bg: #ffffff;
+            --border-color: #e0e6ec;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+        }
+
+        body {
+            margin: 0;
+            padding: 2rem;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--primary-text-color);
+        }
+
+        #animation-container {
+            position: relative;
+            width: 100%;
+            max-width: 1280px;
+            /* Control max size on large screens */
+            aspect-ratio: 2560 / 1440;
+            background-color: var(--container-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        #animation-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+        <svg id="animation-svg" viewBox="0 0 2560 1440">
+            <!-- Defs for markers, gradients etc. -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#5c6a79" />
+                </marker>
+                <filter id="scramble-filter" x="-20%" y="-20%" width="140%" height="140%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" result="turbulence" />
+                    <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="25" xChannelSelector="R"
+                        yChannelSelector="G" />
+                </filter>
+            </defs>
+
+            <!-- Scene Elements: Initially hidden -->
+
+            <!-- === SCENE 1: The Black Box === -->
+            <g id="scene1" opacity="0">
+                <!-- Black Box Model -->
+                <rect id="black-box" x="1030" y="420" width="500" height="600" rx="20" fill="#2d3748" />
+                <text x="1280" y="750" font-size="40" fill="white" text-anchor="middle" font-weight="bold">ML
+                    MODEL</text>
+                <path d="M1260 780 L1300 780" stroke="#00bcd4" stroke-width="4" stroke-linecap="round" />
+
+                <!-- Input Features -->
+                <g id="s1-inputs">
+                    <g class="s1-input" id="s1-input-1">
+                        <rect x="500" y="450" width="200" height="80" rx="10" fill="#e2e8f0" />
+                        <text x="600" y="500" text-anchor="middle" font-size="28" fill="#4a5568">Feature A</text>
+                    </g>
+                    <g class="s1-input" id="s1-input-2">
+                        <rect x="500" y="660" width="200" height="80" rx="10" fill="#e2e8f0" />
+                        <text x="600" y="710" text-anchor="middle" font-size="28" fill="#4a5568">Feature B</text>
+                    </g>
+                    <g class="s1-input" id="s1-input-3">
+                        <rect x="500" y="870" width="200" height="80" rx="10" fill="#e2e8f0" />
+                        <text x="600" y="920" text-anchor="middle" font-size="28" fill="#4a5568">Feature C</text>
+                    </g>
+                </g>
+
+                <!-- Output Prediction -->
+                <g id="s1-output">
+                    <rect x="1860" y="680" width="200" height="80" rx="10" fill="#c3dafe" />
+                    <text x="1960" y="730" text-anchor="middle" font-size="32" font-weight="bold"
+                        fill="#2c5282">Prediction</text>
+                </g>
+
+                <!-- Arrows -->
+                <line x1="720" y1="720" x2="1010" y2="720" stroke="#a0aec0" stroke-width="5"
+                    marker-end="url(#arrowhead)" />
+                <line x1="1550" y1="720" x2="1840" y2="720" stroke="#a0aec0" stroke-width="5"
+                    marker-end="url(#arrowhead)" />
+
+                <!-- Question Mark -->
+                <text id="q-mark" x="1280" y="350" font-size="120" fill="#ff9800" text-anchor="middle"
+                    font-weight="bold">?</text>
+            </g>
+
+            <!-- === SCENE 2: Introducing Feature Importance === -->
+            <g id="scene2" opacity="0">
+                <text x="1280" y="650" font-size="90" font-weight="bold" text-anchor="middle" fill="#2d3748">Feature
+                    Importance</text>
+                <text x="1280" y="750" font-size="90" font-weight="300" text-anchor="middle" fill="#2d3748">特征重要性</text>
+                <path id="underline" d="M900 820 L1660 820" stroke="#00bcd4" stroke-width="8" stroke-linecap="round" />
+            </g>
+
+            <!-- === SCENE 3 & 4: The Analogy and Process === -->
+            <g id="scene3" opacity="0">
+                <!-- Model remains -->
+                <rect id="s3-model" x="1030" y="420" width="500" height="600" rx="20" fill="#2d3748" opacity="0.8" />
+                <text x="1280" y="750" font-size="40" fill="white" text-anchor="middle" font-weight="bold">房价预测模型</text>
+
+                <!-- Features with Icons -->
+                <g id="s3-features">
+                    <!-- Location -->
+                    <g id="feat-location">
+                        <rect x="300" y="350" width="300" height="120" rx="15" fill="#e2e8f0" />
+                        <path
+                            d="M450 380 C 475 380, 475 420, 450 420 C 425 420, 425 380, 450 380 M 450 390 A 10 10 0 1 0 450 410 A 10 10 0 1 0 450 390"
+                            fill="#ff9800" />
+                        <text x="350" y="440" text-anchor="middle" font-size="28" fill="#4a5568">地理位置</text>
+                    </g>
+                    <!-- Area -->
+                    <g id="feat-area">
+                        <rect x="300" y="550" width="300" height="120" rx="15" fill="#e2e8f0" />
+                        <rect x="420" y="580" width="60" height="60" stroke="#00bcd4" stroke-width="4" fill="none" />
+                        <text x="350" y="640" text-anchor="middle" font-size="28" fill="#4a5568">房屋面积</text>
+                    </g>
+                    <!-- Rooms -->
+                    <g id="feat-rooms">
+                        <rect x="300" y="750" width="300" height="120" rx="15" fill="#e2e8f0" />
+                        <path
+                            d="M430 580 L 430 630 L 480 630 L 480 580 L 430 580 M 430 595 L 480 595 M 455 580 L 455 630"
+                            transform="translate(0 200)" stroke="#38a169" stroke-width="4" fill="none" />
+                        <text x="350" y="840" text-anchor="middle" font-size="28" fill="#4a5568">房间数量</text>
+                    </g>
+                    <!-- Garden -->
+                    <g id="feat-garden">
+                        <rect x="300" y="950" width="300" height="120" rx="15" fill="#e2e8f0" />
+                        <path
+                            d="M450 980 C 440 995, 430 1010, 450 1030 C 470 1010, 460 995, 450 980 M 440 1005 L 460 1005"
+                            stroke="#ed8936" stroke-width="4" fill="#f6e05e" stroke-linecap="round" />
+                        <text x="350" y="1040" text-anchor="middle" font-size="28" fill="#4a5568">有无花园</text>
+                    </g>
+                </g>
+
+                <!-- Arrows to model -->
+                <line id="arrow-location" x1="620" y1="410" x2="1010" y2="520" stroke="#a0aec0" stroke-width="5"
+                    marker-end="url(#arrowhead)" />
+                <line id="arrow-area" x1="620" y1="610" x2="1010" y2="620" stroke="#a0aec0" stroke-width="5"
+                    marker-end="url(#arrowhead)" />
+                <line id="arrow-rooms" x1="620" y1="810" x2="1010" y2="820" stroke="#a0aec0" stroke-width="5"
+                    marker-end="url(#arrowhead)" />
+                <line id="arrow-garden" x1="620" y1="1010" x2="1010" y2="920" stroke="#a0aec0" stroke-width="5"
+                    marker-end="url(#arrowhead)" />
+
+                <!-- Baseline Score -->
+                <g id="baseline-score" opacity="0">
+                    <rect x="1750" y="600" width="500" height="240" rx="15" fill="#edf2f7" />
+                    <text x="2000" y="670" text-anchor="middle" font-size="32" fill="#4a5568">模型基准表现 (Accuracy)</text>
+                    <text id="baseline-score-text" x="2000" y="780" text-anchor="middle" font-size="90"
+                        font-weight="bold" fill="#38a169">95%</text>
+                </g>
+
+                <!-- Scramble effect placeholder -->
+                <g id="scrambled-feature" style="display:none;" filter="url(#scramble-filter)"></g>
+
+                <!-- Performance Drop text -->
+                <g id="perf-drop" opacity="0">
+                    <line x1="2000" y1="800" x2="2000" y2="880" stroke="#e53e3e" stroke-width="4" />
+                    <path d="M1980 880 L 2000 900 L 2020 880" fill="none" stroke="#e53e3e" stroke-width="4" />
+                    <text id="perf-drop-text" x="2050" y="860" font-size="40" fill="#e53e3e" font-weight="bold"></text>
+                </g>
+            </g>
+
+            <!-- === SCENE 5: The Results Chart === -->
+            <g id="scene5" opacity="0">
+                <text x="1280" y="150" text-anchor="middle" font-size="60" font-weight="bold">Feature Importance
+                    Ranking</text>
+                <text x="1280" y="220" text-anchor="middle" font-size="40" fill="#5c6a79">特征重要性排序</text>
+
+                <!-- Chart Area -->
+                <g id="chart">
+                    <!-- Y-axis -->
+                    <line x1="500" y1="300" x2="500" y2="1200" stroke="#cbd5e0" stroke-width="3" />
+                    <!-- X-axis -->
+                    <line x1="500" y1="1200" x2="2200" y2="1200" stroke="#cbd5e0" stroke-width="3" />
+                    <text x="480" y="1200" text-anchor="end" font-size="24" fill="#a0aec0">0</text>
+                    <text x="1350" y="1250" text-anchor="middle" font-size="28" fill="#5c6a79">Importance (Performance
+                        Drop)</text>
+
+                    <!-- Bars (will be animated) -->
+                    <g id="chart-bars">
+                        <!-- Location -->
+                        <text x="480" y="455" text-anchor="end" font-size="32">地理位置</text>
+                        <rect id="bar-location" x="500" y="420" height="70" width="0" fill="#ff9800" rx="5" />
+                        <!-- Area -->
+                        <text x="480" y="655" text-anchor="end" font-size="32">房屋面积</text>
+                        <rect id="bar-area" x="500" y="620" height="70" width="0" fill="#00bcd4" rx="5" />
+                        <!-- Rooms -->
+                        <text x="480" y="855" text-anchor="end" font-size="32">房间数量</text>
+                        <rect id="bar-rooms" x="500" y="820" height="70" width="0" fill="#38a169" rx="5" />
+                        <!-- Garden -->
+                        <text x="480" y="1055" text-anchor="end" font-size="32">有无花园</text>
+                        <rect id="bar-garden" x="500" y="1020" height="70" width="0" fill="#ed8936" rx="5" />
+                    </g>
+                </g>
+
+                <!-- Transparent Box -->
+                <rect id="transparent-box" x="1030" y="420" width="500" height="600" rx="20" fill="#2d3748"
+                    fill-opacity="0.1" stroke="#2d3748" stroke-dasharray="15 10" stroke-width="3" opacity="0" />
+                <text id="box-opened-text" x="1280" y="750" font-size="50" fill="#2d3748" text-anchor="middle"
+                    font-weight="bold" opacity="0">"黑箱"已打开</text>
+            </g>
+
+            <!-- === SCENE 6: Conclusion === -->
+            <g id="scene6" opacity="0">
+                <text x="1280" y="400" text-anchor="middle" font-size="60" font-weight="bold">Why It Matters?
+                    应用价值</text>
+
+                <g transform="translate(600, 650)">
+                    <circle cx="0" cy="0" r="120" fill="#e2e8f0" />
+                    <!-- Icon: Brain/Interpretation -->
+                    <path
+                        d="M-50 -30 C -80 -30, -80 30, -50 30 L -50 50 C -50 70, -30 70, -30 50 L -30 40 C -30 20, 0 20, 0 40 L 0 50 C 0 70, 20 70, 20 50 L 20 30 C 50 30, 50 -30, 20 -30 L 20 -50 C 20 -70, 0 -70, 0 -50 L 0 -40 C 0 -20, -30 -20, -30 -40 L -30 -50 C -30 -70, -50 -70, -50 -50 Z"
+                        fill="none" stroke="#00bcd4" stroke-width="6" />
+                    <text x="0" y="180" text-anchor="middle" font-size="32">模型解释</text>
+                </g>
+
+                <g transform="translate(1280, 650)">
+                    <circle cx="0" cy="0" r="120" fill="#e2e8f0" />
+                    <!-- Icon: Filter/Selection -->
+                    <path d="M-60 -40 L 60 -40 L 20 20 L 20 60 L -20 60 L -20 20 Z" fill="none" stroke="#ff9800"
+                        stroke-width="6" />
+                    <text x="0" y="180" text-anchor="middle" font-size="32">特征选择</text>
+                </g>
+
+                <g transform="translate(1960, 650)">
+                    <circle cx="0" cy="0" r="120" fill="#e2e8f0" />
+                    <!-- Icon: Bug/Debug -->
+                    <circle cx="0" cy="-10" r="30" fill="none" stroke="#e53e3e" stroke-width="6" />
+                    <path d="M0 20 L 0 50 M-25 0 L -50 -40 M 25 0 L 50 -40 M -20 30 L -40 60 M 20 30 L 40 60"
+                        stroke="#e53e3e" stroke-width="6" stroke-linecap="round" />
+                    <text x="0" y="180" text-anchor="middle" font-size="32">模型调试</text>
+                </g>
+            </g>
+
+
+            <!-- Subtitles -->
+            <g id="subtitles" font-size="36" text-anchor="middle">
+                <text id="subtitle-en" x="1280" y="1320" fill="#333d47"></text>
+                <text id="subtitle-zh" x="1280" y="1380" fill="#5c6a79"></text>
+            </g>
+
+        </svg>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <script>
+        const subs = {
+            en: document.getElementById('subtitle-en'),
+            zh: document.getElementById('subtitle-zh'),
+        };
+
+        function setSubs(en, zh, duration = 1) {
+            gsap.to(subs.en, { duration: duration / 2, opacity: 0, onComplete: () => subs.en.textContent = en });
+            gsap.to(subs.zh, { duration: duration / 2, opacity: 0, onComplete: () => subs.zh.textContent = zh });
+            gsap.to([subs.en, subs.zh], { duration: duration / 2, opacity: 1, delay: duration / 2 });
+        }
+
+        const tl = gsap.timeline({ defaults: { ease: "power2.inOut" } });
+
+        // Helper for shaking effect
+        function shake(elementId) {
+            const el = document.getElementById(elementId);
+            const clone = el.cloneNode(true);
+            clone.id = "";
+            const scrambledGroup = document.getElementById('scrambled-feature');
+            scrambledGroup.innerHTML = '';
+            scrambledGroup.appendChild(clone);
+            scrambledGroup.style.display = 'block';
+
+            gsap.fromTo(scrambledGroup, { opacity: 1 }, {
+                opacity: 0,
+                duration: 1,
+                delay: 1.5,
+                onComplete: () => scrambledGroup.style.display = 'none'
+            });
+        }
+
+        // === Animation Sequence ===
+
+        // Scene 1: The Black Box Problem
+        tl.to("#scene1", { opacity: 1, duration: 1 })
+            .add(() => setSubs(
+                "We have a powerful machine learning model.",
+                "我们有一个强大的机器学习模型。"
+            ))
+            .from(".s1-input", { x: -200, opacity: 0, stagger: 0.3, duration: 1 }, "+=1")
+            .from("#s1-output", { x: 200, opacity: 0, duration: 1 }, "-=0.5")
+            .add(() => setSubs(
+                "But how does it make its decisions? It's a 'black box'.",
+                "但它是如何做出决定的呢？它就像一个“黑箱”。"
+            ), "+=1")
+            .from("#q-mark", { scale: 0, y: "+=50", opacity: 0, duration: 0.5, ease: "back.out" }, "+=0.5")
+            .to("#scene1", { opacity: 0, duration: 1 }, "+=2");
+
+        // Scene 2: Introducing the Concept
+        tl.to("#scene2", { opacity: 1, duration: 1 })
+            .add(() => setSubs(
+                "To understand and trust the model, we need to know which features are most important.",
+                "为了理解和信任模型，我们需要知道哪些特征最重要。"
+            ))
+            .from("#underline", { scaleX: 0, transformOrigin: "center", duration: 1 }, "-=0.5")
+            .add(() => setSubs(
+                "This is called Feature Importance.",
+                "这就是“特征重要性”。"
+            ), "+=2")
+            .to("#scene2", { opacity: 0, duration: 1 }, "+=2");
+
+        // Scene 3: The Analogy - House Price Prediction
+        tl.to("#scene3", { opacity: 1, duration: 1 })
+            .add(() => setSubs(
+                "Let's take an example: predicting house prices.",
+                "我们来看一个例子：预测房价。"
+            ))
+            .from("#s3-features > g", { x: -200, opacity: 0, stagger: 0.3, duration: 1 }, "+=1")
+            .from(["#arrow-location", "#arrow-area", "#arrow-rooms", "#arrow-garden"], { opacity: 0, stagger: 0.2 }, "-=0.5")
+            .add(() => setSubs(
+                "First, we get a baseline score using the original data.",
+                "首先，我们用原始数据得到一个模型表现的基准分数。"
+            ), "+=1")
+            .to("#baseline-score", { opacity: 1, duration: 1 })
+            .from("#baseline-score-text", { textContent: "0%", snap: { textContent: 1 }, duration: 1.5, ease: "none" }, "-=1");
+
+        // Scene 4: The Process - Permutation Importance
+        tl.addLabel("permutation_start", "+=2")
+            .add(() => setSubs(
+                "Now, let's randomly shuffle the values of one feature, like 'Location'.",
+                "现在，我们随机打乱其中一个特征的值，比如“地理位置”。"
+            ), "permutation_start")
+            .to("#feat-location", { opacity: 0.3, duration: 0.5 }, "permutation_start+=1")
+            .add(() => shake('feat-location'), "permutation_start+=1.5")
+            .to("#baseline-score-text", { textContent: "55%", duration: 1.5, ease: "power1.in", snap: { textContent: 1 } }, "permutation_start+=1.5")
+            .to("#feat-location", { opacity: 1, duration: 0.5 }, "permutation_start+=3")
+            .to("#perf-drop", { opacity: 1, duration: 0.5 }, "permutation_start+=3")
+            .add(() => document.getElementById('perf-drop-text').textContent = "Drop: 40%", "permutation_start+=3")
+            .add(() => setSubs(
+                "If the model's performance drops a lot, the feature is very important.",
+                "如果模型表现大幅下降，说明这个特征非常重要。"
+            ), "permutation_start+=3")
+            .to("#perf-drop", { opacity: 0, duration: 0.5 }, "permutation_start+=5")
+            .to("#baseline-score-text", { textContent: "95%", duration: 1, ease: "power1.out", snap: { textContent: 1 } }, "permutation_start+=5");
+
+        tl.addLabel("permutation_next", "+=1")
+            .add(() => setSubs(
+                "What if we shuffle a less important feature, like 'Has Garden'?",
+                "如果我们打乱一个次要特征，比如“有无花园”呢？"
+            ), "permutation_next")
+            .to("#feat-garden", { opacity: 0.3, duration: 0.5 }, "permutation_next+=1")
+            .add(() => shake('feat-garden'), "permutation_next+=1.5")
+            .to("#baseline-score-text", { textContent: "92%", duration: 1.5, ease: "power1.in", snap: { textContent: 1 } }, "permutation_next+=1.5")
+            .to("#feat-garden", { opacity: 1, duration: 0.5 }, "permutation_next+=3")
+            .to("#perf-drop", { opacity: 1, duration: 0.5 }, "permutation_next+=3")
+            .add(() => document.getElementById('perf-drop-text').textContent = "Drop: 3%", "permutation_next+=3")
+            .add(() => setSubs(
+                "The performance changes very little. This feature is less important.",
+                "模型表现变化很小，说明这个特征不那么重要。"
+            ), "permutation_next+=3")
+            .to("#perf-drop", { opacity: 0, duration: 0.5 }, "permutation_next+=5")
+            .to("#baseline-score-text", { textContent: "95%", duration: 1, ease: "power1.out", snap: { textContent: 1 } }, "permutation_next+=5")
+            .to("#scene3", { opacity: 0, duration: 1 }, "+=2");
+
+        // Scene 5: The Resulting Chart
+        tl.add(() => setSubs(
+            "By repeating this for all features, we can rank their importance.",
+            "对所有特征重复这个过程，我们就能得到它们的重要性排名。"
+        ))
+            .to("#scene5", { opacity: 1, duration: 1 })
+            .to("#bar-location", { width: 1600, duration: 1.5, ease: "power3.out" }, "+=1") // 40% drop -> 1600 width
+            .to("#bar-area", { width: 1200, duration: 1.5, ease: "power3.out" }, "-=1")     // 30%
+            .to("#bar-rooms", { width: 600, duration: 1.5, ease: "power3.out" }, "-=1")      // 15%
+            .to("#bar-garden", { width: 120, duration: 1.5, ease: "power3.out" }, "-=1")      // 3%
+            .add(() => setSubs(
+                "Now we have a clear chart that reveals the model's logic. The 'black box' is opened!",
+                "现在我们有了一张清晰的图表，揭示了模型的决策逻辑。“黑箱”被打开了！"
+            ), "+=1")
+            .to("#transparent-box", { opacity: 1, duration: 1 })
+            .to("#box-opened-text", { opacity: 1, duration: 1 }, "-=0.5")
+            .to("#scene5", { opacity: 0, duration: 1 }, "+=3");
+
+        // Scene 6: Conclusion
+        tl.to("#scene6", { opacity: 1, duration: 1 })
+            .add(() => setSubs(
+                "Feature importance helps us with model interpretation, feature selection, and debugging.",
+                "特征重要性可以帮助我们进行模型解释、特征选择和模型调试。"
+            ))
+            .from("#scene6 > g", { y: 100, opacity: 0, stagger: 0.4, duration: 1, ease: "back.out(1.7)" }, "+=1")
+            .add(() => setSubs(
+                "It makes AI more transparent, trustworthy, and reliable.",
+                "它让AI更加透明、值得信赖和可靠。"
+            ), "+=2")
+            .to("#scene6", { opacity: 0, duration: 1 }, "+=4")
+            .add(() => { // Loop animation
+                setSubs("Replay in 5 seconds...", "5秒后重播...");
+                setTimeout(() => window.location.reload(), 5000);
+            });
+
+    </script>
+</body>
+
+</html>

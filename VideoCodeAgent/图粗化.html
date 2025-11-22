@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Coarsening Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&family=Montserrat:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #f0f4f8;
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --accent-color: #f39c12;
+            --text-color: #34495e;
+            --light-text-color: #ffffff;
+            --edge-color: #bdc3c7;
+            --super-edge-color: #7f8c8d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Montserrat', 'Noto Sans SC', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            position: relative;
+            width: 2560px;
+            height: 1440px;
+            transform-origin: center center;
+            background-color: var(--bg-color);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        #background-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            background-color: rgba(52, 152, 219, 0.1);
+            border-radius: 50%;
+            animation: float 25s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(0) scale(1);
+                opacity: 0;
+            }
+
+            25% {
+                opacity: 1;
+            }
+
+            50% {
+                transform: translateY(-50px) translateX(20px) scale(1.2);
+            }
+
+            75% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(50px) translateX(-20px) scale(1);
+                opacity: 0;
+            }
+        }
+
+        #main-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
+        .node {
+            transition: all 1s ease-in-out;
+            stroke-width: 6px;
+            stroke: #ffffff;
+        }
+
+        .edge {
+            stroke: var(--edge-color);
+            stroke-width: 4px;
+            transition: all 1s ease-in-out;
+        }
+
+        .super-node {
+            transition: all 1s ease-in-out;
+            stroke-width: 8px;
+            stroke: #ffffff;
+            filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.2));
+        }
+
+        .super-edge {
+            stroke: var(--super-edge-color);
+            stroke-width: 8px;
+            transition: all 1s ease-in-out;
+            filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.1));
+        }
+
+        .matching-group {
+            stroke: var(--accent-color);
+            stroke-width: 5px;
+            stroke-dasharray: 20 10;
+            fill: rgba(243, 156, 18, 0.1);
+            transition: all 0.5s ease-in-out;
+            opacity: 0;
+        }
+
+        .highlight {
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.15);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            text-align: center;
+            z-index: 20;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitle-cn {
+            font-size: 36px;
+            font-weight: 500;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        #subtitle-en {
+            font-size: 24px;
+            font-weight: 300;
+            color: #555;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .title-text {
+            font-size: 80px;
+            font-weight: 500;
+            fill: var(--text-color);
+            text-anchor: middle;
+            transition: opacity 1s ease-in-out;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <div id="background-particles"></div>
+        <svg id="main-svg" viewBox="0 0 2560 1440"></svg>
+        <div id="subtitle-container" class="hidden">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        // --- UTILITY FUNCTIONS ---
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const svgNS = "http://www.w3.org/2000/svg";
+
+        // --- DOM ELEMENTS ---
+        const container = document.getElementById('animation-container');
+        const svg = document.getElementById('main-svg');
+        const subtitleContainer = document.getElementById('subtitle-container');
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+
+        // --- ADAPTIVE SCALING ---
+        function scaleAnimation() {
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            const scale = Math.min(windowWidth / containerWidth, windowHeight / containerHeight);
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', scaleAnimation);
+        scaleAnimation();
+
+        // --- BACKGROUND PARTICLES ---
+        function createParticles() {
+            const particleContainer = document.getElementById('background-particles');
+            const particleCount = 20;
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                const size = Math.random() * 100 + 50;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.top = `${Math.random() * 100}%`;
+                particle.style.left = `${Math.random() * 100}%`;
+                const delay = Math.random() * 25;
+                particle.style.animationDelay = `-${delay}s`;
+                particleContainer.appendChild(particle);
+            }
+        }
+
+        // --- ANIMATION DATA ---
+        const graphData = {
+            nodes: [
+                { id: 0, x: 600, y: 400, color: 'var(--primary-color)' },
+                { id: 1, x: 750, y: 300, color: 'var(--primary-color)' },
+                { id: 2, x: 950, y: 350, color: 'var(--primary-color)' },
+                { id: 3, x: 1050, y: 200, color: 'var(--primary-color)' },
+                { id: 4, x: 800, y: 550, color: 'var(--secondary-color)' },
+                { id: 5, x: 1000, y: 600, color: 'var(--secondary-color)' },
+                { id: 6, x: 1150, y: 500, color: 'var(--secondary-color)' },
+                { id: 7, x: 1350, y: 550, color: 'var(--primary-color)' },
+                { id: 8, x: 1450, y: 400, color: 'var(--primary-color)' },
+                { id: 9, x: 1250, y: 250, color: 'var(--primary-color)' },
+                { id: 10, x: 1550, y: 200, color: 'var(--secondary-color)' },
+                { id: 11, x: 1700, y: 300, color: 'var(--secondary-color)' },
+                { id: 12, x: 1650, y: 500, color: 'var(--secondary-color)' },
+                { id: 13, x: 1850, y: 450, color: 'var(--primary-color)' },
+                { id: 14, x: 1800, y: 650, color: 'var(--primary-color)' },
+                { id: 15, x: 1600, y: 750, color: 'var(--primary-color)' },
+                { id: 16, x: 1400, y: 800, color: 'var(--secondary-color)' },
+                { id: 17, x: 1150, y: 750, color: 'var(--secondary-color)' },
+                { id: 18, x: 900, y: 850, color: 'var(--primary-color)' },
+                { id: 19, x: 700, y: 700, color: 'var(--primary-color)' },
+            ],
+            edges: [
+                [0, 1], [0, 4], [0, 19], [1, 2], [1, 4], [2, 3], [2, 9], [3, 9], [4, 5], [4, 19], [5, 6], [5, 17],
+                [6, 7], [7, 8], [7, 12], [8, 9], [8, 12], [9, 10], [10, 11], [11, 12], [11, 13], [12, 13], [13, 14],
+                [14, 15], [15, 16], [16, 17], [17, 18], [18, 19]
+            ],
+            matching: [
+                [0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13], [14, 15], [16, 17], [18, 19]
+            ],
+            superNodes: [
+                { id: 0, x: 675, y: 350, originalIds: [0, 1] },
+                { id: 1, x: 1000, y: 275, originalIds: [2, 3] },
+                { id: 2, x: 900, y: 575, originalIds: [4, 5] },
+                { id: 3, x: 1250, y: 525, originalIds: [6, 7] },
+                { id: 4, x: 1350, y: 325, originalIds: [8, 9] },
+                { id: 5, x: 1625, y: 250, originalIds: [10, 11] },
+                { id: 6, x: 1750, y: 475, originalIds: [12, 13] },
+                { id: 7, x: 1725, y: 700, originalIds: [14, 15] },
+                { id: 8, x: 1275, y: 775, originalIds: [16, 17] },
+                { id: 9, x: 800, y: 775, originalIds: [18, 19] },
+            ],
+            superEdges: [
+                [0, 1], [0, 2], [0, 9], [1, 4], [2, 8], [2, 9], [3, 4], [3, 6], [3, 8], [4, 5], [5, 6], [6, 7], [7, 8]
+            ]
+        };
+
+        // --- SVG ELEMENT CREATION ---
+        function createSVGElement(tag, attributes) {
+            const el = document.createElementNS(svgNS, tag);
+            for (const key in attributes) {
+                el.setAttribute(key, attributes[key]);
+            }
+            return el;
+        }
+
+        // --- ANIMATION LOGIC ---
+        const elements = {
+            nodes: [],
+            edges: [],
+            matchingGroups: [],
+            superNodes: [],
+            superEdges: [],
+            title: null,
+            originalGraphGroup: null,
+            coarsenedGraphGroup: null
+        };
+
+        async function updateSubtitles(cn, en, duration = 4000) {
+            subtitleContainer.classList.remove('hidden');
+            subtitleCn.textContent = cn;
+            subtitleEn.textContent = en;
+            await sleep(duration);
+        }
+
+        async function hideSubtitles() {
+            subtitleContainer.classList.add('hidden');
+            await sleep(500);
+        }
+
+        function drawInitialGraph() {
+            const edgesGroup = createSVGElement('g', { id: 'edges-group' });
+            const nodesGroup = createSVGElement('g', { id: 'nodes-group' });
+            svg.appendChild(edgesGroup);
+            svg.appendChild(nodesGroup);
+
+            graphData.edges.forEach(edge => {
+                const [u, v] = edge;
+                const n1 = graphData.nodes[u];
+                const n2 = graphData.nodes[v];
+                const el = createSVGElement('line', {
+                    x1: n1.x, y1: n1.y, x2: n2.x, y2: n2.y,
+                    class: 'edge',
+                    opacity: 0
+                });
+                elements.edges.push(el);
+                edgesGroup.appendChild(el);
+            });
+
+            graphData.nodes.forEach(node => {
+                const el = createSVGElement('circle', {
+                    cx: node.x, cy: node.y, r: 25,
+                    fill: node.color,
+                    class: 'node',
+                    'data-id': node.id,
+                    opacity: 0,
+                    transform: `translate(${node.x} ${node.y}) scale(0) translate(${-node.x} ${-node.y})` // Animate from center
+                });
+                elements.nodes.push(el);
+                nodesGroup.appendChild(el);
+            });
+        }
+
+        async function playAnimation() {
+            // SCENE 1: Introduction
+            elements.title = createSVGElement('text', {
+                x: 2560 / 2, y: 1440 / 2,
+                class: 'title-text',
+                opacity: 0,
+            });
+            elements.title.textContent = 'Graph Coarsening (图粗化)';
+            svg.appendChild(elements.title);
+            await sleep(500);
+            elements.title.style.opacity = 1;
+            await sleep(3000);
+            elements.title.style.opacity = 0;
+            await sleep(1000);
+
+            // SCENE 2: Show the large graph
+            drawInitialGraph();
+            await updateSubtitles(
+                "当图谱数据规模巨大时，直接处理会非常耗时。",
+                "When a graph is too large, processing it directly can be very time-consuming."
+            );
+
+            elements.nodes.forEach((node, i) => {
+                setTimeout(() => {
+                    node.style.opacity = 1;
+                    const { x, y } = graphData.nodes[i];
+                    node.style.transform = `translate(${x} ${y}) scale(1) translate(${-x} ${-y})`;
+                }, i * 50);
+            });
+            await sleep(1500);
+
+            elements.edges.forEach((edge, i) => {
+                setTimeout(() => {
+                    edge.style.opacity = 1;
+                }, i * 30);
+            });
+            await sleep(2000);
+
+            // SCENE 3: Introduce Coarsening
+            await updateSubtitles(
+                "图粗化，就是一种将大图简化为小图的技术。",
+                "Graph coarsening is a technique to simplify a large graph into a smaller one."
+            );
+            await sleep(1000);
+
+            // SCENE 4: The Matching Step
+            await updateSubtitles(
+                "第一步：节点匹配。我们将紧密相连的节点配对。",
+                "Step 1: Vertex Matching. We group nodes that are closely connected."
+            );
+
+            graphData.matching.forEach(pair => {
+                const [u, v] = pair;
+                const n1 = graphData.nodes[u];
+                const n2 = graphData.nodes[v];
+                const cx = (n1.x + n2.x) / 2;
+                const cy = (n1.y + n2.y) / 2;
+                const rx = Math.abs(n1.x - n2.x) / 2 + 50;
+                const ry = Math.abs(n1.y - n2.y) / 2 + 50;
+                const angle = Math.atan2(n2.y - n1.y, n2.x - n1.x) * 180 / Math.PI;
+
+                const ellipse = createSVGElement('ellipse', {
+                    cx: cx, cy: cy, rx: rx, ry: ry,
+                    class: 'matching-group',
+                    transform: `rotate(${angle}, ${cx}, ${cy})`
+                });
+                svg.insertBefore(ellipse, svg.firstChild);
+                elements.matchingGroups.push(ellipse);
+
+                elements.nodes[u].classList.add('highlight');
+                elements.nodes[v].classList.add('highlight');
+            });
+
+            await sleep(500);
+            elements.matchingGroups.forEach(g => g.style.opacity = 1);
+            await sleep(4000);
+
+            elements.nodes.forEach(n => n.classList.remove('highlight'));
+            await sleep(500);
+
+            // SCENE 5: The Contraction Step
+            await updateSubtitles(
+                "第二步：节点收缩。每一对节点合并成一个新的“超节点”。",
+                "Step 2: Contraction. Each pair of nodes is merged into a new 'super-node'."
+            );
+
+            const superNodesGroup = createSVGElement('g');
+            svg.appendChild(superNodesGroup);
+
+            // Fade out matching groups
+            elements.matchingGroups.forEach(g => g.style.opacity = 0);
+
+            // Move original nodes to their new super-node positions and fade out
+            graphData.superNodes.forEach(superNode => {
+                superNode.originalIds.forEach(originalId => {
+                    const nodeEl = elements.nodes[originalId];
+                    nodeEl.setAttribute('cx', superNode.x);
+                    nodeEl.setAttribute('cy', superNode.y);
+                    nodeEl.style.opacity = 0;
+                    nodeEl.style.transform = `translate(${superNode.x} ${superNode.y}) scale(0) translate(${-superNode.x} ${-superNode.y})`;
+                });
+            });
+
+            // Fade in super-nodes
+            graphData.superNodes.forEach(sNode => {
+                const el = createSVGElement('circle', {
+                    cx: sNode.x, cy: sNode.y, r: 40,
+                    fill: 'var(--accent-color)',
+                    class: 'super-node',
+                    opacity: 0,
+                    transform: `translate(${sNode.x} ${sNode.y}) scale(0) translate(${-sNode.x} ${-sNode.y})`
+                });
+                elements.superNodes.push(el);
+                superNodesGroup.appendChild(el);
+            });
+
+            await sleep(1000);
+            elements.superNodes.forEach(sn => {
+                const x = sn.getAttribute('cx');
+                const y = sn.getAttribute('cy');
+                sn.style.opacity = 1;
+                sn.style.transform = `translate(${x} ${y}) scale(1) translate(${-x} ${-y})`;
+            });
+
+            await sleep(2000);
+
+            // SCENE 6: Edge Aggregation
+            await updateSubtitles(
+                "第三步：边聚合。重新连接超节点，保留原图的结构。",
+                "Step 3: Edge Aggregation. Reconnect the super-nodes, preserving the original structure."
+            );
+
+            // Fade out original edges
+            elements.edges.forEach(edge => edge.style.opacity = 0);
+            await sleep(1000);
+
+            const superEdgesGroup = createSVGElement('g');
+            svg.insertBefore(superEdgesGroup, superNodesGroup);
+
+            graphData.superEdges.forEach(sEdge => {
+                const [u, v] = sEdge;
+                const n1 = graphData.superNodes[u];
+                const n2 = graphData.superNodes[v];
+                const el = createSVGElement('line', {
+                    x1: n1.x, y1: n1.y, x2: n2.x, y2: n2.y,
+                    class: 'super-edge',
+                    opacity: 0
+                });
+                elements.superEdges.push(el);
+                superEdgesGroup.appendChild(el);
+            });
+
+            elements.superEdges.forEach((edge, i) => {
+                setTimeout(() => {
+                    edge.style.opacity = 1;
+                }, i * 100);
+            });
+            await sleep(3000);
+
+            // SCENE 7: Final Result
+            await updateSubtitles(
+                "现在，我们得到了一个更小、更简单的粗化图。",
+                "Now, we have a smaller and simpler coarsened graph."
+            );
+            await sleep(4000);
+
+            await updateSubtitles(
+                "在这个小图上进行计算，可以大大提高算法效率。",
+                "Performing computations on this smaller graph can significantly improve algorithm efficiency."
+            );
+            await sleep(1000);
+
+            // Side-by-side comparison
+            const originalGraphGroup = svg.querySelector('#nodes-group').parentElement;
+            elements.coarsenedGraphGroup = svg.querySelector('.super-node').parentElement.parentElement;
+
+            // Move original graph to the left
+            originalGraphGroup.style.transition = 'transform 1s ease-in-out';
+            originalGraphGroup.style.transform = 'translateX(-700px) scale(0.6)';
+
+            // Make original graph visible again
+            elements.nodes.forEach(n => {
+                const { x, y } = graphData.nodes[n.dataset.id];
+                n.setAttribute('cx', x);
+                n.setAttribute('cy', y);
+                n.style.opacity = 0.5;
+                n.style.transform = `translate(${x} ${y}) scale(1) translate(${-x} ${-y})`;
+            });
+            elements.edges.forEach(e => e.style.opacity = 0.5);
+
+            // Move coarsened graph to the right
+            elements.coarsenedGraphGroup.style.transition = 'transform 1s ease-in-out';
+            elements.coarsenedGraphGroup.style.transform = 'translateX(700px) scale(0.8)';
+
+            await sleep(5000);
+
+            // Fade out everything to end
+            svg.style.transition = 'opacity 1.5s ease-in-out';
+            svg.style.opacity = 0;
+            subtitleContainer.style.opacity = 0;
+            await sleep(2000);
+
+            // Restart animation
+            svg.innerHTML = '';
+            elements.nodes = [];
+            elements.edges = [];
+            elements.matchingGroups = [];
+            elements.superNodes = [];
+            elements.superEdges = [];
+            svg.style.opacity = 1;
+            playAnimation();
+        }
+
+        // --- START ---
+        document.addEventListener('DOMContentLoaded', () => {
+            createParticles();
+            playAnimation();
+        });
+    </script>
+</body>
+
+</html>

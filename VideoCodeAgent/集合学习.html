@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ensemble Learning Animation</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-color: #4A90E2;
+            /* Blue */
+            --secondary-color: #F5A623;
+            /* Orange */
+            --text-color: #333333;
+            --light-gray: #e9ecef;
+            --accent-color: #50E3C2;
+            /* Teal for success */
+            --error-color: #D0021B;
+            /* Red for error */
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 100%;
+            max-width: 2560px;
+            aspect-ratio: 16 / 9;
+            position: relative;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        #main-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Subtitles */
+        #subtitle-container {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 15px 30px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        }
+
+        #subtitle-container.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn {
+            font-size: 1.8vw;
+            /* Responsive font size */
+            color: var(--text-color);
+            margin: 0 0 5px 0;
+            font-weight: 500;
+        }
+
+        #subtitle-en {
+            font-size: 1.2vw;
+            color: #666;
+            margin: 0;
+        }
+
+        /* Animation Base Styles */
+        .data-point,
+        .model-icon,
+        .decision-line,
+        .final-boundary,
+        .model-group-title,
+        .voting-line,
+        .vote-text,
+        .main-title {
+            opacity: 0;
+            transition: all 0.5s ease-in-out;
+        }
+
+        .draw-stroke {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: draw 2s ease-out forwards;
+        }
+
+        @keyframes draw {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes popIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+
+            70% {
+                opacity: 1;
+                transform: scale(1.1);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="main-svg" viewBox="0 0 2560 1440">
+            <!-- Background Elements -->
+            <defs>
+                <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+                    <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#e9ecef" stroke-width="1" />
+                </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" opacity="0.5" />
+            <circle cx="200" cy="200" r="300" fill="#4A90E2" fill-opacity="0.05" />
+            <circle cx="2360" cy="1240" r="400" fill="#F5A623" fill-opacity="0.05" />
+
+            <!-- Main Content Area -->
+            <g id="plot-area" transform="translate(600, 150)">
+                <rect x="0" y="0" width="1360" height="900" fill="white" stroke="var(--light-gray)" stroke-width="2"
+                    rx="10" />
+
+                <!-- Data Points: To be populated by JS -->
+                <g id="data-points"></g>
+
+                <!-- Weak Learner 1 -->
+                <line id="weak-line-1" class="decision-line" x1="0" y1="450" x2="1360" y2="450"
+                    stroke="var(--error-color)" stroke-width="8" stroke-dasharray="20 15" />
+
+                <!-- Weak Learner 2 -->
+                <line id="weak-line-2" class="decision-line" x1="500" y1="0" x2="500" y2="900"
+                    stroke="var(--error-color)" stroke-width="8" stroke-dasharray="20 15" />
+
+                <!-- Weak Learner 3 -->
+                <line id="weak-line-3" class="decision-line" x1="1000" y1="0" x2="1000" y2="900"
+                    stroke="var(--error-color)" stroke-width="8" stroke-dasharray="20 15" />
+
+                <!-- Final Ensemble Boundary -->
+                <path id="final-boundary" class="final-boundary" d="M 0 450 L 500 450 L 500 0" fill="none"
+                    stroke="var(--accent-color)" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" />
+                <path id="final-boundary-2" class="final-boundary" d="M 500 900 L 500 450 L 1000 450 L 1000 0"
+                    fill="none" stroke="var(--accent-color)" stroke-width="10" stroke-linejoin="round"
+                    stroke-linecap="round" />
+                <path id="final-boundary-3" class="final-boundary" d="M 1000 900 L 1000 450 L 1360 450" fill="none"
+                    stroke="var(--accent-color)" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" />
+
+                <!-- Voting Visualization -->
+                <g id="voting-viz">
+                    <line id="vote-line-1" class="voting-line" x1="250" y1="1100" x2="1150" y2="350" stroke-width="4"
+                        stroke="var(--text-color)" stroke-dasharray="10 5" />
+                    <text id="vote-text-1" class="vote-text" x="700" y="700" font-size="30"
+                        fill="var(--secondary-color)" text-anchor="middle">Orange</text>
+
+                    <line id="vote-line-2" class="voting-line" x1="1280" y1="1250" x2="1150" y2="350" stroke-width="4"
+                        stroke="var(--text-color)" stroke-dasharray="10 5" />
+                    <text id="vote-text-2" class="vote-text" x="1215" y="800" font-size="30" fill="var(--primary-color)"
+                        text-anchor="middle">Blue</text>
+
+                    <line id="vote-line-3" class="voting-line" x1="2310" y1="1100" x2="1150" y2="350" stroke-width="4"
+                        stroke="var(--text-color)" stroke-dasharray="10 5" />
+                    <text id="vote-text-3" class="vote-text" x="1730" y="725" font-size="30" fill="var(--primary-color)"
+                        text-anchor="middle">Blue</text>
+
+                    <g id="final-vote-result" opacity="0">
+                        <circle cx="1150" cy="350" r="50" fill="rgba(74, 144, 226, 0.2)" />
+                        <circle cx="1150" cy="350" r="30" fill="var(--primary-color)" />
+                        <text x="1150" y="270" font-size="35" fill="var(--text-color)" text-anchor="middle"
+                            font-weight="bold">Final: Blue (2/3)</text>
+                    </g>
+                </g>
+            </g>
+
+            <!-- Model Icons -->
+            <g id="model-area" transform="translate(0, 1100)">
+                <text id="model-group-title" class="model-group-title" x="1280" y="0" font-size="50"
+                    text-anchor="middle" fill="var(--text-color)">A Team of Simple Models (我们的简单模型团队)</text>
+
+                <!-- Single Weak Model -->
+                <g id="single-model" class="model-icon" transform="translate(1180, 80)">
+                    <rect x="0" y="0" width="200" height="200" rx="20" fill="var(--light-gray)" />
+                    <path d="M 50 100 L 150 100" stroke="var(--error-color)" stroke-width="10" />
+                    <path d="M 100 50 L 100 150" stroke="var(--error-color)" stroke-width="10" />
+                    <circle cx="70" cy="70" r="10" fill="var(--error-color)" />
+                    <circle cx="130" cy="130" r="10" fill="var(--error-color)" />
+                </g>
+
+                <!-- Ensemble Models -->
+                <g id="ensemble-models">
+                    <g id="model-1" class="model-icon" transform="translate(150, 80)">
+                        <rect x="0" y="0" width="200" height="200" rx="20" fill="var(--light-gray)" />
+                        <path d="M 20 100 L 180 100" stroke="var(--text-color)" stroke-width="8" />
+                        <text x="100" y="160" font-size="30" text-anchor="middle">Model 1</text>
+                    </g>
+                    <g id="model-2" class="model-icon" transform="translate(1180, 80)">
+                        <rect x="0" y="0" width="200" height="200" rx="20" fill="var(--light-gray)" />
+                        <path d="M 100 20 L 100 180" stroke="var(--text-color)" stroke-width="8" />
+                        <text x="100" y="160" font-size="30" text-anchor="middle">Model 2</text>
+                    </g>
+                    <g id="model-3" class="model-icon" transform="translate(2210, 80)">
+                        <rect x="0" y="0" width="200" height="200" rx="20" fill="var(--light-gray)" />
+                        <path d="M 100 20 L 100 180" stroke="var(--text-color)" stroke-width="8" />
+                        <text x="100" y="160" font-size="30" text-anchor="middle">Model 3</text>
+                    </g>
+                </g>
+
+                <!-- Final Strong Model -->
+                <g id="strong-model" class="model-icon" transform="translate(1130, -1000)">
+                    <rect x="0" y="0" width="300" height="300" rx="30" fill="var(--accent-color)" />
+                    <path d="M 50 150 L 125 150 L 125 75" stroke="white" stroke-width="15" fill="none" />
+                    <path d="M 125 225 L 125 150 L 175 150 L 175 75" stroke="white" stroke-width="15" fill="none" />
+                    <path d="M 175 225 L 175 150 L 250 150" stroke="white" stroke-width="15" fill="none" />
+                    <text x="150" y="270" font-size="35" text-anchor="middle" fill="white" font-weight="bold">Strong
+                        Model</text>
+                </g>
+            </g>
+
+            <!-- Final Title -->
+            <g id="final-title-group" class="main-title" style="opacity: 0; pointer-events: none;">
+                <text x="1280" y="650" font-size="120" font-weight="bold" text-anchor="middle"
+                    fill="var(--text-color)">集成学习</text>
+                <text x="1280" y="780" font-size="70" text-anchor="middle" fill="var(--primary-color)">Ensemble
+                    Learning: The Power of Teamwork</text>
+            </g>
+
+        </svg>
+        <div id="subtitle-container">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const subtitleContainer = document.getElementById('subtitle-container');
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+
+        // Data points definition
+        const dataPointsDef = [
+            // Blue class (0)
+            { x: 200, y: 200, class: 0 }, { x: 300, y: 350, class: 0 }, { x: 150, y: 600, class: 0 },
+            { x: 400, y: 700, class: 0 }, { x: 250, y: 800, class: 0 }, { x: 700, y: 150, class: 0 },
+            { x: 800, y: 300, class: 0 }, { x: 1150, y: 350, class: 0 }, // The tricky one
+            // Orange class (1)
+            { x: 600, y: 600, class: 1 }, { x: 750, y: 800, class: 1 }, { x: 900, y: 650, class: 1 },
+            { x: 1100, y: 750, class: 1 }, { x: 1250, y: 600, class: 1 }, { x: 1200, y: 200, class: 1 },
+        ];
+
+        // Helper functions
+        const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        async function showSubtitle(cn, en, duration) {
+            subtitleCn.textContent = cn;
+            subtitleEn.textContent = en;
+            subtitleContainer.classList.add('visible');
+            await wait(duration);
+            subtitleContainer.classList.remove('visible');
+            await wait(500); // fade out transition
+        }
+
+        function animateElement(id, animation, duration, addClass = true) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '1';
+                el.style.animation = `${animation} ${duration}s ease-out forwards`;
+                if (addClass) el.classList.add(animation);
+            }
+        }
+
+        function showElement(id, opacity = 1) {
+            const el = document.getElementById(id);
+            if (el) el.style.opacity = opacity;
+        }
+
+        function hideElement(id) {
+            const el = document.getElementById(id);
+            if (el) el.style.opacity = 0;
+        }
+
+        // Main animation timeline
+        async function playAnimation() {
+            // --- SCENE 1: The Problem ---
+            await showSubtitle(
+                "在机器学习中，我们经常遇到复杂的问题。",
+                "In machine learning, we often face complex problems.",
+                4000
+            );
+
+            const dataPointsContainer = document.getElementById('data-points');
+            dataPointsDef.forEach((p, i) => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('id', `p-${i}`);
+                circle.setAttribute('cx', p.x);
+                circle.setAttribute('cy', p.y);
+                circle.setAttribute('r', 15);
+                circle.setAttribute('fill', p.class === 0 ? 'var(--primary-color)' : 'var(--secondary-color)');
+                circle.classList.add('data-point');
+                circle.style.transitionDelay = `${i * 0.05}s`;
+                dataPointsContainer.appendChild(circle);
+            });
+
+            await wait(100);
+            document.querySelectorAll('.data-point').forEach(p => p.style.opacity = 1);
+
+            await wait(1000);
+
+            await showSubtitle(
+                "一个简单的模型可能难以找到完美的解决方案。",
+                "A single, simple model might struggle to find the perfect solution.",
+                4000
+            );
+
+            // --- SCENE 2: The Weak Learner ---
+            showElement('single-model');
+            animateElement('single-model', 'popIn', 0.5);
+            await wait(1000);
+
+            showElement('weak-line-1');
+            document.getElementById('weak-line-1').style.animation = 'draw 1s ease-out forwards';
+
+            await wait(2000);
+
+            await showSubtitle(
+                "它尽力了，但还是犯了很多错误。",
+                "It tries its best, but makes many mistakes.",
+                3500
+            );
+
+            hideElement('weak-line-1');
+            hideElement('single-model');
+            await wait(1000);
+
+            // --- SCENE 3: Introducing the Ensemble ---
+            await showSubtitle(
+                "但是，如果我们将许多简单模型的智慧结合起来呢？",
+                "But what if we combine the wisdom of many simple models?",
+                4000
+            );
+
+            await showSubtitle(
+                "这就是集成学习 (Ensemble Learning) 的核心思想。",
+                "This is the core idea of Ensemble Learning.",
+                4000
+            );
+
+            showElement('model-group-title');
+            animateElement('model-group-title', 'fadeIn', 1);
+
+            document.getElementById('ensemble-models').querySelectorAll('.model-icon').forEach((el, i) => {
+                el.style.transitionDelay = `${i * 0.2}s`;
+                showElement(el.id);
+                animateElement(el.id, 'popIn', 0.5);
+            });
+            await wait(2000);
+
+            // --- SCENE 4: Building the Ensemble ---
+            await showSubtitle(
+                "每个模型从不同的角度学习，并给出一个简单的答案。",
+                "Each model learns from a different perspective and gives a simple answer.",
+                4500
+            );
+
+            // Animate each weak learner
+            showElement('weak-line-1');
+            document.getElementById('weak-line-1').style.stroke = 'var(--text-color)';
+            document.getElementById('model-1').style.animation = 'pulse 1s infinite';
+            document.getElementById('weak-line-1').style.animation = 'draw 1s ease-out forwards';
+            await wait(1500);
+            document.getElementById('model-1').style.animation = '';
+
+            showElement('weak-line-2');
+            document.getElementById('model-2').style.animation = 'pulse 1s infinite';
+            document.getElementById('weak-line-2').style.stroke = 'var(--text-color)';
+            document.getElementById('weak-line-2').style.animation = 'draw 1s ease-out forwards';
+            await wait(1500);
+            document.getElementById('model-2').style.animation = '';
+
+            showElement('weak-line-3');
+            document.getElementById('model-3').style.animation = 'pulse 1s infinite';
+            document.getElementById('weak-line-3').style.stroke = 'var(--text-color)';
+            document.getElementById('weak-line-3').style.animation = 'draw 1s ease-out forwards';
+            await wait(1500);
+            document.getElementById('model-3').style.animation = '';
+
+            // --- SCENE 5: The Voting ---
+            await showSubtitle(
+                "对于一个难以抉择的数据点，它们会进行“投票”。",
+                "For a tricky data point, they 'vote' on the outcome.",
+                4000
+            );
+
+            document.getElementById('p-7').style.animation = 'pulse 1.5s infinite';
+
+            // Animate voting lines and text
+            showElement('vote-line-1');
+            animateElement('vote-line-1', 'draw', 1, false);
+            await wait(500);
+            showElement('vote-text-1');
+            animateElement('vote-text-1', 'fadeIn', 0.5);
+            await wait(500);
+
+            showElement('vote-line-2');
+            animateElement('vote-line-2', 'draw', 1, false);
+            await wait(500);
+            showElement('vote-text-2');
+            animateElement('vote-text-2', 'fadeIn', 0.5);
+            await wait(500);
+
+            showElement('vote-line-3');
+            animateElement('vote-line-3', 'draw', 1, false);
+            await wait(500);
+            showElement('vote-text-3');
+            animateElement('vote-text-3', 'fadeIn', 0.5);
+            await wait(1500);
+
+            await showSubtitle(
+                "通过少数服从多数，它们共同做出更准确的决策。",
+                "Through majority vote, they make a more accurate collective decision.",
+                4500
+            );
+
+            showElement('final-vote-result', 1);
+            animateElement('final-vote-result', 'popIn', 0.5);
+            await wait(2500);
+
+            // --- SCENE 6: The Final Strong Model ---
+            document.getElementById('p-7').style.animation = '';
+            hideElement('voting-viz');
+            hideElement('weak-line-1');
+            hideElement('weak-line-2');
+            hideElement('weak-line-3');
+            await wait(500);
+
+            await showSubtitle(
+                "最终，这些简单的模型组合成了一个强大的集成模型。",
+                "Finally, these simple models combine into one powerful, strong model.",
+                4500
+            );
+
+            showElement('final-boundary');
+            animateElement('final-boundary', 'draw', 2, false);
+            showElement('final-boundary-2');
+            animateElement('final-boundary-2', 'draw', 2, false);
+            showElement('final-boundary-3');
+            animateElement('final-boundary-3', 'draw', 2, false);
+
+            hideElement('ensemble-models');
+            hideElement('model-group-title');
+
+            await wait(1000);
+            document.getElementById('strong-model').style.transform = 'translate(1130, 80)';
+            showElement('strong-model');
+
+            await wait(2000);
+
+            await showSubtitle(
+                "它的表现远超任何一个单独的成员。",
+                "It performs far better than any single member alone.",
+                4000
+            );
+
+            // --- SCENE 7: Conclusion ---
+            await wait(2000);
+            document.querySelectorAll('#plot-area, #model-area').forEach(el => el.style.opacity = 0);
+            await wait(1000);
+
+            showElement('final-title-group');
+            animateElement('final-title-group', 'fadeIn', 1.5);
+
+            await wait(5000);
+
+            // Loop animation
+            document.getElementById('final-title-group').style.opacity = 0;
+            document.querySelectorAll('#plot-area, #model-area, .data-point').forEach(el => {
+                el.style.opacity = 1;
+                el.style.animation = 'none';
+            });
+            document.getElementById('data-points').innerHTML = '';
+            document.querySelectorAll('.decision-line, .final-boundary, .model-icon, .model-group-title, #voting-viz, #final-vote-result').forEach(el => {
+                el.style.opacity = 0;
+                el.style.animation = 'none';
+            });
+            document.getElementById('strong-model').style.transform = 'translate(1130, -1000)';
+
+            await wait(1000);
+            playAnimation();
+        }
+
+        window.onload = playAnimation;
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Attribution Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --text-primary: #212529;
+            --text-secondary: #6C757D;
+            --accent-primary: #007BFF;
+            --accent-secondary: #6F42C1;
+            --accent-tertiary: #198754;
+            --highlight-strong: #FF4D4D;
+            --highlight-medium: #FFA500;
+            --highlight-weak: #A0D468;
+            --container-bg: #FFFFFF;
+            --border-color: #DEE2E6;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background-color: var(--container-bg);
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+            border-radius: 20px;
+            transform-origin: center center;
+        }
+
+        .element {
+            position: absolute;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+        }
+
+        .visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* --- Title Scene --- */
+        #title-main {
+            top: 550px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 100px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -2px;
+        }
+
+        #title-sub {
+            top: 700px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 50px;
+            font-weight: 400;
+            color: var(--text-secondary);
+        }
+
+        #title-logo {
+            top: 350px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 150px;
+        }
+
+        #title-logo svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 4px 8px rgba(0, 123, 255, 0.2));
+        }
+
+        /* --- Input/Output Tokens --- */
+        .token {
+            padding: 15px 30px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 42px;
+            font-weight: 500;
+            background-color: #fff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.5s ease-in-out;
+        }
+
+        #input-prompt-label {
+            top: 150px;
+            left: 200px;
+            font-size: 36px;
+            color: var(--text-secondary);
+        }
+
+        .input-token {
+            top: 250px;
+        }
+
+        #token-in-1 {
+            left: 200px;
+        }
+
+        #token-in-2 {
+            left: 450px;
+        }
+
+        #token-in-3 {
+            left: 660px;
+        }
+
+        #token-in-4 {
+            left: 870px;
+        }
+
+        #token-in-5 {
+            left: 1080px;
+        }
+
+        #token-in-6 {
+            left: 1290px;
+        }
+
+        #token-in-7 {
+            left: 1540px;
+        }
+
+        #output-prompt-label {
+            top: 980px;
+            left: 1160px;
+            font-size: 36px;
+            color: var(--text-secondary);
+        }
+
+        #token-out {
+            top: 1080px;
+            left: 1160px;
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+            font-weight: 700;
+        }
+
+        /* --- LLM Black Box --- */
+        #llm-box {
+            top: 50%;
+            left: 50%;
+            width: 700px;
+            height: 400px;
+            transform: translate(-50%, -50%) scale(0.8);
+            border: 3px solid var(--border-color);
+            border-radius: 20px;
+            background: radial-gradient(circle, #fff, #f8f9fa);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        #llm-box-label {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            letter-spacing: 2px;
+        }
+
+        #llm-gears {
+            top: 50%;
+            left: 50%;
+            width: 300px;
+            height: 300px;
+            transform: translate(-50%, -50%);
+        }
+
+        #llm-gears svg {
+            width: 100%;
+            height: 100%;
+            opacity: 0.1;
+        }
+
+        #gear1 {
+            animation: spin 20s linear infinite;
+            transform-origin: center;
+        }
+
+        #gear2 {
+            animation: spin-reverse 30s linear infinite;
+            transform-origin: center;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes spin-reverse {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(-360deg);
+            }
+        }
+
+
+        /* --- Attribution Visualization --- */
+        #attribution-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .attribution-line {
+            stroke-width: 4;
+            stroke-linecap: round;
+            fill: none;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+        }
+
+        .line-strong {
+            stroke: var(--highlight-strong);
+        }
+
+        .line-medium {
+            stroke: var(--accent-primary);
+        }
+
+        .line-weak {
+            stroke: var(--highlight-weak);
+        }
+
+        .line-faint {
+            stroke: var(--border-color);
+        }
+
+        .draw-animation {
+            animation: draw 2s ease-in-out forwards;
+        }
+
+        @keyframes draw {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .glowing {
+            filter: drop-shadow(0 0 12px var(--color));
+        }
+
+        /* --- Bar Chart --- */
+        #chart-container {
+            top: 550px;
+            left: 200px;
+            width: 2160px;
+            height: 400px;
+        }
+
+        .bar-wrapper {
+            position: absolute;
+            bottom: 0;
+            width: 200px;
+            text-align: center;
+        }
+
+        .bar {
+            width: 100px;
+            margin: 0 auto;
+            background-color: var(--accent-primary);
+            border-radius: 10px 10px 0 0;
+            height: 0;
+            transition: height 1s ease-out;
+        }
+
+        .bar-label {
+            font-size: 32px;
+            color: var(--text-primary);
+            margin-top: 15px;
+            font-weight: 500;
+        }
+
+        .bar-score {
+            font-size: 28px;
+            color: var(--text-secondary);
+            margin-top: 10px;
+            font-weight: 400;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out 0.8s;
+        }
+
+        #bar-wrapper-1 {
+            left: 60px;
+        }
+
+        #bar-wrapper-2 {
+            left: 310px;
+        }
+
+        #bar-wrapper-3 {
+            left: 520px;
+        }
+
+        #bar-wrapper-4 {
+            left: 730px;
+        }
+
+        #bar-wrapper-5 {
+            left: 940px;
+        }
+
+        #bar-wrapper-6 {
+            left: 1150px;
+        }
+
+        #bar-wrapper-7 {
+            left: 1400px;
+        }
+
+        /* --- Applications Scene --- */
+        #app-title {
+            top: 300px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 64px;
+            color: var(--text-primary);
+        }
+
+        .app-card {
+            top: 500px;
+            width: 500px;
+            height: 600px;
+            background: #fff;
+            border-radius: 20px;
+            border: 2px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            box-sizing: border-box;
+        }
+
+        #app-card-1 {
+            left: 330px;
+        }
+
+        #app-card-2 {
+            left: 1030px;
+        }
+
+        #app-card-3 {
+            left: 1730px;
+        }
+
+        .app-icon {
+            width: 150px;
+            height: 150px;
+            margin-bottom: 40px;
+        }
+
+        .app-card-title {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+
+        .app-card-desc {
+            font-size: 30px;
+            color: var(--text-secondary);
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        /* --- Subtitles --- */
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitle-en {
+            font-size: 36px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px var(--bg-color);
+        }
+
+        #subtitle-zh {
+            font-size: 30px;
+            font-weight: 400;
+            color: var(--text-secondary);
+            text-shadow: 0 0 10px var(--bg-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-wrapper">
+        <div id="animation-container">
+
+            <!-- Scene 1: Title -->
+            <div id="title-logo" class="element">
+                <svg viewBox="0 0 100 100">
+                    <defs>
+                        <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:var(--accent-primary);stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:var(--accent-secondary);stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <path fill="url(#logoGradient)"
+                        d="M50,5 C74.85,5 95,25.15 95,50 C95,74.85 74.85,95 50,95 C25.15,95 5,74.85 5,50 C5,25.15 25.15,5 50,5 Z M50,20 C66.57,20 80,33.43 80,50 C80,66.57 66.57,80 50,80 C33.43,80 20,66.57 20,50 C20,33.43 33.43,20 50,20 Z" />
+                    <circle cx="50" cy="50" r="10" fill="white" />
+                    <path fill="url(#logoGradient)" d="M50 40 A10 10 0 0 1 50 60 L50 90 A40 40 0 0 0 50 10 L50 40Z" />
+                </svg>
+            </div>
+            <div id="title-main" class="element">Token Attribution</div>
+            <div id="title-sub" class="element">Token 归因</div>
+
+            <!-- Scene 2: Input Prompt -->
+            <div id="input-prompt-label" class="element">INPUT PROMPT / 输入提示</div>
+            <div id="token-in-1" class="element token input-token">The</div>
+            <div id="token-in-2" class="element token input-token">quick</div>
+            <div id="token-in-3" class="element token input-token">brown</div>
+            <div id="token-in-4" class="element token input-token">fox</div>
+            <div id="token-in-5" class="element token input-token">jumps</div>
+            <div id="token-in-6" class="element token input-token">over</div>
+            <div id="token-in-7" class="element token input-token">it</div>
+
+            <!-- Scene 3: LLM Box -->
+            <div id="llm-box" class="element">
+                <div id="llm-gears" class="element">
+                    <svg viewBox="0 0 100 100">
+                        <path id="gear1" fill="#000"
+                            d="M73.8,59.3l-2.5-1.5c-0.6-2.1-1.4-4.1-2.5-6l2.1-2.1c1.2-1.2,1.2-3.1,0-4.2l-5.6-5.6c-1.2-1.2-3.1-1.2-4.2,0 l-2.1,2.1c-1.9-1.1-4-1.9-6-2.5l-1.5-2.5C50.9,25.2,49.1,24,47.1,24h-7.9c-2,0-3.7,1.2-4.4,3.1l-1.5,2.5c-2.1,0.6-4.1,1.4-6,2.5 l-2.1-2.1c-1.2-1.2-3.1-1.2-4.2,0l-5.6,5.6c-1.2,1.2-1.2,3.1,0,4.2l2.1,2.1c-1.1,1.9-1.9,4-2.5,6l-2.5,1.5 C5.2,59.9,4,61.7,4,63.8v7.9c0,2,1.2,3.7,3.1,4.4l2.5,1.5c0.6,2.1,1.4,4.1,2.5,6l-2.1,2.1c-1.2,1.2-1.2,3.1,0,4.2l5.6,5.6 c1.2,1.2,3.1,1.2,4.2,0l2.1-2.1c1.9,1.1,4,1.9,6,2.5l1.5,2.5c0.7,1.9,2.4,3.1,4.4,3.1h7.9c2,0,3.7-1.2,4.4-3.1l1.5-2.5 c2.1-0.6,4.1-1.4,6-2.5l2.1,2.1c1.2,1.2,3.1,1.2,4.2,0l5.6-5.6c1.2-1.2,1.2-3.1,0-4.2l-2.1-2.1c1.1-1.9,1.9-4,2.5-6l2.5-1.5 c1.9-0.7,3.1-2.4,3.1-4.4v-7.9C77,61.7,75.8,59.9,73.8,59.3z M43.1,62.5c-7.2,0-13-5.8-13-13s5.8-13,13-13s13,5.8,13,13 S50.3,62.5,43.1,62.5z" />
+                        <path id="gear2" fill="#000"
+                            d="M95,39.6c-0.7-1.9-2.4-3.1-4.4-3.1h-7.9c-2,0-3.7,1.2-4.4,3.1l-1.5,2.5c-2.1,0.6-4.1,1.4-6,2.5l-2.1-2.1 c-1.2-1.2-3.1-1.2-4.2,0l-5.6,5.6c-1.2,1.2-1.2,3.1,0,4.2l2.1,2.1c-1.1,1.9-1.9,4-2.5,6l-2.5,1.5c-1.9,0.7-3.1,2.4-3.1,4.4v7.9 c0,2,1.2,3.7,3.1,4.4l2.5,1.5c0.6,2.1,1.4,4.1,2.5,6l-2.1,2.1c-1.2,1.2-1.2,3.1,0,4.2l5.6,5.6c1.2,1.2,3.1,1.2,4.2,0l2.1-2.1 c1.9,1.1,4,1.9,6,2.5l1.5,2.5c0.7,1.9,2.4,3.1,4.4,3.1h7.9c2,0,3.7-1.2,4.4-3.1l1.5-2.5c2.1-0.6,4.1-1.4,6-2.5l2.1,2.1 c1.2,1.2,3.1,1.2,4.2,0l5.6-5.6c1.2-1.2,1.2-3.1,0-4.2l-2.1-2.1c1.1-1.9,1.9-4,2.5-6l2.5-1.5c1.9-0.7,3.1-2.4,3.1-4.4v-7.9 C98,42.1,96.9,40.3,95,39.6z M72.4,62.2c-7.2,0-13-5.8-13-13s5.8-13,13-13s13,5.8,13,13S79.6,62.2,72.4,62.2z" />
+                    </svg>
+                </div>
+                <div id="llm-box-label" class="element">LLM Processing...</div>
+            </div>
+
+            <!-- Scene 4: Output Token -->
+            <div id="output-prompt-label" class="element">OUTPUT TOKEN / 输出Token</div>
+            <div id="token-out" class="element token">He</div>
+
+            <!-- Scene 5: Attribution Lines -->
+            <svg id="attribution-svg">
+                <!-- Paths from input tokens to output token -->
+                <path id="line-1" class="attribution-line line-faint" d="M 325 330 Q 700 700, 1220 1080" />
+                <path id="line-2" class="attribution-line line-faint" d="M 555 330 Q 800 700, 1220 1080" />
+                <path id="line-3" class="attribution-line line-weak" d="M 765 330 Q 900 700, 1220 1080" />
+                <path id="line-4" class="attribution-line line-strong" d="M 975 330 Q 1100 700, 1220 1080" />
+                <path id="line-5" class="attribution-line line-faint" d="M 1185 330 Q 1200 700, 1220 1080" />
+                <path id="line-6" class="attribution-line line-faint" d="M 1415 330 Q 1300 700, 1220 1080" />
+                <path id="line-7" class="attribution-line line-medium" d="M 1630 330 Q 1400 700, 1220 1080" />
+            </svg>
+
+            <!-- Scene 6: Bar Chart -->
+            <div id="chart-container" class="element">
+                <div id="bar-wrapper-1" class="bar-wrapper">
+                    <div id="bar-1" class="bar"></div>
+                    <div class="bar-label">The</div>
+                    <div id="score-1" class="bar-score"></div>
+                </div>
+                <div id="bar-wrapper-2" class="bar-wrapper">
+                    <div id="bar-2" class="bar"></div>
+                    <div class="bar-label">quick</div>
+                    <div id="score-2" class="bar-score"></div>
+                </div>
+                <div id="bar-wrapper-3" class="bar-wrapper">
+                    <div id="bar-3" class="bar"></div>
+                    <div class="bar-label">brown</div>
+                    <div id="score-3" class="bar-score"></div>
+                </div>
+                <div id="bar-wrapper-4" class="bar-wrapper">
+                    <div id="bar-4" class="bar"></div>
+                    <div class="bar-label">fox</div>
+                    <div id="score-4" class="bar-score"></div>
+                </div>
+                <div id="bar-wrapper-5" class="bar-wrapper">
+                    <div id="bar-5" class="bar"></div>
+                    <div class="bar-label">jumps</div>
+                    <div id="score-5" class="bar-score"></div>
+                </div>
+                <div id="bar-wrapper-6" class="bar-wrapper">
+                    <div id="bar-6" class="bar"></div>
+                    <div class="bar-label">over</div>
+                    <div id="score-6" class="bar-score"></div>
+                </div>
+                <div id="bar-wrapper-7" class="bar-wrapper">
+                    <div id="bar-7" class="bar"></div>
+                    <div class="bar-label">it</div>
+                    <div id="score-7" class="bar-score"></div>
+                </div>
+            </div>
+
+            <!-- Scene 7: Applications -->
+            <div id="app-title" class="element">Why is this useful? / 有什么用？</div>
+            <div id="app-card-1" class="element app-card">
+                <div class="app-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M15 12c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3z"></path>
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path>
+                        <path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path>
+                    </svg>
+                </div>
+                <div class="app-card-title">Explainability / 可解释性</div>
+                <div class="app-card-desc">Understand the model's "thought process" and build trust. / 理解模型的“思考过程”，建立信任。
+                </div>
+            </div>
+            <div id="app-card-2" class="element app-card">
+                <div class="app-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M16 18l-3.5-3.5 3.5-3.5"></path>
+                        <path d="M8 6l3.5 3.5L8 13"></path>
+                        <line x1="10" y1="19" x2="14" y2="19"></line>
+                        <path d="M18 6L7 17"></path>
+                    </svg>
+                </div>
+                <div class="app-card-title">Debugging / 模型调试</div>
+                <div class="app-card-desc">Pinpoint why the model made a mistake and correct its behavior. /
+                    精准定位模型犯错的原因，并纠正其行为。</div>
+            </div>
+            <div id="app-card-3" class="element app-card">
+                <div class="app-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        <path d="M12 8v4"></path>
+                        <path d="M12 16h.01"></path>
+                    </svg>
+                </div>
+                <div class="app-card-title">Bias Detection / 偏见检测</div>
+                <div class="app-card-desc">Identify if the output is unfairly influenced by sensitive attributes. /
+                    识别输出是否受到敏感属性的不公平影响。</div>
+            </div>
+
+            <!-- Subtitles -->
+            <div id="subtitles">
+                <p id="subtitle-en"></p>
+                <p id="subtitle-zh"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- UTILITY FUNCTIONS ---
+        const getEl = (id) => document.getElementById(id);
+        const getEls = (selector) => document.querySelectorAll(selector);
+
+        const show = (id) => getEl(id)?.classList.add('visible');
+        const hide = (id) => getEl(id)?.classList.remove('visible');
+        const hideAll = () => getEls('.element').forEach(el => el.classList.remove('visible'));
+
+        const updateSubtitles = (en, zh) => {
+            getEl('subtitle-en').textContent = en;
+            getEl('subtitle-zh').textContent = zh;
+        };
+
+        // --- ANIMATION TIMELINE ---
+        const timeline = [
+            // Scene 1: Introduction
+            {
+                time: 500, action: () => {
+                    show('title-logo');
+                    show('title-main');
+                    show('title-sub');
+                    updateSubtitles(
+                        'When an AI generates a response, how does it decide what to say?',
+                        '当AI生成回应时，它是如何决定要说什么的？'
+                    );
+                }
+            },
+            {
+                time: 4000, action: () => {
+                    updateSubtitles(
+                        'Token Attribution helps us understand this.',
+                        'Token归因帮助我们理解这一点。'
+                    );
+                }
+            },
+            {
+                time: 6000, action: () => {
+                    hide('title-logo');
+                    hide('title-main');
+                    hide('title-sub');
+                }
+            },
+
+            // Scene 2: Show Input
+            {
+                time: 7000, action: () => {
+                    show('input-prompt-label');
+                    updateSubtitles(
+                        'First, we provide an input prompt, which is broken down into "tokens".',
+                        '首先，我们提供一个输入提示，它被分解为一个个“Token”。'
+                    );
+                }
+            },
+            { time: 7500, action: () => show('token-in-1') },
+            { time: 7700, action: () => show('token-in-2') },
+            { time: 7900, action: () => show('token-in-3') },
+            { time: 8100, action: () => show('token-in-4') },
+            { time: 8300, action: () => show('token-in-5') },
+            { time: 8500, action: () => show('token-in-6') },
+            { time: 8700, action: () => show('token-in-7') },
+
+            // Scene 3: Processing
+            {
+                time: 10000, action: () => {
+                    updateSubtitles(
+                        'These tokens are fed into the Large Language Model for processing.',
+                        '这些Token被送入大语言模型进行处理。'
+                    );
+                    getEls('.input-token').forEach(el => {
+                        el.style.transition = 'all 1.5s ease-in-out';
+                        el.style.transform = 'translate(800px, 450px) scale(0.5)';
+                        el.style.opacity = '0';
+                    });
+                    show('llm-box');
+                }
+            },
+            {
+                time: 11000, action: () => {
+                    show('llm-gears');
+                    show('llm-box-label');
+                }
+            },
+
+            // Scene 4: Generating Output
+            {
+                time: 13500, action: () => {
+                    updateSubtitles(
+                        'The model then generates a response, one token at a time.',
+                        '然后，模型会生成回应，一次只生成一个Token。'
+                    );
+                    hide('llm-box');
+                    hide('llm-gears');
+                    hide('llm-box-label');
+                    // Reset input tokens for next scene
+                    getEls('.input-token').forEach(el => {
+                        el.style.transition = 'opacity 0.8s ease-in-out, transform 0.8s ease-in-out';
+                        el.style.transform = '';
+                    });
+                }
+            },
+            {
+                time: 14500, action: () => {
+                    updateSubtitles(
+                        'Let\'s focus on a single output token: "He".',
+                        '让我们聚焦于单个输出Token：“He”。'
+                    );
+                    getEls('.input-token').forEach(el => el.classList.add('visible'));
+                    show('output-prompt-label');
+                    show('token-out');
+                }
+            },
+
+            // Scene 5: Attribution Lines
+            {
+                time: 17000, action: () => {
+                    updateSubtitles(
+                        'Token Attribution asks: Which input tokens were most influential in generating "He"?',
+                        'Token归因要问：哪些输入Token对生成“He”影响最大？'
+                    );
+                }
+            },
+            {
+                time: 18000, action: () => {
+                    updateSubtitles(
+                        'We can visualize this influence with attribution lines.',
+                        '我们可以用归因线来可视化这种影响力。'
+                    );
+                    getEls('.attribution-line').forEach(line => line.classList.add('draw-animation'));
+                }
+            },
+            {
+                time: 20500, action: () => {
+                    updateSubtitles(
+                        'The stronger the influence, the more prominent the line.',
+                        '影响力越强，连接线越醒目。'
+                    );
+                    getEl('line-4').classList.add('glowing');
+                    getEl('line-4').style.setProperty('--color', 'var(--highlight-strong)');
+                    getEl('token-in-4').style.borderColor = 'var(--highlight-strong)';
+                    getEl('token-in-4').style.transform = 'scale(1.1)';
+                    getEl('token-in-4').style.boxShadow = '0 0 20px var(--highlight-strong)';
+                }
+            },
+            {
+                time: 21500, action: () => {
+                    getEl('line-7').classList.add('glowing');
+                    getEl('line-7').style.setProperty('--color', 'var(--accent-primary)');
+                    getEl('token-in-7').style.borderColor = 'var(--accent-primary)';
+                    getEl('token-in-7').style.transform = 'scale(1.05)';
+                }
+            },
+
+            // Scene 6: Bar Chart Visualization
+            {
+                time: 24000, action: () => {
+                    updateSubtitles(
+                        'These influences can be quantified as numerical "attribution scores".',
+                        '这些影响可以被量化为数值，即“归因分数”。'
+                    );
+                    hideAll();
+                    show('chart-container');
+                }
+            },
+            {
+                time: 25000, action: () => {
+                    const scores = { '1': 5, '2': 3, '3': 25, '4': 85, '5': 8, '6': 4, '7': 45 };
+                    const colors = { '1': 'faint', '2': 'faint', '3': 'weak', '4': 'strong', '5': 'faint', '6': 'faint', '7': 'medium' };
+                    for (let i = 1; i <= 7; i++) {
+                        const bar = getEl(`bar-${i}`);
+                        const scoreEl = getEl(`score-${i}`);
+                        bar.style.height = `${scores[i] * 3.5}px`;
+                        bar.style.backgroundColor = `var(--highlight-${colors[i]}, var(--border-color))`;
+                        scoreEl.textContent = `Score: ${scores[i]}`;
+                        scoreEl.style.opacity = '1';
+                    }
+                }
+            },
+            {
+                time: 27000, action: () => {
+                    updateSubtitles(
+                        'Clearly, "fox" had the highest score, as "He" refers to it.',
+                        '显然，“fox”的分数最高，因为“He”指代的就是它。'
+                    );
+                }
+            },
+
+            // Scene 7: Applications
+            {
+                time: 30000, action: () => {
+                    hide('chart-container');
+                }
+            },
+            {
+                time: 31000, action: () => {
+                    updateSubtitles(
+                        'Token Attribution is a powerful tool for AI transparency.',
+                        'Token归因是实现AI透明化的强大工具。'
+                    );
+                    show('app-title');
+                }
+            },
+            { time: 32000, action: () => show('app-card-1') },
+            { time: 33000, action: () => show('app-card-2') },
+            { time: 34000, action: () => show('app-card-3') },
+
+            // Scene 8: Conclusion
+            {
+                time: 38000, action: () => {
+                    hideAll();
+                    updateSubtitles('', '');
+                }
+            },
+            {
+                time: 39000, action: () => {
+                    show('title-logo');
+                    show('title-main');
+                    getEl('title-sub').textContent = "Peeking Inside the AI's Mind";
+                    show('title-sub');
+                    updateSubtitles(
+                        'It allows us to peek inside the AI\'s mind.',
+                        '它让我们得以一窥AI的“内心世界”。'
+                    );
+                }
+            },
+            {
+                time: 43000, action: () => {
+                    // Loop animation
+                    window.location.reload();
+                }
+            },
+        ];
+
+        // --- MAIN EXECUTION ---
+        function playAnimation() {
+            timeline.forEach(step => {
+                setTimeout(step.action, step.time);
+            });
+        }
+
+        function fitToScreen() {
+            const wrapper = getEl('animation-wrapper');
+            const container = getEl('animation-container');
+            const containerRatio = 2560 / 1440;
+            const screenRatio = wrapper.offsetWidth / wrapper.offsetHeight;
+
+            if (screenRatio > containerRatio) {
+                const scale = wrapper.offsetHeight / 1440;
+                container.style.transform = `scale(${scale})`;
+            } else {
+                const scale = wrapper.offsetWidth / 2560;
+                container.style.transform = `scale(${scale})`;
+            }
+        }
+
+        window.addEventListener('load', () => {
+            fitToScreen();
+            playAnimation();
+        });
+
+        window.addEventListener('resize', fitToScreen);
+    </script>
+
+</body>
+
+</html>

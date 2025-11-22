@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Compression Explained</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --text-color: #333333;
+            --light-grey: #E9ECEF;
+            --accent-glow: rgba(74, 144, 226, 0.6);
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 90vw;
+            max-width: 2560px;
+            /* Cap at 2K width */
+            aspect-ratio: 16 / 9;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        #animation-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* General SVG Styles */
+        .label-text {
+            font-family: var(--font-family);
+            font-size: 20px;
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .box {
+            stroke: var(--light-grey);
+            stroke-width: 3;
+            rx: 15;
+            ry: 15;
+            transition: all 0.5s ease-in-out;
+        }
+
+        .llm-box {
+            fill: #fcfdff;
+        }
+
+        .compressor-box {
+            fill: #f5faff;
+        }
+
+        .context-window {
+            fill: none;
+            stroke: var(--primary-color);
+            stroke-width: 2;
+            stroke-dasharray: 10 5;
+            rx: 8;
+            ry: 8;
+        }
+
+        .token {
+            transition: all 1s ease-in-out;
+            opacity: 0;
+            transform-origin: center center;
+        }
+
+        .token-rect {
+            rx: 5;
+            ry: 5;
+            fill: #ffffff;
+            stroke: var(--primary-color);
+            stroke-width: 1.5;
+        }
+
+        .token-text {
+            font-size: 12px;
+            fill: var(--primary-color);
+            text-anchor: middle;
+            font-weight: 500;
+        }
+
+        .compressed-token .token-rect {
+            fill: var(--secondary-color);
+            stroke: #3dbca2;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .compressed-token .token-text {
+            fill: #1e6b5a;
+            font-weight: 700;
+            content: '∑';
+        }
+
+        .semantic-group {
+            fill: none;
+            stroke-width: 2;
+            rx: 8;
+            ry: 8;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+
+        /* Subtitles */
+        #subtitles-container {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .subtitle-zh,
+        .subtitle-en {
+            margin: 0;
+            padding: 5px 15px;
+            display: inline-block;
+            color: white;
+            text-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        .subtitle-zh {
+            font-size: 24px;
+            font-weight: 600;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+        }
+
+        .subtitle-en {
+            font-size: 18px;
+            margin-top: 5px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        /* Animations */
+        .fade-in {
+            opacity: 1 !important;
+        }
+
+        .fade-out {
+            opacity: 0 !important;
+        }
+
+        @keyframes pulse {
+            0% {
+                filter: drop-shadow(0 0 2px var(--secondary-color));
+            }
+
+            50% {
+                filter: drop-shadow(0 0 8px var(--secondary-color));
+            }
+
+            100% {
+                filter: drop-shadow(0 0 2px var(--secondary-color));
+            }
+        }
+
+        @keyframes flow {
+            from {
+                stroke-dashoffset: 1000;
+            }
+
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .flow-path {
+            stroke-dasharray: 10 10;
+            animation: flow 30s linear infinite;
+            stroke: var(--light-grey);
+            stroke-width: 2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="animation-svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid meet">
+            <!-- Background Elements -->
+            <defs>
+                <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+                    <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#e9ecef" stroke-width="1" />
+                </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
+            <path class="flow-path" d="M -100,540 Q 960,540 1920,540" fill="none" />
+            <path class="flow-path" d="M -100,300 Q 960,300 2020,300" fill="none" transform="rotate(2)" />
+            <path class="flow-path" d="M -100,800 Q 960,800 2020,800" fill="none" transform="rotate(-2)" />
+
+            <!-- Main Scene Elements -->
+            <g id="scene-elements">
+                <!-- LLM Box -->
+                <g id="llm-group" transform="translate(1400, 540)" style="opacity:0; transition: all 0.8s ease-in-out;">
+                    <rect class="box llm-box" x="-180" y="-150" width="360" height="300" />
+                    <text class="label-text" y="-170">大型语言模型 (LLM)</text>
+                    <rect id="context-window" class="context-window" x="-150" y="-120" width="300" height="240" />
+                    <text class="label-text" y="150" style="font-size: 16px; fill: #888;">上下文窗口 (Context Window)</text>
+                </g>
+
+                <!-- Compressor Box -->
+                <g id="compressor-group" transform="translate(960, 540)"
+                    style="opacity:0; transition: all 0.8s ease-in-out;">
+                    <rect class="box compressor-box" x="-180" y="-150" width="360" height="300" />
+                    <text class="label-text" y="-170">令牌压缩器 (Token Compressor)</text>
+                </g>
+
+                <!-- Tokens -->
+                <g id="token-stream"></g>
+
+                <!-- Semantic Groups -->
+                <g id="semantic-groups"></g>
+
+                <!-- Final screen -->
+                <g id="final-screen" style="opacity:0; transition: opacity 1s ease-in-out;">
+                    <text class="label-text" x="960" y="200"
+                        style="font-size: 60px; font-weight: bold; fill: var(--primary-color);">令牌压缩 Token
+                        Compression</text>
+
+                    <g id="before-group" transform="translate(560, 550)">
+                        <text class="label-text" y="-200" style="font-size: 32px;">压缩前 (Before)</text>
+                        <rect x="-300" y="-150" width="600" height="300" fill="#fff" stroke="#ddd" rx="10" />
+                        <rect x="-280" y="-130" width="560" height="260" fill="none" stroke="red" stroke-width="3"
+                            stroke-dasharray="10 5" rx="5" />
+                        <text fill="red" x="0" y="170" text-anchor="middle" font-size="20" font-weight="bold">部分信息丢失
+                            (Information Loss)</text>
+                        <!-- Dummy tokens for final screen -->
+                        <g id="final-tokens-before"></g>
+                    </g>
+
+                    <g id="after-group" transform="translate(1360, 550)">
+                        <text class="label-text" y="-200" style="font-size: 32px;">压缩后 (After)</text>
+                        <rect x="-300" y="-150" width="600" height="300" fill="#fff" stroke="#ddd" rx="10" />
+                        <rect x="-280" y="-130" width="560" height="260" fill="none" stroke="green" stroke-width="3"
+                            rx="5" />
+                        <text fill="green" x="0" y="170" text-anchor="middle" font-size="20" font-weight="bold">完整信息保留
+                            (Full Context)</text>
+                        <!-- Dummy compressed tokens for final screen -->
+                        <g id="final-tokens-after"></g>
+                    </g>
+                </g>
+
+            </g>
+        </svg>
+
+        <div id="subtitles-container">
+            <p class="subtitle-zh" id="subtitle-zh-text"></p>
+            <p class="subtitle-en" id="subtitle-en-text"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const svgNS = "http://www.w3.org/2000/svg";
+            const tokenStream = document.getElementById('token-stream');
+            const subtitlesContainer = document.getElementById('subtitles-container');
+            const subtitleZh = document.getElementById('subtitle-zh-text');
+            const subtitleEn = document.getElementById('subtitle-en-text');
+
+            const llmGroup = document.getElementById('llm-group');
+            const compressorGroup = document.getElementById('compressor-group');
+            const finalScreen = document.getElementById('final-screen');
+            const semanticGroupsContainer = document.getElementById('semantic-groups');
+
+            const TOKEN_COUNT = 20;
+            const TOKEN_WIDTH = 50;
+            const TOKEN_HEIGHT = 30;
+            const TOKEN_GAP = 15;
+            const TOKEN_TOTAL_WIDTH = TOKEN_WIDTH + TOKEN_GAP;
+            const CONTEXT_WINDOW_CAPACITY = 12;
+
+            const tokens = [];
+
+            function createToken(id, text, x, y, isCompressed = false) {
+                const group = document.createElementNS(svgNS, 'g');
+                group.setAttribute('id', `token-${id}`);
+                group.setAttribute('class', isCompressed ? 'token compressed-token' : 'token');
+                group.setAttribute('transform', `translate(${x}, ${y})`);
+
+                const rect = document.createElementNS(svgNS, 'rect');
+                rect.setAttribute('class', 'token-rect');
+                rect.setAttribute('x', -TOKEN_WIDTH / 2);
+                rect.setAttribute('y', -TOKEN_HEIGHT / 2);
+                rect.setAttribute('width', TOKEN_WIDTH);
+                rect.setAttribute('height', TOKEN_HEIGHT);
+
+                const textEl = document.createElementNS(svgNS, 'text');
+                textEl.setAttribute('class', 'token-text');
+                textEl.setAttribute('y', 5);
+                textEl.textContent = isCompressed ? '∑' : text;
+
+                group.appendChild(rect);
+                group.appendChild(textEl);
+                tokenStream.appendChild(group);
+                return group;
+            }
+
+            function setSubtitles(zh, en) {
+                subtitleZh.textContent = zh;
+                subtitleEn.textContent = en;
+                subtitlesContainer.classList.add('fade-in');
+            }
+
+            function hideSubtitles() {
+                subtitlesContainer.classList.remove('fade-in');
+            }
+
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            async function animateTokens(targets, transform, duration) {
+                const promises = targets.map(token => {
+                    return new Promise(resolve => {
+                        token.style.transition = `all ${duration / 1000}s ease-in-out`;
+                        token.setAttribute('transform', transform(token));
+                        setTimeout(resolve, duration);
+                    });
+                });
+                await Promise.all(promises);
+            }
+
+            function createSemanticGroup(x, y, width, height, color) {
+                const rect = document.createElementNS(svgNS, 'rect');
+                rect.setAttribute('class', 'semantic-group');
+                rect.setAttribute('x', x);
+                rect.setAttribute('y', y);
+                rect.setAttribute('width', width);
+                rect.setAttribute('height', height);
+                rect.setAttribute('stroke', color);
+                semanticGroupsContainer.appendChild(rect);
+                return rect;
+            }
+
+
+            async function playAnimation() {
+                // --- SCENE 1: The Problem ---
+                llmGroup.style.opacity = 1;
+                await sleep(500);
+
+                setSubtitles(
+                    "大型语言模型(LLM)拥有一个叫做“上下文窗口”的记忆边界。",
+                    "Large Language Models (LLMs) have a memory limit called the 'Context Window'."
+                );
+                await sleep(4000);
+
+                setSubtitles(
+                    "当输入的文本过长时，旧的信息就会被挤出窗口，从而被遗忘。",
+                    "When the input text is too long, older information gets pushed out and forgotten."
+                );
+
+                for (let i = 0; i < TOKEN_COUNT; i++) {
+                    const token = createToken(i, `T${i + 1}`, -150 - i * TOKEN_TOTAL_WIDTH, 540);
+                    tokens.push(token);
+                    await sleep(50);
+                    token.classList.add('fade-in');
+                }
+
+                await sleep(1000);
+
+                await animateTokens(tokens, (token, i) => {
+                    const id = parseInt(token.id.split('-')[1]);
+                    const targetX = 1400 - TOKEN_TOTAL_WIDTH * (CONTEXT_WINDOW_CAPACITY / 2) + id * TOKEN_TOTAL_WIDTH;
+                    if (id >= CONTEXT_WINDOW_CAPACITY) {
+                        token.style.filter = 'blur(3px)';
+                    }
+                    return `translate(${targetX}, 540)`;
+                }, 2000);
+
+                await sleep(2000);
+
+                tokens.slice(CONTEXT_WINDOW_CAPACITY).forEach(t => t.classList.add('fade-out'));
+                await sleep(1000);
+
+                // --- SCENE 2: The Solution ---
+                hideSubtitles();
+                await sleep(500);
+
+                // Reset tokens
+                tokens.forEach(t => t.remove());
+                tokens.length = 0;
+
+                setSubtitles(
+                    "为了解决这个问题，我们引入了“令牌压缩”技术。",
+                    "To solve this, we introduce a technique called 'Token Compression'."
+                );
+
+                compressorGroup.style.opacity = 1;
+                await sleep(4000);
+                hideSubtitles();
+                await sleep(500);
+
+                // --- SCENE 3: The Process ---
+                for (let i = 0; i < TOKEN_COUNT; i++) {
+                    const token = createToken(i, `T${i + 1}`, -150 - i * TOKEN_TOTAL_WIDTH, 540);
+                    tokens.push(token);
+                    token.classList.add('fade-in');
+                }
+                await sleep(1000);
+
+                await animateTokens(tokens, (token) => {
+                    const id = parseInt(token.id.split('-')[1]);
+                    const targetX = 960 - (TOKEN_COUNT / 2) * TOKEN_TOTAL_WIDTH + id * TOKEN_TOTAL_WIDTH;
+                    return `translate(${targetX}, 540)`;
+                }, 2000);
+
+                await sleep(1000);
+                setSubtitles(
+                    "首先，我们将语义相关的令牌进行分组。",
+                    "First, we group semantically related tokens."
+                );
+
+                const groupDefs = [
+                    { start: 0, end: 3, color: '#4A90E2' },
+                    { start: 4, end: 7, color: '#E24A7F' },
+                    { start: 8, end: 10, color: '#50E3C2' },
+                    { start: 11, end: 14, color: '#F5A623' },
+                    { start: 15, end: 19, color: '#7ED321' },
+                ];
+
+                const semanticGroupRects = [];
+                for (const def of groupDefs) {
+                    const firstToken = tokens[def.start];
+                    const groupWidth = (def.end - def.start + 1) * TOKEN_TOTAL_WIDTH - TOKEN_GAP;
+                    const x = parseFloat(firstToken.transform.baseVal[0].matrix.e) - TOKEN_WIDTH / 2 - TOKEN_GAP / 2;
+                    const y = 540 - TOKEN_HEIGHT / 2 - TOKEN_GAP / 2;
+                    const height = TOKEN_HEIGHT + TOKEN_GAP;
+                    const rect = createSemanticGroup(x, y, groupWidth, height, def.color);
+                    semanticGroupRects.push(rect);
+                    await sleep(100);
+                    rect.classList.add('fade-in');
+                }
+
+                await sleep(4000);
+
+                setSubtitles(
+                    "然后，将每个组压缩成一个信息密度更高的“符号令牌”。",
+                    "Then, each group is compressed into a single, dense 'symbolic token'."
+                );
+
+                const compressedTokens = [];
+                for (const [i, def] of groupDefs.entries()) {
+                    const groupTokens = tokens.slice(def.start, def.end + 1);
+                    const midIndex = Math.floor((def.start + def.end) / 2);
+                    const targetX = parseFloat(tokens[midIndex].transform.baseVal[0].matrix.e);
+
+                    groupTokens.forEach(t => {
+                        t.style.transition = 'all 0.8s ease-in-out';
+                        t.setAttribute('transform', `translate(${targetX}, 540) scale(0)`);
+                        t.classList.add('fade-out');
+                    });
+                }
+
+                semanticGroupRects.forEach(r => r.classList.remove('fade-in'));
+                await sleep(800);
+
+                for (const [i, def] of groupDefs.entries()) {
+                    const midIndex = Math.floor((def.start + def.end) / 2);
+                    const targetX = parseFloat(tokens[midIndex].transform.baseVal[0].matrix.e);
+                    const compressedToken = createToken(`c${i}`, '∑', targetX, 540, true);
+                    compressedToken.style.transform = `translate(${targetX}, 540) scale(0)`;
+                    compressedTokens.push(compressedToken);
+                    await sleep(100);
+                    compressedToken.classList.add('fade-in');
+                    compressedToken.style.transform = `translate(${targetX}, 540) scale(1)`;
+                }
+
+                await sleep(4000);
+
+                // --- SCENE 4: The Result ---
+                setSubtitles(
+                    "压缩后的令牌序列变得更短，但保留了关键信息。",
+                    "The compressed token sequence is much shorter, yet retains the key information."
+                );
+
+                await animateTokens(compressedTokens, (token, i) => {
+                    const id = parseInt(token.id.split('c')[1]);
+                    const targetX = 1400 - (groupDefs.length / 2) * TOKEN_TOTAL_WIDTH + id * TOKEN_TOTAL_WIDTH;
+                    return `translate(${targetX}, 540) scale(1.2)`;
+                }, 1500);
+
+                await sleep(500);
+
+                await animateTokens(compressedTokens, (token) => {
+                    return token.getAttribute('transform').replace('scale(1.2)', 'scale(1)');
+                }, 500);
+
+                await sleep(4000);
+
+                setSubtitles(
+                    "现在，整个文档的精华都能被装入上下文窗口了！",
+                    "Now, the essence of the entire document fits into the context window!"
+                );
+
+                await sleep(4000);
+
+                // --- SCENE 5: Conclusion ---
+                hideSubtitles();
+                await sleep(1000);
+
+                // Fade out all scene elements
+                llmGroup.style.opacity = 0;
+                compressorGroup.style.opacity = 0;
+                tokenStream.style.transition = 'opacity 1s ease-in-out';
+                tokenStream.style.opacity = 0;
+
+                await sleep(1000);
+
+                // Setup final screen
+                const finalBeforeContainer = document.getElementById('final-tokens-before');
+                for (let i = 0; i < 15; i++) {
+                    const x = -280 + 20 + (i * (35 + 5));
+                    const y = i < 11 ? -100 : -60;
+                    const xOffset = i < 11 ? 0 : -11 * 40;
+                    const token = document.createElementNS(svgNS, 'rect');
+                    token.setAttribute('x', x + xOffset);
+                    token.setAttribute('y', y);
+                    token.setAttribute('width', 35);
+                    token.setAttribute('height', 25);
+                    token.setAttribute('rx', 3);
+                    token.setAttribute('fill', i < 11 ? '#4A90E2' : '#e0e0e0');
+                    finalBeforeContainer.appendChild(token);
+                }
+                const finalAfterContainer = document.getElementById('final-tokens-after');
+                for (let i = 0; i < 5; i++) {
+                    const x = -120 + (i * (45 + 10));
+                    const token = document.createElementNS(svgNS, 'rect');
+                    token.setAttribute('x', x);
+                    token.setAttribute('y', -100);
+                    token.setAttribute('width', 45);
+                    token.setAttribute('height', 25);
+                    token.setAttribute('rx', 3);
+                    token.setAttribute('fill', '#50E3C2');
+                    finalAfterContainer.appendChild(token);
+                }
+
+                finalScreen.style.opacity = 1;
+
+                await sleep(2000);
+                setSubtitles(
+                    "令牌压缩：用更少的令牌，表达更多的信息。",
+                    "Token Compression: Expressing more with less."
+                );
+
+                await sleep(4000);
+
+                setSubtitles(
+                    "有效扩展了LLM的记忆边界。",
+                    "Effectively extending the memory of LLMs."
+                );
+
+                await sleep(5000);
+
+                // Loop animation
+                finalScreen.style.opacity = 0;
+                tokenStream.innerHTML = '';
+                semanticGroupsContainer.innerHTML = '';
+                tokenStream.style.opacity = 1;
+                tokens.length = 0;
+                await sleep(1000);
+                playAnimation();
+            }
+
+            playAnimation();
+        });
+    </script>
+
+</body>
+
+</html>

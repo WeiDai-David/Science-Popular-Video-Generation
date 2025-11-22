@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decentralized Optimization Explained</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-text-color: #343a40;
+            --secondary-text-color: #6c757d;
+            --node-color: #a9def9;
+            --node-border: #61a5c2;
+            --center-node-color: #e4c1f9;
+            --center-node-border: #a685e2;
+            --link-color: #ced4da;
+            --data-flow-color: #00f5d4;
+            --error-color: #ff6961;
+            --converged-color: #fde45f;
+            --converged-glow: #ffc300;
+            --font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 90vw;
+            max-width: 2560px;
+            aspect-ratio: 16 / 9;
+            position: relative;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        #animation-svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* SVG Element Styling */
+        .node {
+            transition: fill 1.5s ease-in-out, r 0.5s ease;
+            stroke-width: 6;
+            filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.1));
+        }
+
+        .center-node {
+            fill: var(--center-node-color);
+            stroke: var(--center-node-border);
+        }
+
+        .agent-node {
+            fill: var(--node-color);
+            stroke: var(--node-border);
+        }
+
+        .link {
+            stroke: var(--link-color);
+            stroke-width: 4;
+            transition: opacity 1s ease;
+        }
+
+        .data-flow-line {
+            stroke-width: 5;
+            stroke: var(--data-flow-color);
+            stroke-linecap: round;
+            filter: drop-shadow(0px 0px 8px var(--data-flow-color));
+            stroke-dasharray: 50 200;
+            stroke-dashoffset: 250;
+            opacity: 0;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            to {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes data-flow-animation {
+            to {
+                stroke-dashoffset: -250;
+            }
+        }
+
+        @keyframes center-crack {
+            0% {
+                stroke-width: 6;
+            }
+
+            50% {
+                stroke: var(--error-color);
+                stroke-width: 10;
+                transform: scale(0.98);
+            }
+
+            100% {
+                stroke-width: 6;
+            }
+        }
+
+        @keyframes local-compute {
+            0% {
+                r: 60;
+            }
+
+            50% {
+                r: 65;
+                fill-opacity: 0.8;
+            }
+
+            100% {
+                r: 60;
+            }
+        }
+
+        @keyframes converge-glow {
+            0% {
+                filter: drop-shadow(0px 0px 8px var(--converged-glow));
+            }
+
+            50% {
+                filter: drop-shadow(0px 0px 25px var(--converged-glow));
+            }
+
+            100% {
+                filter: drop-shadow(0px 0px 8px var(--converged-glow));
+            }
+        }
+
+
+        /* Animation Control Classes */
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .visible {
+            opacity: 1;
+        }
+
+        .fade-in {
+            animation: fadeIn 1s ease-out forwards;
+        }
+
+        .fade-out {
+            animation: fadeOut 1s ease-out forwards;
+        }
+
+        .pulsing {
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        .cracking {
+            animation: center-crack 1s ease-in-out;
+        }
+
+        .computing {
+            animation: local-compute 1.5s infinite ease-in-out;
+        }
+
+        .glowing {
+            animation: converge-glow 2.5s infinite ease-in-out;
+        }
+
+        /* Subtitle Styling */
+        #subtitle-container {
+            position: absolute;
+            bottom: 5%;
+            left: 0;
+            width: 100%;
+            padding: 0 5%;
+            box-sizing: border-box;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        #subtitle-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .subtitle-box {
+            display: inline-block;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        #subtitle-zh {
+            font-size: 28px;
+            color: var(--primary-text-color);
+            font-weight: 600;
+            margin: 0;
+        }
+
+        #subtitle-en {
+            font-size: 18px;
+            color: var(--secondary-text-color);
+            margin: 5px 0 0 0;
+        }
+
+        /* Title Styling */
+        #title-container {
+            position: absolute;
+            top: 6%;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            opacity: 0;
+        }
+
+        #title-zh {
+            font-size: 48px;
+            color: var(--primary-text-color);
+            font-weight: bold;
+            margin: 0;
+        }
+
+        #title-en {
+            font-size: 24px;
+            color: var(--secondary-text-color);
+            margin-top: 5px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="animation-svg" viewBox="0 0 2560 1440" preserveAspectRatio="xMidYMid meet">
+            <!-- Centralized Model Elements -->
+            <g id="centralized-model">
+                <circle id="center-node" class="node center-node" cx="1280" cy="720" r="100" />
+                <g id="centralized-agents"></g>
+                <g id="centralized-links"></g>
+                <g id="centralized-data-flow"></g>
+            </g>
+
+            <!-- Decentralized Model Elements -->
+            <g id="decentralized-model" class="hidden">
+                <g id="decentralized-agents"></g>
+                <g id="decentralized-links"></g>
+                <g id="decentralized-data-flow"></g>
+            </g>
+        </svg>
+
+        <div id="title-container">
+            <h1 id="title-zh">去中心化优化</h1>
+            <p id="title-en">Decentralized Optimization</p>
+        </div>
+
+        <div id="subtitle-container">
+            <div class="subtitle-box">
+                <p id="subtitle-zh"></p>
+                <p id="subtitle-en"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const svgNS = "http://www.w3.org/2000/svg";
+
+        // DOM Elements
+        const titleContainer = document.getElementById('title-container');
+        const subtitleContainer = document.getElementById('subtitle-container');
+        const subtitleZh = document.getElementById('subtitle-zh');
+        const subtitleEn = document.getElementById('subtitle-en');
+
+        const centralizedModel = document.getElementById('centralized-model');
+        const centerNode = document.getElementById('center-node');
+        const centralizedAgents = document.getElementById('centralized-agents');
+        const centralizedLinks = document.getElementById('centralized-links');
+        const centralizedDataFlow = document.getElementById('centralized-data-flow');
+
+        const decentralizedModel = document.getElementById('decentralized-model');
+        const decentralizedAgents = document.getElementById('decentralized-agents');
+        const decentralizedLinks = document.getElementById('decentralized-links');
+        const decentralizedDataFlow = document.getElementById('decentralized-data-flow');
+
+        // Config
+        const NUM_AGENTS = 8;
+        const CENTER_X = 1280;
+        const CENTER_Y = 720;
+        const CENTRAL_RADIUS = 500;
+        const DECENTRAL_RADIUS = 550;
+        const AGENT_RADIUS = 60;
+
+        const agentNodes = [];
+
+        // Utility Functions
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function createNode(group, id, cx, cy, r, className) {
+            const circle = document.createElementNS(svgNS, 'circle');
+            circle.setAttribute('id', id);
+            circle.setAttribute('cx', cx);
+            circle.setAttribute('cy', cy);
+            circle.setAttribute('r', r);
+            circle.setAttribute('class', `node ${className}`);
+            group.appendChild(circle);
+            return circle;
+        }
+
+        function createLine(group, x1, y1, x2, y2, className, extraClass = '') {
+            const line = document.createElementNS(svgNS, 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('class', `${className} ${extraClass}`);
+            group.appendChild(line);
+            return line;
+        }
+
+        function updateSubtitles(zh, en) {
+            subtitleZh.textContent = zh;
+            subtitleEn.textContent = en;
+            subtitleContainer.classList.add('visible');
+        }
+
+        function hideSubtitles() {
+            subtitleContainer.classList.remove('visible');
+        }
+
+        // Scene Setup
+        function setupScene() {
+            // Centralized agents
+            for (let i = 0; i < NUM_AGENTS; i++) {
+                const angle = (i / NUM_AGENTS) * 2 * Math.PI;
+                const cx = CENTER_X + CENTRAL_RADIUS * Math.cos(angle);
+                const cy = CENTER_Y + CENTRAL_RADIUS * Math.sin(angle);
+
+                const node = createNode(centralizedAgents, `c_agent_${i}`, cx, cy, AGENT_RADIUS, 'agent-node');
+                agentNodes.push({ centralizedNode: node });
+
+                createLine(centralizedLinks, CENTER_X, CENTER_Y, cx, cy, 'link');
+                const dataLine = createLine(centralizedDataFlow, cx, cy, CENTER_X, CENTER_Y, 'data-flow-line');
+                dataLine.style.animation = `data-flow-animation 2s linear infinite`;
+            }
+
+            // Decentralized agents and links
+            const decentralPositions = [];
+            for (let i = 0; i < NUM_AGENTS; i++) {
+                const angle = (i / NUM_AGENTS) * 2 * Math.PI + (Math.PI / NUM_AGENTS); // Offset rotation
+                const cx = CENTER_X + DECENTRAL_RADIUS * Math.cos(angle);
+                const cy = CENTER_Y + DECENTRAL_RADIUS * Math.sin(angle);
+                decentralPositions.push({ x: cx, y: cy });
+
+                const node = createNode(decentralizedAgents, `d_agent_${i}`, cx, cy, AGENT_RADIUS, 'agent-node');
+                agentNodes[i].decentralizedNode = node;
+            }
+            // Create decentralized links (e.g., connect to 2 nearest neighbors)
+            for (let i = 0; i < NUM_AGENTS; i++) {
+                const p1 = decentralPositions[i];
+                const p2 = decentralPositions[(i + 1) % NUM_AGENTS];
+                const p3 = decentralPositions[(i + 2) % NUM_AGENTS];
+                createLine(decentralizedLinks, p1.x, p1.y, p2.x, p2.y, 'link');
+                createLine(decentralizedLinks, p1.x, p1.y, p3.x, p3.y, 'link');
+
+                // data flow lines for gossip
+                const dataLine1 = createLine(decentralizedDataFlow, p1.x, p1.y, p2.x, p2.y, 'data-flow-line');
+                dataLine1.style.animation = `data-flow-animation 2s linear infinite reverse`;
+                const dataLine2 = createLine(decentralizedDataFlow, p2.x, p2.y, p1.x, p1.y, 'data-flow-line');
+                dataLine2.style.animation = `data-flow-animation 2s linear infinite reverse`;
+            }
+        }
+
+        // Animation Timeline
+        async function playAnimation() {
+            // --- SCENE 1: Introduction to Centralized Optimization ---
+            centralizedModel.classList.add('fade-in');
+            titleContainer.classList.add('fade-in');
+            await sleep(1000);
+
+            updateSubtitles(
+                '在传统的优化方法中，我们常常依赖一个中心服务器。',
+                'In traditional optimization, we often rely on a central server.'
+            );
+            await sleep(1000);
+            centerNode.classList.add('pulsing');
+            await sleep(3000);
+
+            updateSubtitles(
+                '所有数据由各个节点收集，并发送到中心进行统一处理。',
+                'All data is collected by individual agents and sent to the center for processing.'
+            );
+            centralizedDataFlow.style.opacity = 1;
+            await sleep(4000);
+
+            // --- SCENE 2: The Problem with Centralization ---
+            centralizedDataFlow.style.opacity = 0;
+            centerNode.classList.remove('pulsing');
+            await sleep(500);
+
+            updateSubtitles(
+                '但这种模式存在瓶颈：中心节点是单点故障，且可能泄露隐私。',
+                'But this model has bottlenecks: the central node is a single point of failure and a privacy risk.'
+            );
+            centerNode.classList.add('cracking');
+            centerNode.style.fill = 'var(--error-color)';
+            await sleep(2000);
+            centralizedModel.style.transition = 'opacity 1.5s ease';
+            centralizedModel.style.opacity = 0.3;
+            await sleep(2500);
+
+            // --- SCENE 3: Introducing Decentralized Optimization ---
+            centralizedModel.classList.add('fade-out');
+            await sleep(1000);
+
+            updateSubtitles(
+                '于是，去中心化优化应运而生。',
+                'And so, decentralized optimization was born.'
+            );
+            decentralizedModel.classList.remove('hidden');
+            decentralizedModel.classList.add('fade-in');
+            await sleep(4000);
+
+            updateSubtitles(
+                '在这里，没有中心服务器。每个节点都是对等的，只与它的邻居通信。',
+                'Here, there is no central server. Every agent is a peer, communicating only with its neighbors.'
+            );
+            await sleep(5000);
+
+            // --- SCENE 4: The Process - Local Computation ---
+            updateSubtitles(
+                '第一步：每个节点根据自己的局部数据，独立计算一个初始解。',
+                'Step 1: Each agent independently computes an initial solution based on its own local data.'
+            );
+            const dAgents = decentralizedAgents.querySelectorAll('.node');
+            dAgents.forEach((node, i) => {
+                node.classList.add('computing');
+                // Give each node a slightly different color to represent different local solutions
+                const hue = (i / NUM_AGENTS) * 360;
+                node.style.fill = `hsl(${hue}, 80%, 75%)`;
+            });
+            await sleep(5000);
+
+            // --- SCENE 5: The Process - Communication & Aggregation ---
+            dAgents.forEach(node => node.classList.remove('computing'));
+            await sleep(500);
+
+            updateSubtitles(
+                '第二步：节点们与邻居交换信息，并融合邻居的解来更新自己。',
+                'Step 2: Agents exchange information with their neighbors, updating their own solution by aggregating.'
+            );
+            decentralizedDataFlow.style.opacity = 1;
+            await sleep(1000);
+
+            // Show convergence over a few steps
+            for (let step = 0; step < 3; step++) {
+                dAgents.forEach(node => node.classList.add('pulsing'));
+                await sleep(2500);
+                dAgents.forEach(node => node.classList.remove('pulsing'));
+                // In a real scenario, colors would average out. We simulate this.
+                const intermediateColor = `hsl(48, 98%, ${70 - step * 5}%)`;
+                dAgents.forEach(node => { node.style.fill = intermediateColor; });
+                await sleep(1000);
+            }
+
+            decentralizedDataFlow.style.opacity = 0;
+            await sleep(1000);
+
+            // --- SCENE 6: The Outcome - Consensus ---
+            updateSubtitles(
+                '经过多轮迭代，整个网络最终会达成共识，共同找到全局最优解。',
+                'After many iterations, the entire network reaches a consensus, finding the global optimal solution together.'
+            );
+
+            dAgents.forEach(node => {
+                node.style.fill = 'var(--converged-color)';
+                node.classList.add('glowing');
+            });
+            await sleep(5000);
+
+            // --- FINAL SCENE ---
+            updateSubtitles(
+                '这就是去中心化优化：鲁棒、高效，并保护了数据隐私。',
+                'This is decentralized optimization: robust, efficient, and privacy-preserving.'
+            );
+            await sleep(6000);
+
+            // --- LOOP ---
+            hideSubtitles();
+            titleContainer.classList.replace('fade-in', 'fade-out');
+            decentralizedModel.classList.replace('fade-in', 'fade-out');
+            await sleep(2000);
+
+            // Reset for next loop
+            centralizedModel.style.opacity = 1;
+            centralizedModel.classList.remove('fade-in', 'fade-out');
+            centerNode.style.fill = 'var(--center-node-color)';
+            centerNode.classList.remove('cracking');
+
+            decentralizedModel.classList.add('hidden');
+            decentralizedModel.classList.remove('fade-in', 'fade-out');
+            dAgents.forEach((node, i) => {
+                node.style.fill = 'var(--node-color)';
+                node.classList.remove('glowing');
+            });
+
+            playAnimation();
+        }
+
+        // --- Start ---
+        window.onload = () => {
+            setupScene();
+            playAnimation();
+        };
+    </script>
+</body>
+
+</html>

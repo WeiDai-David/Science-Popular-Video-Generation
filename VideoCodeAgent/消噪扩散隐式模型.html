@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Denoising Diffusion Implicit Model (DDIM) Explained</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A40;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --accent-color: #F5A623;
+            --gray-color: #CED4DA;
+            --dark-gray: #6C757D;
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #E9ECEF;
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 90vw;
+            max-width: 2000px;
+            /* Targeting 2K-ish width */
+            aspect-ratio: 16 / 9;
+            background-color: var(--bg-color);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .element {
+            position: absolute;
+            visibility: hidden;
+            /* Controlled by JS */
+        }
+
+        #title-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        #title-main {
+            font-size: clamp(24px, 5vw, 72px);
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        #title-sub {
+            font-size: clamp(14px, 2.5vw, 36px);
+            font-weight: 300;
+            color: var(--dark-gray);
+            margin-top: 10px;
+        }
+
+        #process-svg {
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        .subtitle-track {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 15px 25px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .subtitle-cn {
+            font-size: clamp(14px, 1.8vw, 26px);
+            font-weight: 500;
+            color: var(--text-color);
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        .subtitle-en {
+            font-size: clamp(10px, 1.2vw, 18px);
+            font-weight: 400;
+            color: var(--dark-gray);
+            margin-top: 5px;
+            line-height: 1.4;
+        }
+
+        /* SVG specific styles */
+        .node {
+            fill: white;
+            stroke: var(--primary-color);
+            stroke-width: 3;
+        }
+
+        .node-text {
+            font-size: 18px;
+            fill: var(--text-color);
+            font-family: var(--font-family);
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .label-text {
+            font-size: 22px;
+            fill: var(--dark-gray);
+            font-family: var(--font-family);
+            text-anchor: middle;
+        }
+
+        .arrow-line {
+            stroke: var(--primary-color);
+            stroke-width: 2.5;
+        }
+
+        .ddpm-arrow {
+            stroke: var(--primary-color);
+            stroke-width: 2.5;
+        }
+
+        .ddim-arrow {
+            stroke: var(--accent-color);
+            stroke-width: 4;
+        }
+
+        .noise-dot {
+            fill: var(--gray-color);
+        }
+
+        .model-icon {
+            fill: var(--secondary-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <!-- Title Card -->
+        <div id="title-card" class="element">
+            <h1 id="title-main">Denoising Diffusion Implicit Models</h1>
+            <h2 id="title-sub">消噪扩散隐式模型 (DDIM)</h2>
+        </div>
+
+        <!-- Animation Canvas -->
+        <svg id="process-svg" class="element" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet">
+            <!-- Defs for markers -->
+            <defs>
+                <marker id="arrowhead-ddpm" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#4A90E2" />
+                </marker>
+                <marker id="arrowhead-ddim" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#F5A623" />
+                </marker>
+                <marker id="arrowhead-forward" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto">
+                    <polygon points="0 0, 8 2.5, 0 5" fill="#6C757D" />
+                </marker>
+            </defs>
+
+            <!-- Shared Elements -->
+            <g id="image-group" class="element">
+                <rect x="150" y="350" width="200" height="200" rx="15" fill="#FFFFFF" stroke="#CED4DA"
+                    stroke-width="2" />
+                <path
+                    d="M 175 520 C 195 480, 225 460, 250 480 S 285 520, 300 500 L 325 520 L 325 480 L 300 450 L 275 470 L 250 440 L 225 470 L 200 450 L 175 480 Z"
+                    fill="#50E3C2" opacity="0.8" />
+                <circle cx="285" cy="410" r="15" fill="#F5A623" />
+                <rect x="150" y="350" width="200" height="200" rx="15" fill="none" stroke="#CED4DA" stroke-width="2" />
+            </g>
+
+            <g id="noise-overlay" class="element" clip-path="url(#clip)">
+                <defs>
+                    <clipPath id="clip">
+                        <rect x="150" y="350" width="200" height="200" rx="15" />
+                    </clipPath>
+                </defs>
+                <!-- Generate random dots for noise -->
+                <script>
+                    const noiseGroup = document.getElementById('noise-overlay');
+                    for (let i = 0; i < 500; i++) {
+                        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        circle.setAttribute('cx', 150 + Math.random() * 200);
+                        circle.setAttribute('cy', 350 + Math.random() * 200);
+                        circle.setAttribute('r', Math.random() * 1.5 + 0.5);
+                        circle.setAttribute('class', 'noise-dot');
+                        noiseGroup.appendChild(circle);
+                    }
+                </script>
+            </g>
+
+            <g id="model-icon" class="element">
+                <path d="M800 450 L750 400 L750 350 L800 300 L850 350 L850 400 Z" stroke-width="4" stroke="#50E3C2"
+                    fill="rgba(80, 227, 194, 0.1)" />
+                <path d="M800 450 L750 500 L750 550 L800 600 L850 550 L850 500 Z" stroke-width="4" stroke="#50E3C2"
+                    fill="rgba(80, 227, 194, 0.1)" />
+                <path class="model-icon"
+                    d="M780,430 a30,30 0 1,0 40,0 a50,50 0 0,1 -40,0 M765,460 a30,30 0 1,0 70,0 M780,490 a30,30 0 1,0 40,0"
+                    fill="none" stroke-width="3" stroke-linecap="round" />
+                <circle cx="800" cy="450" r="80" fill="none" stroke="#50E3C2" stroke-width="2" stroke-dasharray="5 5" />
+                <text x="800" y="560" class="label-text" fill="#50E3C2">U-Net Model</text>
+            </g>
+
+            <!-- Forward Process Elements -->
+            <g id="forward-process" class="element">
+                <text x="800" y="200" class="label-text" font-size="28">Forward Process / 前向过程</text>
+                <text x="120" y="440" class="node-text">x₀</text>
+                <text x="1480" y="440" class="node-text">xT</text>
+                <path id="forward-arrow-1" d="M 380 450 H 580" stroke="#6C757D" stroke-width="2"
+                    marker-end="url(#arrowhead-forward)" />
+                <path id="forward-arrow-2" d="M 620 450 H 820" stroke="#6C757D" stroke-width="2"
+                    marker-end="url(#arrowhead-forward)" />
+                <path id="forward-arrow-3" d="M 860 450 H 1060" stroke="#6C757D" stroke-width="2"
+                    marker-end="url(#arrowhead-forward)" />
+                <path id="forward-arrow-4" d="M 1100 450 H 1300" stroke="#6C757D" stroke-width="2"
+                    marker-end="url(#arrowhead-forward)" />
+                <text x="480" y="420" class="label-text" font-size="18">+ noise</text>
+                <text x="720" y="420" class="label-text" font-size="18">+ noise</text>
+                <text x="960" y="420" class="label-text" font-size="18">+ noise</text>
+                <text x="1200" y="420" class="label-text" font-size="18">...</text>
+            </g>
+
+            <!-- Reverse Process Timeline -->
+            <g id="reverse-process-timeline" class="element">
+                <text id="reverse-title" x="800" y="150" class="label-text" font-size="32"></text>
+                <line x1="150" y1="450" x2="1450" y2="450" stroke="#CED4DA" stroke-width="3" />
+                <g id="timeline-nodes"></g>
+                <text x="1450" y="500" class="node-text">xT (Noise)</text>
+                <text x="150" y="500" class="node-text">x₀ (Image)</text>
+            </g>
+
+            <!-- DDPM Specific Arrows -->
+            <g id="ddpm-arrows" class="element"></g>
+
+            <!-- DDIM Specific Arrows -->
+            <g id="ddim-arrows" class="element"></g>
+
+            <!-- Comparison Scene -->
+            <g id="comparison-scene" class="element">
+                <line x1="800" y1="100" x2="800" y2="800" stroke="#CED4DA" stroke-width="2" stroke-dasharray="10 5" />
+                <text x="400" y="150" class="label-text" font-size="32">DDPM</text>
+                <text x="1200" y="150" class="label-text" font-size="32">DDIM</text>
+
+                <text x="400" y="680" class="label-text" font-size="24">~1000 Steps</text>
+                <text x="1200" y="680" class="label-text" font-size="24">~50 Steps</text>
+
+                <text x="400" y="730" class="label-text" font-weight="600" fill="#4A90E2">Slow & Stochastic</text>
+                <text x="1200" y="730" class="label-text" font-weight="600" fill="#F5A623">Fast & Deterministic</text>
+
+                <!-- DDPM side -->
+                <line x1="100" y1="450" x2="700" y2="450" stroke="#CED4DA" stroke-width="3" />
+                <g id="compare-ddpm-nodes"></g>
+                <g id="compare-ddpm-arrows"></g>
+                <g id="compare-ddpm-image"></g>
+
+                <!-- DDIM side -->
+                <line x1="900" y1="450" x2="1500" y2="450" stroke="#CED4DA" stroke-width="3" />
+                <g id="compare-ddim-nodes"></g>
+                <g id="compare-ddim-arrows"></g>
+                <g id="compare-ddim-image"></g>
+            </g>
+
+        </svg>
+
+        <!-- Subtitles -->
+        <div id="subtitles" class="element subtitle-track">
+            <p id="subtitle-cn" class="subtitle-cn"></p>
+            <p id="subtitle-en" class="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        const $ = (s) => document.querySelector(s);
+        const $$ = (s) => document.querySelectorAll(s);
+
+        // --- DOM Elements ---
+        const container = $('#container');
+        const titleCard = $('#title-card');
+        const processSvg = $('#process-svg');
+        const subtitles = $('#subtitles');
+        const subtitleCn = $('#subtitle-cn');
+        const subtitleEn = $('#subtitle-en');
+
+        const imageGroup = $('#image-group');
+        const noiseOverlay = $('#noise-overlay');
+        const modelIcon = $('#model-icon');
+        const forwardProcess = $('#forward-process');
+
+        const reverseTimeline = $('#reverse-process-timeline');
+        const reverseTitle = $('#reverse-title');
+        const timelineNodes = $('#timeline-nodes');
+        const ddpmArrows = $('#ddpm-arrows');
+        const ddimArrows = $('#ddim-arrows');
+
+        const comparisonScene = $('#comparison-scene');
+
+        // --- Animation Timeline ---
+        const tl = gsap.timeline({ delay: 0.5 });
+
+        // --- Helper Functions ---
+        function showSubtitle(cn, en, duration) {
+            gsap.to(subtitles, { autoAlpha: 0, duration: 0.3 });
+            const subTl = gsap.timeline();
+            subTl.call(() => {
+                subtitleCn.innerHTML = cn;
+                subtitleEn.innerHTML = en;
+            })
+                .to(subtitles, { autoAlpha: 1, duration: 0.5 })
+                .to(subtitles, { autoAlpha: 0, duration: 0.5 }, `+=${duration}`);
+            return subTl;
+        }
+
+        function createNodes(parent, count, xStart, xEnd, y) {
+            parent.innerHTML = '';
+            const step = (xEnd - xStart) / (count - 1);
+            for (let i = 0; i < count; i++) {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', xStart + i * step);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', 6);
+                circle.setAttribute('class', 'node');
+                parent.appendChild(circle);
+            }
+        }
+
+        function createArrows(parent, count, xStart, xEnd, y, className, markerId) {
+            parent.innerHTML = '';
+            const step = (xEnd - xStart) / count;
+            const arrows = [];
+            for (let i = 0; i < count; i++) {
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const startX = xStart + i * step;
+                const endX = startX + step;
+                path.setAttribute('d', `M ${endX - 10},${y} L ${startX + 10},${y}`);
+                path.setAttribute('class', className);
+                path.setAttribute('marker-end', `url(#${markerId})`);
+                parent.appendChild(path);
+                arrows.push(path);
+            }
+            return arrows;
+        }
+
+        // --- Animation Sequences ---
+
+        // 1. Title Scene
+        tl.to(titleCard, { autoAlpha: 1, duration: 1 })
+            .from("#title-main", { y: 20, opacity: 0, duration: 0.8 }, "-=0.5")
+            .from("#title-sub", { y: 20, opacity: 0, duration: 0.8 }, "-=0.6")
+            .to(titleCard, { autoAlpha: 0, duration: 1, delay: 2 });
+
+        // 2. Forward Process
+        tl.add(() => {
+            gsap.set(processSvg, { autoAlpha: 1 });
+        })
+            .to(imageGroup, { autoAlpha: 1, duration: 0.5 })
+            .add(showSubtitle(
+                "扩散模型始于一个清晰的图像...",
+                "Diffusion models start with a clear image...",
+                3
+            ), "-=0.5")
+            .to(forwardProcess, { autoAlpha: 1, duration: 0.5 }, "+=1")
+            .add(showSubtitle(
+                "然后，在前向过程中，我们分很多步（例如1000步）逐渐向图像添加高斯噪声。",
+                "Then, in the forward process, we gradually add Gaussian noise over many steps (e.g., 1000).",
+                4
+            ), "-=0.5")
+            .fromTo(noiseOverlay, { autoAlpha: 0 }, { autoAlpha: 1, duration: 3 })
+            .from("#forward-arrow-1", { scaleX: 0, transformOrigin: 'left', duration: 0.5 }, "-=3")
+            .from("#forward-arrow-2", { scaleX: 0, transformOrigin: 'left', duration: 0.5 }, "-=2.5")
+            .from("#forward-arrow-3", { scaleX: 0, transformOrigin: 'left', duration: 0.5 }, "-=2.0")
+            .from("#forward-arrow-4", { scaleX: 0, transformOrigin: 'left', duration: 0.5 }, "-=1.5")
+            .add(showSubtitle(
+                "直到图像最终变成纯粹的随机噪声。",
+                "Until the image becomes pure random noise.",
+                3
+            ), "+=1")
+            .to([imageGroup, forwardProcess], { autoAlpha: 0, duration: 1, delay: 1 });
+
+        // 3. DDPM Reverse Process
+        tl.add(() => {
+            reverseTitle.textContent = "Reverse Process / 逆向过程 (DDPM)";
+            gsap.set(noiseOverlay, { attr: { x: 1250, y: 350 }, scale: 1 });
+            createNodes(timelineNodes, 21, 150, 1450, 450);
+        })
+            .to([reverseTimeline, noiseOverlay], { autoAlpha: 1, duration: 1 })
+            .to(modelIcon, { autoAlpha: 1, duration: 0.5 })
+            .add(showSubtitle(
+                "模型的任务是学习逆转这个过程：从噪声中恢复出原始图像。",
+                "The model's job is to learn the reverse: recovering the original image from noise.",
+                4
+            ))
+            .add(showSubtitle(
+                "传统的DDPM使用马尔可夫链，一步一步地、随机地进行去噪。",
+                "Traditional DDPMs use a Markov chain, denoising step-by-step stochastically.",
+                4
+            ), "+=1")
+            .add(() => {
+                const arrows = createArrows(ddpmArrows, 20, 150, 1450, 450, 'ddpm-arrow', 'arrowhead-ddpm');
+                gsap.set(ddpmArrows, { autoAlpha: 1 });
+                const arrowTl = gsap.timeline();
+                arrows.forEach((arrow, i) => {
+                    const start = { drawSVG: "0% 0%" };
+                    const end = { drawSVG: "0% 100%", duration: 0.2 };
+                    arrowTl.fromTo(arrow, start, end);
+                });
+                // Animate image denoising
+                gsap.to(noiseOverlay, { autoAlpha: 0, duration: 4 });
+                gsap.fromTo(imageGroup, { autoAlpha: 0, attr: { x: 150, y: 350 } }, { autoAlpha: 1, duration: 4, delay: 1 });
+            })
+            .add(showSubtitle(
+                "这个过程虽然有效，但通常需要非常多的步骤（1000步），导致生成速度很慢。",
+                "While effective, this process often requires many steps (1000), making generation slow.",
+                5
+            ), "+=1")
+            .to([reverseTimeline, noiseOverlay, modelIcon, ddpmArrows, imageGroup], { autoAlpha: 0, duration: 1, delay: 2 });
+
+        // 4. DDIM Introduction
+        tl.add(() => {
+            reverseTitle.textContent = "The DDIM Innovation / DDIM 的创新";
+            gsap.set(noiseOverlay, { attr: { x: 1250, y: 350 }, autoAlpha: 1 });
+        })
+            .to(reverseTimeline, { autoAlpha: 1, duration: 1 })
+            .to(modelIcon, { autoAlpha: 1, duration: 0.5 }, "-=0.5")
+            .add(showSubtitle(
+                "DDIM 提出了一种更高效的采样方法。",
+                "DDIM introduces a more efficient sampling method.",
+                3
+            ))
+            .add(showSubtitle(
+                "它构建了一个非马尔可夫过程，允许我们“跳过”一些步骤。",
+                "It builds a non-Markovian process, which allows us to 'skip' steps.",
+                4
+            ), "+=1")
+            .add(() => {
+                ddimArrows.innerHTML = '';
+                const ddimPath1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                ddimPath1.setAttribute('d', 'M 1440,450 C 1200,300 1000,300 770,450');
+                ddimPath1.setAttribute('class', 'ddim-arrow');
+                ddimPath1.setAttribute('marker-end', 'url(#arrowhead-ddim)');
+                ddimPath1.setAttribute('fill', 'none');
+
+                const ddimPath2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                ddimPath2.setAttribute('d', 'M 760,450 C 600,600 400,600 160,450');
+                ddimPath2.setAttribute('class', 'ddim-arrow');
+                ddimPath2.setAttribute('marker-end', 'url(#arrowhead-ddim)');
+                ddimPath2.setAttribute('fill', 'none');
+
+                ddimArrows.appendChild(ddimPath1);
+                ddimArrows.appendChild(ddimPath2);
+                gsap.set(ddimArrows, { autoAlpha: 1 });
+
+                gsap.from(ddimPath1, { strokeDashoffset: 1000, strokeDasharray: 1000, duration: 2, ease: "power1.inOut" });
+                gsap.from(ddimPath2, { strokeDashoffset: 1000, strokeDasharray: 1000, duration: 2, ease: "power1.inOut" }, "+=1");
+
+                // Animate image denoising (faster)
+                gsap.to(noiseOverlay, { autoAlpha: 0, duration: 3 });
+                gsap.fromTo(imageGroup, { autoAlpha: 0, attr: { x: 150, y: 350 } }, { autoAlpha: 1, duration: 3, delay: 1 });
+            })
+            .add(showSubtitle(
+                "这使得逆向去噪过程是确定的，并且可以用更少的步骤（例如50步）完成。",
+                "This makes the reverse process deterministic and achievable in far fewer steps (e.g., 50).",
+                5
+            ), "+=1")
+            .to([reverseTimeline, noiseOverlay, modelIcon, ddimArrows, imageGroup], { autoAlpha: 0, duration: 1, delay: 2 });
+
+        // 5. Comparison Scene
+        tl.to(comparisonScene, { autoAlpha: 1, duration: 1 })
+            .add(showSubtitle(
+                "让我们来直观对比一下 DDPM 和 DDIM 的采样速度。",
+                "Let's visually compare the sampling speed of DDPM and DDIM.",
+                3
+            ))
+            .add(() => {
+                // Setup DDPM side
+                createNodes($('#compare-ddpm-nodes'), 11, 100, 700, 450);
+                const ddpmCompArrows = createArrows($('#compare-ddpm-arrows'), 10, 100, 700, 450, 'ddpm-arrow', 'arrowhead-ddpm');
+                const ddpmCompImg = imageGroup.cloneNode(true);
+                $('#compare-ddpm-image').appendChild(ddpmCompImg);
+                gsap.set(ddpmCompImg, { autoAlpha: 0, x: -50, y: -100, scale: 0.7 });
+
+                // Setup DDIM side
+                createNodes($('#compare-ddim-nodes'), 11, 900, 1500, 450);
+                const ddimCompImg = imageGroup.cloneNode(true);
+                $('#compare-ddim-image').appendChild(ddimCompImg);
+                gsap.set(ddimCompImg, { autoAlpha: 0, x: 750, y: -100, scale: 0.7 });
+
+                // DDIM Arrows
+                const ddimCompArrows = $('#compare-ddim-arrows');
+                const ddimCompPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                ddimCompPath.setAttribute('d', 'M 1490,450 C 1200,350 1000,350 910,450');
+                ddimCompPath.setAttribute('class', 'ddim-arrow');
+                ddimCompPath.setAttribute('marker-end', 'url(#arrowhead-ddim)');
+                ddimCompPath.setAttribute('fill', 'none');
+                ddimCompArrows.appendChild(ddimCompPath);
+
+                // Animate DDPM
+                const ddpmCompTl = gsap.timeline();
+                ddpmCompArrows.forEach(arrow => {
+                    ddpmCompTl.fromTo(arrow, { drawSVG: "0% 0%" }, { drawSVG: "0% 100%", duration: 0.2 });
+                });
+                ddpmCompTl.to(ddpmCompImg, { autoAlpha: 1, duration: 0.5 });
+
+                // Animate DDIM
+                const ddimCompTl = gsap.timeline();
+                ddimCompTl.from(ddimCompPath, { strokeDashoffset: 800, strokeDasharray: 800, duration: 1, ease: "power1.inOut" })
+                    .to(ddimCompImg, { autoAlpha: 1, duration: 0.5 });
+            }, "+=1");
+
+        // 6. Conclusion
+        tl.add(showSubtitle(
+            "结果：DDIM 在大幅提升生成速度的同时，保持了与DDPM相近的图像质量。",
+            "Result: DDIM drastically improves generation speed while maintaining quality similar to DDPM.",
+            5
+        ), "+=2")
+            .to(comparisonScene, { autoAlpha: 0, duration: 1, delay: 2 })
+            .to(titleCard, { autoAlpha: 1, duration: 1 })
+            .add(showSubtitle(
+                "DDIM 是扩散模型发展中的一个关键里程碑，实现了速度与质量的飞跃。",
+                "DDIM is a key milestone in diffusion models, enabling a leap in speed and quality.",
+                5
+            ))
+            .to([titleCard, subtitles], { autoAlpha: 0, duration: 1, delay: 2 });
+
+        // Helper for GSAP DrawSVG plugin simulation
+        gsap.registerPlugin({
+            name: "drawSVG",
+            init(target, value) {
+                if (target.tagName.toLowerCase() !== "path") return;
+                let length = target.getTotalLength();
+                target.style.strokeDasharray = length;
+                let v = typeof value === "string" ? value.split(" ").map(parseFloat) : [0, value];
+                this.start = v[0] / 100 * length;
+                this.end = (v[1] - v[0]) / 100 * length;
+                this.p = "strokeDashoffset";
+            },
+            render(progress, data) {
+                data.target.style[data.p] = data.start + (1 - progress) * data.end;
+            }
+        });
+
+    </script>
+</body>
+
+</html>

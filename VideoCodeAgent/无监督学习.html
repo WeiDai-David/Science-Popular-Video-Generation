@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态动画：无监督学习 Unsupervised Learning</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400&family=Poppins:wght@300;400&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A49;
+            --sub-text-color: #6C757D;
+            --initial-point-color: #6c757d;
+            --cluster-color-1: #17A2B8;
+            /* Teal */
+            --cluster-color-2: #FD7E14;
+            /* Orange */
+            --cluster-color-3: #6F42C1;
+            /* Purple */
+            --font-family-cn: 'Noto Sans SC', sans-serif;
+            --font-family-en: 'Poppins', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #eef2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-family-en);
+        }
+
+        #scaler {
+            width: 2560px;
+            height: 1440px;
+            transform-origin: center center;
+        }
+
+        #animation-container {
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border-radius: 16px;
+        }
+
+        #background-shapes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        .shape {
+            position: absolute;
+            border-radius: 50%;
+            background-image: linear-gradient(45deg, rgba(23, 162, 184, 0.1), rgba(253, 126, 20, 0.1));
+            animation: float 20s infinite ease-in-out alternate;
+        }
+
+        .shape1 {
+            width: 400px;
+            height: 400px;
+            top: 10%;
+            left: 5%;
+            animation-duration: 25s;
+        }
+
+        .shape2 {
+            width: 300px;
+            height: 300px;
+            top: 60%;
+            left: 80%;
+            animation-duration: 18s;
+        }
+
+        .shape3 {
+            width: 150px;
+            height: 150px;
+            top: 70%;
+            left: 15%;
+            animation-duration: 22s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            100% {
+                transform: translateY(-50px) rotate(90deg);
+            }
+        }
+
+        #animation-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .data-point {
+            fill: var(--initial-point-color);
+            transition: fill 0.8s ease-in-out, transform 1s ease-in-out;
+            opacity: 0;
+        }
+
+        .centroid {
+            transition: transform 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            opacity: 0;
+            stroke-width: 8;
+            stroke: rgba(255, 255, 255, 0.8);
+            filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.15));
+        }
+
+        .centroid-1 {
+            fill: var(--cluster-color-1);
+        }
+
+        .centroid-2 {
+            fill: var(--cluster-color-2);
+        }
+
+        .centroid-3 {
+            fill: var(--cluster-color-3);
+        }
+
+        .cluster-1 {
+            fill: var(--cluster-color-1);
+        }
+
+        .cluster-2 {
+            fill: var(--cluster-color-2);
+        }
+
+        .cluster-3 {
+            fill: var(--cluster-color-3);
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            width: fit-content;
+            max-width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitle-cn {
+            font-family: var(--font-family-cn);
+            font-size: 28px;
+            font-weight: 400;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        #subtitle-en {
+            font-family: var(--font-family-en);
+            font-size: 22px;
+            font-weight: 300;
+            color: var(--sub-text-color);
+        }
+
+        #title-card {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        #title-card h1 {
+            font-family: var(--font-family-cn);
+            font-size: 100px;
+            font-weight: 400;
+            color: var(--text-color);
+            margin-bottom: 20px;
+        }
+
+        #title-card p {
+            font-family: var(--font-family-en);
+            font-size: 40px;
+            font-weight: 300;
+            color: var(--sub-text-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="scaler">
+        <div id="animation-container">
+            <div id="background-shapes">
+                <div class="shape shape1"></div>
+                <div class="shape shape2"></div>
+                <div class="shape shape3"></div>
+            </div>
+
+            <svg id="animation-svg" viewBox="0 0 2560 1440" preserveAspectRatio="xMidYMid meet"></svg>
+
+            <div id="title-card">
+                <h1>无监督学习</h1>
+                <p>Unsupervised Learning</p>
+            </div>
+
+            <div id="subtitle-container">
+                <p id="subtitle-cn"></p>
+                <p id="subtitle-en"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.getElementById('animation-svg');
+        const subtitleContainer = document.getElementById('subtitle-container');
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+        const titleCard = document.getElementById('title-card');
+        const scaler = document.getElementById('scaler');
+
+        const VIEW_WIDTH = 2560;
+        const VIEW_HEIGHT = 1440;
+        const NUM_POINTS = 300;
+        const NUM_CLUSTERS = 3;
+        const POINT_RADIUS = 10;
+        const CENTROID_RADIUS = 25;
+
+        const colors = ['var(--cluster-color-1)', 'var(--cluster-color-2)', 'var(--cluster-color-3)'];
+        const clusterClasses = ['cluster-1', 'cluster-2', 'cluster-3'];
+        const centroidClasses = ['centroid-1', 'centroid-2', 'centroid-3'];
+
+        let dataPoints = [];
+        let centroids = [];
+
+        function setSubtitles(cn, en, duration = 500) {
+            return new Promise(resolve => {
+                subtitleContainer.style.opacity = '0';
+                setTimeout(() => {
+                    subtitleCn.textContent = cn;
+                    subtitleEn.textContent = en;
+                    if (cn || en) {
+                        subtitleContainer.style.opacity = '1';
+                    }
+                    resolve();
+                }, duration);
+            });
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function distance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function createPoint(x, y, isCentroid = false) {
+            const circle = document.createElementNS(svgNS, 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', isCentroid ? CENTROID_RADIUS : POINT_RADIUS);
+            if (isCentroid) {
+                circle.classList.add('centroid');
+            } else {
+                circle.classList.add('data-point');
+            }
+            svg.appendChild(circle);
+            return circle;
+        }
+
+        function generateData() {
+            const clusterCenters = [
+                { x: VIEW_WIDTH * 0.25, y: VIEW_HEIGHT * 0.35 },
+                { x: VIEW_WIDTH * 0.75, y: VIEW_HEIGHT * 0.45 },
+                { x: VIEW_WIDTH * 0.5, y: VIEW_HEIGHT * 0.75 }
+            ];
+            const spread = VIEW_WIDTH * 0.1;
+
+            for (let i = 0; i < NUM_POINTS; i++) {
+                const clusterIndex = i % NUM_CLUSTERS;
+                const angle = Math.random() * 2 * Math.PI;
+                const radius = Math.random() * spread;
+                const x = clusterCenters[clusterIndex].x + Math.cos(angle) * radius;
+                const y = clusterCenters[clusterIndex].y + Math.sin(angle) * radius;
+
+                const element = createPoint(x, y);
+                dataPoints.push({ x, y, element, cluster: -1 });
+            }
+        }
+
+        function assignPointsToClusters() {
+            dataPoints.forEach(point => {
+                let minDistance = Infinity;
+                let closestCentroidIndex = -1;
+
+                centroids.forEach((centroid, index) => {
+                    const dist = distance(point, centroid);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        closestCentroidIndex = index;
+                    }
+                });
+
+                if (point.cluster !== closestCentroidIndex) {
+                    if (point.cluster !== -1) {
+                        point.element.classList.remove(clusterClasses[point.cluster]);
+                    }
+                    point.cluster = closestCentroidIndex;
+                    point.element.classList.add(clusterClasses[closestCentroidIndex]);
+                }
+            });
+        }
+
+        function updateCentroids() {
+            centroids.forEach((centroid, index) => {
+                const pointsInCluster = dataPoints.filter(p => p.cluster === index);
+                if (pointsInCluster.length === 0) return;
+
+                const sumX = pointsInCluster.reduce((sum, p) => sum + p.x, 0);
+                const sumY = pointsInCluster.reduce((sum, p) => sum + p.y, 0);
+
+                const newX = sumX / pointsInCluster.length;
+                const newY = sumY / pointsInCluster.length;
+
+                centroid.x = newX;
+                centroid.y = newY;
+                centroid.element.style.transform = `translate(${newX - parseFloat(centroid.element.getAttribute('cx'))}px, ${newY - parseFloat(centroid.element.getAttribute('cy'))}px)`;
+            });
+        }
+
+        async function runAnimation() {
+            // 0. Initial Setup
+            generateData();
+            await sleep(500);
+
+            // 1. Introduction - Show chaotic data
+            titleCard.style.opacity = '1';
+            await sleep(3000);
+            titleCard.style.opacity = '0';
+            await sleep(1000);
+
+            await setSubtitles(
+                "想象一下，我们拥有海量的数据，但没有任何标签。",
+                "Imagine we have a vast amount of data, but with no labels."
+            );
+            dataPoints.forEach((p, i) => {
+                setTimeout(() => {
+                    p.element.style.opacity = '0.7';
+                }, i * 5);
+            });
+            await sleep(5000);
+
+            // 2. Goal of Unsupervised Learning
+            await setSubtitles(
+                "无监督学习的目标，就是从这些数据中自动发现隐藏的结构或模式。",
+                "The goal of Unsupervised Learning is to automatically find hidden structures or patterns."
+            );
+            await sleep(5000);
+
+            // 3. Algorithm Starts - K-Means Clustering
+            await setSubtitles(
+                "让我们看看一种常见的算法：K-Means聚类。首先，随机选择几个“中心点”。",
+                "Let's see a common algorithm: K-Means Clustering. First, we randomly select a few 'centroids'."
+            );
+
+            for (let i = 0; i < NUM_CLUSTERS; i++) {
+                const x = VIEW_WIDTH * (0.2 + Math.random() * 0.6);
+                const y = VIEW_HEIGHT * (0.2 + Math.random() * 0.6);
+                const element = createPoint(x, y, true);
+                element.classList.add(centroidClasses[i]);
+                centroids.push({ x, y, element });
+                await sleep(500);
+                element.style.opacity = '1';
+            }
+            await sleep(4000);
+
+            // 4. Iteration 1
+            await setSubtitles(
+                "第一步：将每个数据点分配给离它最近的中心点。",
+                "Step 1: Assign each data point to its nearest centroid."
+            );
+            assignPointsToClusters();
+            await sleep(4000);
+
+            await setSubtitles(
+                "第二步：将中心点移动到其所属数据点的平均位置。",
+                "Step 2: Move each centroid to the average position of its assigned points."
+            );
+            updateCentroids();
+            await sleep(4000);
+
+            // 5. Iteration 2
+            await setSubtitles(
+                "然后，重复这个过程...",
+                "Then, we repeat the process..."
+            );
+            await sleep(2000);
+
+            await setSubtitles(
+                "再次分配数据点...",
+                "Assigning points again..."
+            );
+            assignPointsToClusters();
+            await sleep(4000);
+
+            await setSubtitles(
+                "...并再次更新中心点位置。",
+                "...and updating centroids again."
+            );
+            updateCentroids();
+            await sleep(4000);
+
+            // 6. Result
+            await setSubtitles(
+                "经过几次迭代，中心点不再移动，算法收敛。",
+                "After a few iterations, the centroids stop moving, and the algorithm converges."
+            );
+            await sleep(5000);
+
+            await setSubtitles(
+                "看！我们成功地将数据分成了几个有意义的簇。",
+                "Look! We have successfully grouped the data into meaningful clusters."
+            );
+            await sleep(5000);
+
+            // 7. Conclusion
+            await setSubtitles(
+                "这就是无监督学习：在没有“正确答案”的情况下，让机器自己学习和发现数据的内在模式。",
+                "This is Unsupervised Learning: letting the machine learn and discover patterns on its own, without a 'right answer'."
+            );
+            await sleep(6000);
+
+            // 8. Fade out and show final title
+            await setSubtitles("", "");
+            svg.style.transition = 'opacity 1s ease-in-out';
+            svg.style.opacity = '0';
+            await sleep(1000);
+
+            titleCard.querySelector('h1').textContent = '发现隐藏的模式';
+            titleCard.querySelector('p').textContent = 'Discovering Hidden Patterns';
+            titleCard.style.opacity = '1';
+        }
+
+        function handleResize() {
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const scale = Math.min(screenWidth / 2560, screenHeight / 1440);
+            scaler.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('load', () => {
+            handleResize();
+            runAnimation();
+        });
+
+    </script>
+</body>
+
+</html>

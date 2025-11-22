@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chain-of-Thought (思维链) 动画解说</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-color: #4a90e2;
+            --secondary-color: #7d95b3;
+            --text-color: #333333;
+            --success-color: #50c878;
+            --error-color: #e74c3c;
+            --white-color: #ffffff;
+            --border-color: #e0e0e0;
+            --light-blue: #e9f2ff;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Poppins', 'Helvetica Neue', Arial, 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            overflow: hidden;
+            transform-origin: top left;
+            background-color: var(--white-color);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+        }
+
+        .element {
+            position: absolute;
+            transition: all 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        .visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #title-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #title-card h1 {
+            font-size: 120px;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        #title-card h2 {
+            font-size: 80px;
+            color: var(--text-color);
+            margin-top: 20px;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 80px;
+            left: 0;
+            width: 100%;
+            padding: 0 100px;
+            box-sizing: border-box;
+            text-align: center;
+            z-index: 100;
+        }
+
+        .subtitle-box {
+            display: inline-block;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 25px 50px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: opacity 0.5s ease-in-out;
+            opacity: 0;
+        }
+
+        .subtitle-box.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn {
+            font-size: 42px;
+            color: var(--text-color);
+            font-weight: 600;
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            color: var(--secondary-color);
+            margin-top: 10px;
+            font-weight: 300;
+            line-height: 1.4;
+        }
+
+        /* Scene 1: Standard Prompt */
+        #question-box {
+            top: 300px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            width: 1800px;
+            padding: 50px;
+            background-color: var(--light-blue);
+            border-radius: 20px;
+            text-align: center;
+            font-size: 48px;
+            color: var(--text-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        #ai-brain-1 {
+            top: 700px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            width: 300px;
+            height: 300px;
+        }
+
+        #ai-brain-1 .brain-path {
+            stroke-dasharray: 2000;
+            stroke-dashoffset: 2000;
+            animation: drawBrain 2s ease-out forwards;
+        }
+
+        .thinking-dots {
+            font-size: 150px;
+            color: var(--primary-color);
+            letter-spacing: 20px;
+        }
+
+        #dots-1 {
+            top: 750px;
+            left: calc(50% + 250px);
+        }
+
+        #answer-box-1 {
+            top: 1100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            padding: 30px 60px;
+            background-color: var(--white-color);
+            border: 3px solid var(--error-color);
+            border-radius: 20px;
+            font-size: 60px;
+            color: var(--error-color);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+
+        #answer-box-1 svg {
+            width: 80px;
+            height: 80px;
+            margin-right: 30px;
+        }
+
+        /* Scene 2: Introducing CoT */
+        #cot-prompt-box {
+            top: 500px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            width: 1800px;
+            padding: 50px;
+            background-color: #e8f5e9;
+            border-radius: 20px;
+            text-align: center;
+            font-size: 48px;
+            color: #2e7d32;
+            border: 2px solid #66bb6a;
+            font-style: italic;
+        }
+
+        #magic-wand {
+            width: 200px;
+            height: 200px;
+            top: 300px;
+            left: 300px;
+        }
+
+        /* Scene 3: The Chain of Thought */
+        .thought-node {
+            width: 1000px;
+            padding: 30px;
+            background-color: var(--white-color);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            font-size: 36px;
+            display: flex;
+            align-items: center;
+        }
+
+        .thought-node .step-number {
+            font-size: 40px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-right: 25px;
+            background-color: var(--light-blue);
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .thought-node .content {
+            flex-grow: 1;
+        }
+
+        .thought-node .visual {
+            margin-left: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .thought-node .visual svg {
+            width: 60px;
+            height: 60px;
+        }
+
+        .chain-line {
+            position: absolute;
+            stroke: var(--secondary-color);
+            stroke-width: 4;
+            stroke-dasharray: 10 10;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        #node-1 {
+            top: 200px;
+            left: 150px;
+        }
+
+        #node-2 {
+            top: 480px;
+            left: 1400px;
+        }
+
+        #node-3 {
+            top: 760px;
+            left: 150px;
+        }
+
+        #node-4 {
+            top: 1040px;
+            left: 1400px;
+        }
+
+        /* Scene 4: Correct Answer */
+        #answer-box-2 {
+            top: 700px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            padding: 40px 80px;
+            background-color: var(--white-color);
+            border: 3px solid var(--success-color);
+            border-radius: 20px;
+            font-size: 80px;
+            color: var(--success-color);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(80, 200, 120, 0.3);
+        }
+
+        #answer-box-2 svg {
+            width: 100px;
+            height: 100px;
+            margin-right: 40px;
+        }
+
+        /* Scene 5: Summary */
+        .summary-card {
+            width: 600px;
+            height: 700px;
+            background-color: var(--white-color);
+            border-radius: 30px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .summary-card svg {
+            width: 150px;
+            height: 150px;
+            color: var(--primary-color);
+            margin-bottom: 40px;
+        }
+
+        .summary-card h3 {
+            font-size: 48px;
+            margin: 0 0 20px 0;
+            color: var(--text-color);
+        }
+
+        .summary-card p {
+            font-size: 32px;
+            color: var(--secondary-color);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        #summary-1 {
+            top: 400px;
+            left: 230px;
+        }
+
+        #summary-2 {
+            top: 400px;
+            left: 980px;
+        }
+
+        #summary-3 {
+            top: 400px;
+            left: 1730px;
+        }
+
+        #final-title {
+            top: 150px;
+            left: 50%;
+            transform: translateX(-50%) translateY(30px);
+            font-size: 90px;
+            color: var(--primary-color);
+        }
+
+        /* Animations */
+        @keyframes drawBrain {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes thinking {
+            0% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .dot1 {
+            animation: thinking 1.5s infinite 0s;
+        }
+
+        .dot2 {
+            animation: thinking 1.5s infinite 0.3s;
+        }
+
+        .dot3 {
+            animation: thinking 1.5s infinite 0.6s;
+        }
+
+        @keyframes drawLine {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .line-drawing {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawLine 1s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <!-- Subtitles will be controlled by JS -->
+        <div id="subtitle-container">
+            <div class="subtitle-box" id="subtitle-box">
+                <p id="subtitle-cn"></p>
+                <p id="subtitle-en"></p>
+            </div>
+        </div>
+
+        <!-- All visual elements are placed here -->
+        <div id="elements-wrapper">
+
+            <!-- Title Card -->
+            <div id="title-card" class="element">
+                <h1>Chain-of-Thought</h1>
+                <h2>思维链</h2>
+            </div>
+
+            <!-- Scene 1 Elements -->
+            <div id="question-box" class="element">
+                罗杰有5个网球。他又买了2罐网球，每罐有3个。他现在总共有多少个网球？<br>
+                Roger has 5 tennis balls. He buys 2 more cans of tennis balls. Each can has 3 tennis balls. How many
+                tennis balls does he have now?
+            </div>
+            <div id="ai-brain-1" class="element">
+                <svg viewBox="0 0 100 100">
+                    <path class="brain-path"
+                        d="M50,5 C25,5 10,25 10,50 C10,75 25,95 50,95 C75,95 90,75 90,50 C90,25 75,5 50,5 Z M50,10 C72,10 85,28 85,50 C85,72 72,90 50,90 C28,90 15,72 15,50 C15,28 28,10 50,10 Z"
+                        fill="none" stroke="#4a90e2" stroke-width="2" />
+                    <path class="brain-path"
+                        d="M50,10 C40,25 40,35 50,50 M50,10 C60,25 60,35 50,50 M50,90 C40,75 40,65 50,50 M50,90 C60,75 60,65 50,50 M20,30 C35,35 35,45 50,50 M80,30 C65,35 65,45 50,50 M20,70 C35,65 35,55 50,50 M80,70 C65,65 65,55 50,50"
+                        fill="none" stroke="#7d95b3" stroke-width="1.5" />
+                </svg>
+            </div>
+            <div id="dots-1" class="element thinking-dots">
+                <span class="dot1">.</span><span class="dot2">.</span><span class="dot3">.</span>
+            </div>
+            <div id="answer-box-1" class="element">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M18.364 5.636a2 2 0 0 1 0 2.828L13.414 12l4.95 4.95a2 2 0 1 1-2.829 2.828L10.586 14.828l-4.95 4.95a2 2 0 1 1-2.828-2.828L7.758 12l-4.95-4.95A2 2 0 0 1 5.636 4.222l4.95 4.95 4.95-4.95a2 2 0 0 1 2.828 0z" />
+                </svg>
+                <span>答案是：10</span>
+            </div>
+
+            <!-- Scene 2 Elements -->
+            <div id="magic-wand" class="element">
+                <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M90 10 L60 40" stroke="#f39c12"></path>
+                    <path d="M50 50 L10 90" stroke="#3498db"></path>
+                    <circle cx="55" cy="45" r="10" fill="#ecf0f1" stroke="#3498db"></circle>
+                    <g transform="translate(90 10) rotate(45)">
+                        <path d="M0 -8 L5 -5 L8 0 L5 5 L0 8 L-5 5 L-8 0 L-5 -5 Z" fill="#f1c40f" stroke-width="2"
+                            stroke="#f39c12" />
+                    </g>
+                </svg>
+            </div>
+            <div id="cot-prompt-box" class="element">
+                “让我们一步一步地思考。” <br> "Let's think step by step."
+            </div>
+
+            <!-- Scene 3 Elements -->
+            <svg id="lines-svg" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: -1;">
+                <path id="line1" class="chain-line" d="" fill="none" />
+                <path id="line2" class="chain-line" d="" fill="none" />
+                <path id="line3" class="chain-line" d="" fill="none" />
+            </svg>
+            <div id="node-1" class="element thought-node">
+                <div class="step-number">1</div>
+                <div class="content">罗杰一开始有5个网球。<br>Roger starts with 5 tennis balls.</div>
+                <div class="visual">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#DFFF00" stroke="#B0C000" stroke-width="4" />
+                        <path d="M25,50 C25,25 75,25 75,50 M25,50 C50,75 50,75 75,50" fill="none" stroke="#FFFFFF"
+                            stroke-width="6" stroke-linecap="round" />
+                    </svg>
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#DFFF00" stroke="#B0C000" stroke-width="4" />
+                        <path d="M25,50 C25,25 75,25 75,50 M25,50 C50,75 50,75 75,50" fill="none" stroke="#FFFFFF"
+                            stroke-width="6" stroke-linecap="round" />
+                    </svg>
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#DFFF00" stroke="#B0C000" stroke-width="4" />
+                        <path d="M25,50 C25,25 75,25 75,50 M25,50 C50,75 50,75 75,50" fill="none" stroke="#FFFFFF"
+                            stroke-width="6" stroke-linecap="round" />
+                    </svg>
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#DFFF00" stroke="#B0C000" stroke-width="4" />
+                        <path d="M25,50 C25,25 75,25 75,50 M25,50 C50,75 50,75 75,50" fill="none" stroke="#FFFFFF"
+                            stroke-width="6" stroke-linecap="round" />
+                    </svg>
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#DFFF00" stroke="#B0C000" stroke-width="4" />
+                        <path d="M25,50 C25,25 75,25 75,50 M25,50 C50,75 50,75 75,50" fill="none" stroke="#FFFFFF"
+                            stroke-width="6" stroke-linecap="round" />
+                    </svg>
+                </div>
+            </div>
+            <div id="node-2" class="element thought-node">
+                <div class="step-number">2</div>
+                <div class="content">他买了2罐，每罐3个，所以新买了 2 * 3 = 6 个球。<br>He buys 2 cans with 3 balls each, so he gets 2 *
+                    3 = 6 new balls.</div>
+                <div class="visual">
+                    <svg viewBox="0 0 100 100">
+                        <rect x="20" y="10" width="60" height="80" rx="10" fill="#c0c0c0" stroke="#808080"
+                            stroke-width="4" />
+                        <rect x="15" y="5" width="70" height="15" rx="5" fill="#a0a0a0" />
+                    </svg>
+                    <svg viewBox="0 0 100 100">
+                        <rect x="20" y="10" width="60" height="80" rx="10" fill="#c0c0c0" stroke="#808080"
+                            stroke-width="4" />
+                        <rect x="15" y="5" width="70" height="15" rx="5" fill="#a0a0a0" />
+                    </svg>
+                </div>
+            </div>
+            <div id="node-3" class="element thought-node">
+                <div class="step-number">3</div>
+                <div class="content">总数是原有的球加上新买的球。<br>The total is the original balls plus the new balls.</div>
+                <div class="visual" style="font-size: 50px; font-weight: 600; color: var(--primary-color);">
+                    5 + 6
+                </div>
+            </div>
+            <div id="node-4" class="element thought-node">
+                <div class="step-number">4</div>
+                <div class="content">5 + 6 = 11。所以他现在有11个网球。<br>5 + 6 = 11. So he has 11 tennis balls now.</div>
+                <div class="visual" style="font-size: 50px; font-weight: 600; color: var(--success-color);">
+                    = 11
+                </div>
+            </div>
+
+            <!-- Scene 4 Elements -->
+            <div id="answer-box-2" class="element">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M9.99999 15.172L19.192 5.97901L20.606 7.39301L9.99999 18L3.63599 11.636L5.04999 10.222L9.99999 15.172Z" />
+                </svg>
+                <span>答案是：11</span>
+            </div>
+
+            <!-- Scene 5 Elements -->
+            <div id="final-title" class="element">思维链 (Chain-of-Thought) 的优势</div>
+            <div id="summary-1" class="element summary-card">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path
+                        d="M12 2.5a7.5 7.5 0 0 0-7.5 7.5c0 2.08.84 3.96 2.2 5.3l-2.7 2.7a.75.75 0 0 0 1.06 1.06l2.7-2.7a7.5 7.5 0 1 0 4.24-13.86z" />
+                    <circle cx="12" cy="10" r="2.25" />
+                </svg>
+                <h3>提升准确性</h3>
+                <p>将复杂问题分解为简单步骤，减少计算和逻辑错误。</p>
+            </div>
+            <div id="summary-2" class="element summary-card">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 4.5v15m0 0l-3.75-3.75M12 19.5l3.75-3.75" />
+                    <path d="M3.75 12h16.5" />
+                </svg>
+                <h3>增强可解释性</h3>
+                <p>推理过程清晰可见，方便我们理解、验证和调试模型的思考路径。</p>
+            </div>
+            <div id="summary-3" class="element summary-card">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path
+                        d="M12.933 1.033a.75.75 0 0 0-1.866 0L2.25 6.033a.75.75 0 0 0 0 1.334l8.817 5.038a.75.75 0 0 0 .933-.667V1.7a.75.75 0 0 0-.967-.667z" />
+                    <path
+                        d="M21.75 6.033a.75.75 0 0 0 0-1.334L12.933 2.2a.75.75 0 0 0-.933.667v10.334c0 .37.265.68.616.737l8.134 1.25a.75.75 0 0 0 .933-.737V6.033z" />
+                    <path
+                        d="M11.067 22.967a.75.75 0 0 0 1.866 0l8.817-5.034a.75.75 0 0 0 0-1.333l-8.817-5.033a.75.75 0 0 0-.933.666v10.067a.75.75 0 0 0 .967.667z" />
+                </svg>
+                <h3>解决复杂问题</h3>
+                <p>使模型能处理多步推理、数学和常识等更具挑战性的任务。</p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const container = document.getElementById('animation-container');
+
+        function fitToScreen() {
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+
+            const scaleX = windowWidth / containerWidth;
+            const scaleY = windowHeight / containerHeight;
+            const scale = Math.min(scaleX, scaleY);
+
+            container.style.transform = `scale(${scale})`;
+            container.style.left = `${(windowWidth - containerWidth * scale) / 2}px`;
+            container.style.top = `${(windowHeight - containerHeight * scale) / 2}px`;
+        }
+
+        window.addEventListener('resize', fitToScreen);
+        fitToScreen();
+
+        // Animation logic
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+        const subtitleBox = document.getElementById('subtitle-box');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+        let subtitleTimeout;
+
+        async function showSubtitle(cn, en, duration = 4000) {
+            clearTimeout(subtitleTimeout);
+            subtitleCN.textContent = cn;
+            subtitleEN.textContent = en;
+            subtitleBox.classList.add('visible');
+
+            return new Promise(resolve => {
+                subtitleTimeout = setTimeout(() => {
+                    subtitleBox.classList.remove('visible');
+                    resolve();
+                }, duration);
+            });
+        }
+
+        function show(...ids) {
+            ids.forEach(id => document.getElementById(id)?.classList.add('visible'));
+        }
+
+        function hide(...ids) {
+            ids.forEach(id => document.getElementById(id)?.classList.remove('visible'));
+        }
+
+        function connectNodes(node1Id, node2Id, lineId) {
+            const node1 = document.getElementById(node1Id);
+            const node2 = document.getElementById(node2Id);
+            const line = document.getElementById(lineId);
+
+            const rect1 = node1.getBoundingClientRect();
+            const rect2 = node2.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const scale = containerRect.width / 2560;
+
+            const x1 = (rect1.left + rect1.width / 2 - containerRect.left) / scale;
+            const y1 = (rect1.top + rect1.height / 2 - containerRect.top) / scale;
+            const x2 = (rect2.left + rect2.width / 2 - containerRect.left) / scale;
+            const y2 = (rect2.top + rect2.height / 2 - containerRect.top) / scale;
+
+            line.setAttribute('d', `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`);
+            line.style.opacity = 1;
+
+            const length = line.getTotalLength();
+            line.style.strokeDasharray = length;
+            line.style.strokeDashoffset = length;
+
+            // Trigger animation
+            line.getBoundingClientRect();
+            line.style.transition = 'stroke-dashoffset 1s ease-out';
+            line.style.strokeDashoffset = 0;
+        }
+
+        async function playAnimation() {
+            // 0. Title Card
+            show('title-card');
+            await sleep(3000);
+            hide('title-card');
+            await sleep(1000);
+
+            // 1. Scene 1: Standard Prompt Fails
+            await showSubtitle("当大语言模型遇到复杂问题时，它们有时会直接猜测。", "When Large Language Models face complex problems, they sometimes guess directly.");
+            show('question-box');
+            await sleep(1500);
+            show('ai-brain-1');
+            await sleep(1500);
+            show('dots-1');
+            await sleep(3000);
+            hide('dots-1');
+            show('answer-box-1');
+            await showSubtitle("这可能导致不准确的答案。", "This can lead to inaccurate answers.");
+            await sleep(4000);
+            hide('question-box', 'ai-brain-1', 'answer-box-1');
+            await sleep(1000);
+
+            // 2. Scene 2: Introducing Chain-of-Thought
+            await showSubtitle("为了解决这个问题，我们可以使用“思维链”提示。", "To solve this, we can use a 'Chain-of-Thought' prompt.");
+            show('question-box');
+            await sleep(1000);
+            show('magic-wand');
+            await sleep(1000);
+            show('cot-prompt-box');
+            await showSubtitle("通过一句简单的指令，比如“让我们一步一步地思考”...", "With a simple instruction like 'Let's think step by step'...");
+            await sleep(4000);
+            hide('question-box', 'magic-wand', 'cot-prompt-box');
+            await sleep(1000);
+
+            // 3. Scene 3: The Step-by-Step Process
+            await showSubtitle("...我们引导模型将问题分解成一系列更小的、可管理的步骤。", "...we guide the model to break the problem down into smaller, manageable steps.");
+            show('node-1');
+            await sleep(2500);
+
+            await showSubtitle("第一步：识别初始条件。", "Step 1: Identify the initial condition.");
+            show('node-2');
+            await sleep(500);
+            connectNodes('node-1', 'node-2', 'line1');
+            await sleep(2500);
+
+            await showSubtitle("第二步：计算新增加的数量。", "Step 2: Calculate the newly added quantity.");
+            show('node-3');
+            await sleep(500);
+            connectNodes('node-2', 'node-3', 'line2');
+            await sleep(2500);
+
+            await showSubtitle("第三步：将它们相加得出最终结果。", "Step 3: Add them together for the final result.");
+            show('node-4');
+            await sleep(500);
+            connectNodes('node-3', 'node-4', 'line3');
+            await sleep(3500);
+
+            hide('node-1', 'node-2', 'node-3', 'node-4');
+            document.getElementById('lines-svg').style.opacity = 0;
+            await sleep(1000);
+
+            // 4. Scene 4: The Correct Answer
+            await showSubtitle("通过这个过程，模型就能可靠地得出正确答案。", "Through this process, the model reliably arrives at the correct answer.");
+            show('answer-box-2');
+            await sleep(4000);
+            hide('answer-box-2');
+            await sleep(1000);
+
+            // 5. Scene 5: Summary
+            await showSubtitle("这就是思维链的力量，它有三大优势。", "This is the power of Chain-of-Thought, which has three main advantages.");
+            show('final-title');
+            await sleep(1000);
+            show('summary-1', 'summary-2', 'summary-3');
+            await sleep(8000);
+
+            await showSubtitle("思维链：让AI的思考过程，如水晶般清晰。", "Chain-of-Thought: Making AI's thinking process crystal clear.");
+            await sleep(5000);
+
+            // Restart
+            hide('final-title', 'summary-1', 'summary-2', 'summary-3');
+            await sleep(1000);
+            playAnimation();
+        }
+
+        window.onload = () => {
+            playAnimation();
+        };
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attention Saturation Explained</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&family=Poppins:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #f7f9fb;
+            --primary-color: #4a90e2;
+            --secondary-color: #50e3c2;
+            --text-color: #333;
+            --light-text-color: #f0f0f0;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #e0e5ec;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Poppins', 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: var(--container-width);
+            height: var(--container-height);
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transform-origin: center center;
+        }
+
+        /* Scale container to fit screen */
+        @media (max-width: 2560px) {
+            #animation-container {
+                transform: scale(calc(100vw / 2560));
+            }
+        }
+
+        @media (max-height: 1440px) {
+            #animation-container {
+                transform: scale(calc(100vh / 1440));
+            }
+        }
+
+        @media (max-aspect-ratio: 16/9) {
+            #animation-container {
+                transform: scale(calc(100vw / 2560));
+            }
+        }
+
+        @media (min-aspect-ratio: 16/9) {
+            #animation-container {
+                transform: scale(calc(100vh / 1440));
+            }
+        }
+
+
+        .scene-title {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 72px;
+            font-weight: 500;
+            color: var(--text-color);
+            opacity: 0;
+        }
+
+        .token-container {
+            position: absolute;
+            top: 400px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 30px;
+        }
+
+        .token {
+            width: 200px;
+            height: 80px;
+            background-color: #ffffff;
+            border: 3px solid #dbe2ef;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 32px;
+            font-weight: 400;
+            color: var(--text-color);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            opacity: 0;
+        }
+
+        #attention-spotlight {
+            position: absolute;
+            top: 440px;
+            left: 50%;
+            width: 1200px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(74, 144, 226, 0.25) 0%, rgba(74, 144, 226, 0) 70%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(1);
+            filter: blur(30px);
+            opacity: 0;
+        }
+
+        #attention-head {
+            position: absolute;
+            top: 800px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+        }
+
+        #connection-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .connection-line {
+            stroke: #a8c2e0;
+            stroke-width: 4;
+            stroke-dasharray: 10 10;
+            opacity: 0.5;
+        }
+
+        .chart-container {
+            position: absolute;
+            bottom: 400px;
+            left: 50%;
+            width: 1200px;
+            height: 400px;
+            transform: translateX(-50%);
+            opacity: 0;
+        }
+
+        .chart-title {
+            position: absolute;
+            top: -80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 40px;
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        .softmax-box {
+            position: absolute;
+            top: 850px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 150px;
+            border: 4px dashed var(--primary-color);
+            border-radius: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            font-weight: 500;
+            color: var(--primary-color);
+            opacity: 0;
+        }
+
+        .bar {
+            fill: var(--primary-color);
+            transition: height 0.5s ease-in-out;
+        }
+
+        .bar-secondary {
+            fill: var(--secondary-color);
+        }
+
+        .bar-label {
+            font-size: 28px;
+            fill: #555;
+            text-anchor: middle;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(20, 30, 40, 0.7);
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+        }
+
+        .subtitle-cn,
+        .subtitle-en {
+            margin: 5px 0;
+            text-align: center;
+            color: var(--light-text-color);
+        }
+
+        .subtitle-cn {
+            font-size: 36px;
+            font-weight: 400;
+        }
+
+        .subtitle-en {
+            font-size: 28px;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+        <div id="scene-title" class="scene-title">注意力饱和 Attention Saturation</div>
+
+        <div class="token-container">
+            <div id="token1" class="token">The</div>
+            <div id="token2" class="token">quick</div>
+            <div id="token3" class="token">brown</div>
+            <div id="token4" class="token"
+                style="border-color: var(--primary-color); color: var(--primary-color); font-weight: 500;">fox</div>
+            <div id="token5" class="token">jumps</div>
+            <div id="token6" class="token">over</div>
+        </div>
+
+        <div id="attention-spotlight"></div>
+
+        <svg id="attention-head" width="120" height="120" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="48" fill="#FFFFFF" stroke="#dbe2ef" stroke-width="4" />
+            <path d="M50 25 C 65 25, 75 35, 75 50 C 75 65, 65 75, 50 75 C 35 75, 25 65, 25 50 C 25 35, 35 25, 50 25 Z"
+                fill="none" stroke-width="6" stroke="#4a90e2" />
+            <circle cx="50" cy="50" r="12" fill="#4a90e2" />
+        </svg>
+
+        <svg id="connection-lines" viewBox="0 0 2560 1440">
+            <defs>
+                <linearGradient id="line-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color: var(--primary-color); stop-opacity:0" />
+                    <stop offset="100%" style="stop-color: var(--primary-color); stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <!-- Lines will be generated by JS -->
+        </svg>
+
+        <div id="chart-logits" class="chart-container">
+            <div class="chart-title">Logits (原始分数)</div>
+            <svg width="100%" height="100%" viewBox="0 0 1200 400">
+                <line x1="50" y1="350" x2="1150" y2="350" stroke="#ccc" stroke-width="3" />
+                <!-- Bars -->
+                <rect id="logit-bar-1" class="bar" x="100" y="300" width="100" height="50"></rect>
+                <rect id="logit-bar-2" class="bar" x="275" y="310" width="100" height="40"></rect>
+                <rect id="logit-bar-3" class="bar" x="450" y="320" width="100" height="30"></rect>
+                <rect id="logit-bar-4" class="bar" x="625" y="290" width="100" height="60"></rect>
+                <rect id="logit-bar-5" class="bar" x="800" y="315" width="100" height="35"></rect>
+                <rect id="logit-bar-6" class="bar" x="975" y="305" width="100" height="45"></rect>
+                <!-- Labels -->
+                <text class="bar-label" x="150" y="380">The</text>
+                <text class="bar-label" x="325" y="380">quick</text>
+                <text class="bar-label" x="500" y="380">brown</text>
+                <text class="bar-label" x="675" y="380">fox</text>
+                <text class="bar-label" x="850" y="380">jumps</text>
+                <text class="bar-label" x="1025" y="380">over</text>
+            </svg>
+        </div>
+
+        <div id="chart-weights" class="chart-container">
+            <div class="chart-title">Attention Weights (注意力权重)</div>
+            <svg width="100%" height="100%" viewBox="0 0 1200 400">
+                <line x1="50" y1="350" x2="1150" y2="350" stroke="#ccc" stroke-width="3" />
+                <!-- Bars -->
+                <rect id="weight-bar-1" class="bar bar-secondary" x="100" y="300" width="100" height="50"></rect>
+                <rect id="weight-bar-2" class="bar bar-secondary" x="275" y="310" width="100" height="40"></rect>
+                <rect id="weight-bar-3" class="bar bar-secondary" x="450" y="320" width="100" height="30"></rect>
+                <rect id="weight-bar-4" class="bar bar-secondary" x="625" y="290" width="100" height="60"></rect>
+                <rect id="weight-bar-5" class="bar bar-secondary" x="800" y="315" width="100" height="35"></rect>
+                <rect id="weight-bar-6" class="bar bar-secondary" x="975" y="305" width="100" height="45"></rect>
+                <!-- Labels -->
+                <text class="bar-label" x="150" y="380">The</text>
+                <text class="bar-label" x="325" y="380">quick</text>
+                <text class="bar-label" x="500" y="380">brown</text>
+                <text class="bar-label" x="675" y="380">fox</text>
+                <text class="bar-label" x="850" y="380">jumps</text>
+                <text class="bar-label" x="1025" y="380">over</text>
+            </svg>
+        </div>
+
+        <div id="softmax-box" class="softmax-box">Softmax</div>
+
+        <div id="subtitle-container">
+            <p class="subtitle-cn" id="subtitle-cn-text"></p>
+            <p class="subtitle-en" id="subtitle-en-text"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        const tokens = document.querySelectorAll('.token');
+        const attentionHead = document.getElementById('attention-head');
+        const connectionLinesSVG = document.getElementById('connection-lines');
+
+        const headPos = { x: 2560 / 2, y: 860 };
+
+        tokens.forEach((token, i) => {
+            const tokenRect = token.getBoundingClientRect();
+            const containerRect = document.getElementById('animation-container').getBoundingClientRect();
+
+            // Adjust for scaling
+            const scale = containerRect.width / 2560;
+            const tokenX = (tokenRect.left - containerRect.left) / scale + tokenRect.width / (2 * scale);
+            const tokenY = (tokenRect.top - containerRect.top) / scale;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', tokenX);
+            line.setAttribute('y1', tokenY + 80); // bottom of token
+            line.setAttribute('x2', headPos.x);
+            line.setAttribute('y2', headPos.y);
+            line.setAttribute('class', 'connection-line');
+            line.setAttribute('id', `line-${i + 1}`);
+            connectionLinesSVG.appendChild(line);
+        });
+
+        const tl = gsap.timeline({ defaults: { ease: "power2.inOut" } });
+
+        const subtitles = [
+            { cn: "大家好，今天我们来探讨一个Transformer中的重要概念：注意力饱和。", en: "Hello, today let's explore an important concept in Transformers: Attention Saturation." },
+            { cn: "注意力机制，如同一个聚光灯，帮助模型关注输入信息中最关键的部分。", en: "The attention mechanism, like a spotlight, helps the model focus on the most critical parts of the input." },
+            { cn: "在训练初期，模型的注意力是分散的，权重分布比较均匀。", en: "In the early stages of training, the model's attention is diffuse, with a relatively uniform weight distribution." },
+            { cn: "它还不确定哪个词最重要，所以会给予大部分词语差不多的关注。", en: "It's unsure which word is most important, so it gives similar attention to most words." },
+            { cn: "随着训练的进行，模型开始学习。它会给重要的词（比如'fox'）更高的原始分数(Logits)。", en: "As training progresses, the model learns. It assigns higher raw scores (Logits) to important words like 'fox'." },
+            { cn: "这些Logits被送入Softmax函数中进行归一化，转换成概率分布。", en: "These Logits are fed into a Softmax function for normalization, converting them into a probability distribution." },
+            { cn: "当Logits之间的差距变得非常大时，Softmax的输出会变得极其尖锐。", en: "When the gap between Logits becomes very large, the output of Softmax becomes extremely sharp." },
+            { cn: "最终，几乎所有的注意力权重（接近1.0）都集中在少数几个词上，其余的则接近于0。", en: "Eventually, almost all attention weight (close to 1.0) is concentrated on a few tokens, while the rest are near zero." },
+            { cn: "这种现象，就是“注意力饱和”。聚光灯变成了激光笔，精准地指向了核心信息。", en: "This phenomenon is 'Attention Saturation'. The spotlight has turned into a laser pointer, aimed precisely at the core information." },
+            { cn: "注意力饱和代表模型对自己的判断非常有信心，这是模型训练成熟的标志之一。", en: "Attention saturation indicates the model is very confident in its judgments, a sign of a well-trained model." }
+        ];
+
+        function updateSubtitles(index) {
+            const container = document.getElementById('subtitle-container');
+            const cnText = document.getElementById('subtitle-cn-text');
+            const enText = document.getElementById('subtitle-en-text');
+
+            gsap.to(container, {
+                opacity: 0,
+                duration: 0.4,
+                onComplete: () => {
+                    if (index < subtitles.length) {
+                        cnText.textContent = subtitles[index].cn;
+                        enText.textContent = subtitles[index].en;
+                        gsap.to(container, { opacity: 1, duration: 0.4 });
+                    }
+                }
+            });
+        }
+
+        // Initial setup
+        tl.to("#scene-title", { opacity: 1, duration: 1.5 });
+        tl.to(".token", { opacity: 1, stagger: 0.1, duration: 1 }, "-=1");
+        tl.to("#attention-head", { opacity: 1, duration: 1 }, "-=0.5");
+        tl.to(".connection-line", { opacity: 0.3, stagger: 0.1, duration: 1 }, "<");
+
+        // Scene 1: Intro
+        tl.call(updateSubtitles, [0], "+=0.5");
+        tl.to("#subtitle-container", { opacity: 1, duration: 0.5 });
+
+        // Scene 2: Spotlight metaphor
+        tl.call(updateSubtitles, [1], "+=3");
+        tl.to("#attention-spotlight", { opacity: 1, scale: 1.5, duration: 1.5 });
+
+        // Scene 3: Early training
+        tl.call(updateSubtitles, [2], "+=3.5");
+        tl.to("#chart-weights", { opacity: 1, duration: 1 });
+        tl.call(updateSubtitles, [3], "+=3");
+
+        // Scene 4: Training process - Logits
+        tl.call(updateSubtitles, [4], "+=4");
+        tl.to("#attention-spotlight", { opacity: 0, scale: 1, duration: 1 });
+        tl.to("#chart-weights", { opacity: 0, y: '+=50', duration: 1 }, "<");
+        tl.fromTo("#chart-logits", { opacity: 0, y: '-=50' }, { opacity: 1, y: '0', duration: 1 });
+        tl.to("#logit-bar-4", { height: 300, y: 50, duration: 1.5, ease: "power3.out" }, "+=1");
+        tl.to(["#logit-bar-1", "#logit-bar-2", "#logit-bar-3", "#logit-bar-5", "#logit-bar-6"], { height: 20, y: 330, duration: 1.5, ease: "power3.out" }, "<");
+
+        // Scene 5: Softmax
+        tl.call(updateSubtitles, [5], "+=2");
+        tl.to("#chart-logits", { y: '+=250', scale: 0.7, duration: 1.5 });
+        tl.to("#softmax-box", { opacity: 1, duration: 0.5 }, "-=1");
+        tl.to("#chart-logits", { opacity: 0, duration: 0.5 }, "-=0.5");
+        tl.call(updateSubtitles, [6], "+=1");
+
+        // Scene 6: Saturation
+        tl.to("#softmax-box", { opacity: 0, duration: 0.5 }, "+=3");
+        tl.fromTo("#chart-weights", { opacity: 0, y: '-=50' }, { opacity: 1, y: '0', duration: 1 }, "-=0.5");
+        tl.to("#weight-bar-4", { height: 320, y: 30, duration: 1, ease: "elastic.out(1, 0.5)" });
+        tl.to(["#weight-bar-1", "#weight-bar-2", "#weight-bar-3", "#weight-bar-5", "#weight-bar-6"], { height: 5, y: 345, duration: 0.7 }, "<");
+        tl.call(updateSubtitles, [7], "+=1");
+
+        // Scene 7: Final visual
+        tl.call(updateSubtitles, [8], "+=4");
+        tl.to("#attention-spotlight", {
+            opacity: 1,
+            scale: 1,
+            duration: 1.5,
+            background: 'radial-gradient(circle, rgba(80, 227, 194, 0.4) 0%, rgba(80, 227, 194, 0) 50%)',
+            filter: 'blur(15px)',
+            width: 300,
+            left: 'calc(50% - 230px + 115px)' // Centered on 'fox'
+        });
+        tl.to(".connection-line", { opacity: 0.1, duration: 1 }, "<");
+        tl.to("#line-4", { opacity: 1, stroke: 'var(--secondary-color)', strokeWidth: 8, strokeDasharray: 'none' }, "<");
+
+        // Scene 8: Conclusion
+        tl.call(updateSubtitles, [9], "+=4.5");
+        tl.to("#animation-container", { duration: 5 }); // Hold final scene
+
+    </script>
+</body>
+
+</html>

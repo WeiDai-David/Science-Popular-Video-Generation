@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rotary Position Embedding (RoPE) Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-text: #212529;
+            --secondary-text: #6C757D;
+            --accent-blue-light: #E0F2FE;
+            --accent-blue-mid: #7DD3FC;
+            --accent-blue-dark: #0EA5E9;
+            --accent-orange-light: #FEF3C7;
+            --accent-orange-dark: #FBBF24;
+            --vector-q: #0EA5E9;
+            --vector-k: #F97316;
+            --grid-color: #E5E7EB;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Lato', 'Helvetica Neue', 'Arial', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background-color: var(--bg-color);
+            transform-origin: top left;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        #main-svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #subtitle-cn,
+        #subtitle-en {
+            margin: 0;
+            padding: 0;
+            text-shadow: 0 0 10px #FFFFFF;
+        }
+
+        #subtitle-cn {
+            font-size: 38px;
+            font-weight: 400;
+            color: var(--primary-text);
+        }
+
+        #subtitle-en {
+            font-size: 30px;
+            font-weight: 300;
+            color: var(--secondary-text);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+        <svg id="main-svg" viewbox="0 0 2560 1440"></svg>
+        <div id="subtitles">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        const svgNS = "http://www.w3.org/2000/svg";
+        const mainSVG = document.getElementById('main-svg');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        const centerX = 2560 / 2;
+        const centerY = 1440 / 2;
+
+        // --- Helper Functions ---
+        function createText(id, content, x, y, fontSize, fontWeight, fill, anchor = 'middle') {
+            const text = document.createElementNS(svgNS, 'text');
+            text.setAttribute('id', id);
+            text.setAttribute('x', x);
+            text.setAttribute('y', y);
+            text.setAttribute('font-size', fontSize);
+            text.setAttribute('font-weight', fontWeight);
+            text.setAttribute('fill', fill);
+            text.setAttribute('text-anchor', anchor);
+            text.setAttribute('dominant-baseline', 'middle');
+            text.textContent = content;
+            text.style.opacity = 0;
+            mainSVG.appendChild(text);
+            return text;
+        }
+
+        function createGrid(id, width, height, spacing) {
+            const g = document.createElementNS(svgNS, 'g');
+            g.setAttribute('id', id);
+            g.style.opacity = 0;
+
+            for (let i = -width / 2; i <= width / 2; i += spacing) {
+                const line = document.createElementNS(svgNS, 'line');
+                line.setAttribute('x1', centerX + i);
+                line.setAttribute('y1', centerY - height / 2);
+                line.setAttribute('x2', centerX + i);
+                line.setAttribute('y2', centerY + height / 2);
+                line.setAttribute('stroke', 'var(--grid-color)');
+                line.setAttribute('stroke-width', '1.5');
+                g.appendChild(line);
+            }
+            for (let i = -height / 2; i <= height / 2; i += spacing) {
+                const line = document.createElementNS(svgNS, 'line');
+                line.setAttribute('x1', centerX - width / 2);
+                line.setAttribute('y1', centerY + i);
+                line.setAttribute('x2', centerX + width / 2);
+                line.setAttribute('y2', centerY + i);
+                line.setAttribute('stroke', 'var(--grid-color)');
+                line.setAttribute('stroke-width', '1.5');
+                g.appendChild(line);
+            }
+
+            const xAxis = document.createElementNS(svgNS, 'line');
+            xAxis.setAttribute('x1', centerX - width / 2);
+            xAxis.setAttribute('y1', centerY);
+            xAxis.setAttribute('x2', centerX + width / 2);
+            xAxis.setAttribute('y2', centerY);
+            xAxis.setAttribute('stroke', 'var(--secondary-text)');
+            xAxis.setAttribute('stroke-width', '3');
+            g.appendChild(xAxis);
+
+            const yAxis = document.createElementNS(svgNS, 'line');
+            yAxis.setAttribute('x1', centerX);
+            yAxis.setAttribute('y1', centerY - height / 2);
+            yAxis.setAttribute('x2', centerX);
+            yAxis.setAttribute('y2', centerY + height / 2);
+            yAxis.setAttribute('stroke', 'var(--secondary-text)');
+            yAxis.setAttribute('stroke-width', '3');
+            g.appendChild(yAxis);
+
+            mainSVG.appendChild(g);
+            return g;
+        }
+
+        function createVector(id, color, length) {
+            const g = document.createElementNS(svgNS, 'g');
+            g.setAttribute('id', id);
+            g.style.opacity = 0;
+
+            const line = document.createElementNS(svgNS, 'line');
+            line.setAttribute('x1', 0);
+            line.setAttribute('y1', 0);
+            line.setAttribute('x2', length);
+            line.setAttribute('y2', 0);
+            line.setAttribute('stroke', color);
+            line.setAttribute('stroke-width', '8');
+            line.setAttribute('stroke-linecap', 'round');
+            g.appendChild(line);
+
+            const head = document.createElementNS(svgNS, 'polygon');
+            head.setAttribute('points', `${length},0 ${length - 20},-10 ${length - 20},10`);
+            head.setAttribute('fill', color);
+            g.appendChild(head);
+
+            gsap.set(g, { x: centerX, y: centerY });
+            mainSVG.appendChild(g);
+            return g;
+        }
+
+        function createArc(id, radius, color) {
+            const arc = document.createElementNS(svgNS, 'path');
+            arc.setAttribute('id', id);
+            arc.setAttribute('fill', 'none');
+            arc.setAttribute('stroke', color);
+            arc.setAttribute('stroke-width', '4');
+            arc.setAttribute('stroke-dasharray', '10 10');
+            mainSVG.appendChild(arc);
+            gsap.set(arc, { opacity: 0 });
+            return arc;
+        }
+
+        function updateSubtitles(cn, en) {
+            gsap.to([subtitleCN, subtitleEN], {
+                opacity: 0,
+                duration: 0.3,
+                onComplete: () => {
+                    subtitleCN.innerHTML = cn;
+                    subtitleEN.innerHTML = en;
+                    gsap.to([subtitleCN, subtitleEN], { opacity: 1, duration: 0.3 });
+                }
+            });
+        }
+
+        function drawArc(pathElement, cx, cy, radius, startAngle, endAngle) {
+            const start = {
+                x: cx + radius * Math.cos(startAngle),
+                y: cy + radius * Math.sin(startAngle)
+            };
+            const end = {
+                x: cx + radius * Math.cos(endAngle),
+                y: cy + radius * Math.sin(endAngle)
+            };
+            const largeArcFlag = endAngle - startAngle <= Math.PI ? "0" : "1";
+            const d = [
+                "M", start.x, start.y,
+                "A", radius, radius, 0, largeArcFlag, 1, end.x, end.y
+            ].join(" ");
+            pathElement.setAttribute("d", d);
+        }
+
+        // --- Animation Timeline ---
+        const tl = gsap.timeline({ delay: 1 });
+
+        // --- Scene 1: Title ---
+        const titleCN = createText('titleCN', '旋转位置嵌入', centerX, centerY - 40, 90, 700, 'var(--primary-text)');
+        const titleEN = createText('titleEN', 'Rotary Position Embedding (RoPE)', centerX, centerY + 50, 60, 400, 'var(--secondary-text)');
+
+        tl.to([titleCN, titleEN], { opacity: 1, duration: 1.5, ease: 'power2.inOut' });
+        tl.call(updateSubtitles, ['在大型语言模型中，我们需要告知模型单词的顺序。', 'In Large Language Models, we need to tell the model the order of words.']);
+        tl.to([titleCN, titleEN], { opacity: 0, duration: 1, delay: 2.5, ease: 'power2.inOut' });
+
+
+        // --- Scene 2: The Core Idea ---
+        const grid = createGrid('grid', 1000, 1000, 50);
+        const vectorQ = createVector('vectorQ', 'var(--vector-q)', 300);
+        const vectorQ_label = createText('q_label', 'q', centerX + 330, centerY - 20, 40, 700, 'var(--vector-q)');
+
+        tl.call(updateSubtitles, ['传统方法通常是直接“相加”位置信息。', 'Traditional methods often "add" positional information directly.']);
+        tl.to(grid, { opacity: 0.3, duration: 1 });
+        tl.to(vectorQ, { opacity: 1, duration: 1 }, "-=0.5");
+        tl.to(vectorQ_label, { opacity: 1, duration: 0.5 });
+
+        tl.call(updateSubtitles, ['RoPE 提出了一种全新的思路：通过“旋转”来编码位置。', 'RoPE introduces a novel idea: encoding position through "rotation".'], '+=2');
+
+        const rotationSymbol = createText('rotSymbol', '🔄', centerX, centerY - 250, 100, 400, 'var(--accent-blue-dark)');
+        tl.fromTo(rotationSymbol, { scale: 0.5, opacity: 0 }, { scale: 1, opacity: 1, duration: 1, ease: 'back.out' });
+        tl.to(rotationSymbol, { rotate: 360, duration: 4, repeat: -1, ease: 'none' }, "-=1");
+
+        // --- Scene 3: 2D Rotation Mechanics ---
+        const arc = createArc('arc', 150, 'var(--accent-orange-dark)');
+        const angleLabel = createText('angleLabel', 'mθ', centerX + 180, centerY - 90, 40, 700, 'var(--accent-orange-dark)');
+
+        tl.call(updateSubtitles, ['对于每个位置 m, 我们将词向量旋转一个角度 mθ。', "For each position 'm', we rotate the word vector by an angle 'mθ'."]);
+
+        tl.add(() => {
+            drawArc(arc, centerX, centerY, 150, 0, -Math.PI / 4);
+        });
+
+        tl.to(vectorQ, { rotation: -45, duration: 1.5, ease: 'power2.inOut' });
+        tl.to(vectorQ_label, { x: '+=15', y: '-=230', duration: 1.5, ease: 'power2.inOut' }, "<");
+        tl.to(arc, { opacity: 1, duration: 0.5 }, "-=1.2");
+        tl.to(angleLabel, { opacity: 1, duration: 0.5 }, "-=1");
+
+        tl.call(updateSubtitles, ['位置越远 (m越大)，旋转的角度就越大。', "The further the position (larger 'm'), the greater the rotation angle."], "+=1.5");
+
+        tl.add(() => {
+            drawArc(arc, centerX, centerY, 150, 0, -Math.PI / 2);
+        });
+
+        tl.to(vectorQ, { rotation: -90, duration: 1.5, ease: 'power2.inOut' });
+        tl.to(vectorQ_label, { x: centerX - 20, y: centerY - 330, duration: 1.5, ease: 'power2.inOut' }, "<");
+        gsap.set(angleLabel, { text: 'm\'θ (m\' > m)' });
+        tl.to(angleLabel, { x: centerX + 190, y: centerY - 120, duration: 1.5, ease: 'power2.inOut' }, "<");
+
+
+        tl.to([vectorQ, vectorQ_label, arc, angleLabel, rotationSymbol, grid], { opacity: 0, duration: 1, delay: 2 });
+
+        // --- Scene 4: High Dimensions ---
+        const highDimVec = document.createElementNS(svgNS, 'g');
+        highDimVec.setAttribute('id', 'highDimVec');
+        mainSVG.appendChild(highDimVec);
+
+        const rects = [];
+        const rectWidth = 10;
+        const totalWidth = 512;
+        for (let i = 0; i < totalWidth / rectWidth; i++) {
+            const rect = document.createElementNS(svgNS, 'rect');
+            const x = centerX - totalWidth / 2 + i * rectWidth;
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', centerY - 20);
+            rect.setAttribute('width', rectWidth - 1);
+            rect.setAttribute('height', 40);
+            rect.setAttribute('fill', i % 2 === 0 ? 'var(--accent-blue-mid)' : 'var(--accent-blue-dark)');
+            highDimVec.appendChild(rect);
+            rects.push(rect);
+        }
+        gsap.set(highDimVec, { opacity: 0 });
+
+        const highDimLabel = createText('highDimLabel', 'd-dimensional embedding', centerX, centerY - 80, 40, 400, 'var(--primary-text)');
+        tl.to(highDimVec, { opacity: 1, duration: 1 });
+        tl.to(highDimLabel, { opacity: 1, duration: 1 }, "<");
+        tl.call(updateSubtitles, ['在高维空间中，我们将向量的维度两两分组。', 'In high dimensions, we group the vector\'s dimensions into pairs.']);
+
+        tl.to(rects, {
+            y: (i) => (i % 2 === 0 ? '-=10' : '+=10'),
+            stagger: 0.01,
+            duration: 1.5,
+            ease: 'back.out'
+        }, "+=1.5");
+
+        tl.to([highDimVec, highDimLabel], { opacity: 0, duration: 1, delay: 1 });
+
+        // --- Scene 5: Multiple Frequencies ---
+        const planes = [];
+        const planeCoords = [
+            { x: centerX - 700, y: centerY, scale: 0.8, freq: 1, label: 'θ₁' },
+            { x: centerX, y: centerY, scale: 1, freq: 0.5, label: 'θ₂' },
+            { x: centerX + 700, y: centerY, scale: 0.8, freq: 2, label: 'θ₃' }
+        ];
+
+        planeCoords.forEach((p, i) => {
+            const g = document.createElementNS(svgNS, 'g');
+            gsap.set(g, { x: p.x, y: p.y, scale: p.scale, opacity: 0 });
+
+            const circle = document.createElementNS(svgNS, 'circle');
+            circle.setAttribute('cx', 0);
+            circle.setAttribute('cy', 0);
+            circle.setAttribute('r', 250);
+            circle.setAttribute('fill', 'var(--accent-blue-light)');
+            circle.setAttribute('stroke', 'var(--accent-blue-mid)');
+            circle.setAttribute('stroke-width', '3');
+            g.appendChild(circle);
+
+            const vec = createVector(`plane_vec_${i}`, 'var(--vector-q)', 220);
+            gsap.set(vec, { x: 0, y: 0, opacity: 1 });
+            g.appendChild(vec);
+
+            const label = createText(`plane_label_${i}`, p.label, 0, 300, 50, 700, 'var(--secondary-text)');
+            gsap.set(label, { opacity: 1 });
+            g.appendChild(label);
+
+            mainSVG.appendChild(g);
+            planes.push({ group: g, vector: vec, freq: p.freq });
+        });
+
+        tl.call(updateSubtitles, ['每一对维度都在自己的2D平面上旋转，但使用不同的旋转“频率” θi。', 'Each pair rotates in its own 2D plane, but with a different rotation "frequency" θi.'], "+=0.5");
+        tl.to(planes.map(p => p.group), { opacity: 1, stagger: 0.2, duration: 1 });
+
+        tl.call(updateSubtitles, ['高频部分编码精细的位置信息，低频部分编码粗略的位置信息。', 'High frequencies encode fine-grained position, while low frequencies encode coarse-grained information.']);
+
+        tl.to(planes.map(p => p.vector), {
+            rotation: (i) => `-=${360 * planes[i].freq}`,
+            duration: 4,
+            ease: 'none',
+            repeat: 1
+        }, "+=1");
+
+        tl.to(planes.map(p => p.group), { opacity: 0, duration: 1, delay: 1 });
+
+        // --- Scene 6: The Magic of Relative Position ---
+        const grid2 = createGrid('grid2', 1200, 800, 50);
+        const vec_q_rel = createVector('vec_q_rel', 'var(--vector-q)', 300);
+        const vec_k_rel = createVector('vec_k_rel', 'var(--vector-k)', 280);
+        gsap.set(vec_k_rel, { rotation: 30 });
+
+        const label_q = createText('label_q', 'q', centerX + 330, centerY - 20, 50, 700, 'var(--vector-q)');
+        const label_k = createText('label_k', 'k', centerX + 260, centerY + 165, 50, 700, 'var(--vector-k)');
+
+        tl.to(grid2, { opacity: 0.3, duration: 1 });
+        tl.to([vec_q_rel, vec_k_rel, label_q, label_k], { opacity: 1, duration: 1 }, "<");
+
+        tl.call(updateSubtitles, ['现在，考虑两个向量 q 和 k，它们分别在位置 m 和 n。', 'Now, consider two vectors, q and k, at positions m and n respectively.']);
+
+        const label_qm = createText('label_qm', 'qₘ', 0, 0, 50, 700, 'var(--vector-q)');
+        const label_kn = createText('label_kn', 'kₙ', 0, 0, 50, 700, 'var(--vector-k)');
+
+        tl.to(vec_q_rel, { rotation: -60, duration: 1.5, ease: 'power2.inOut', delay: 2 });
+        tl.to(vec_k_rel, { rotation: -30, duration: 1.5, ease: 'power2.inOut' }, "<");
+
+        tl.add(() => {
+            gsap.set(label_q, { opacity: 0 });
+            gsap.set(label_k, { opacity: 0 });
+            gsap.set(label_qm, { x: centerX + 180, y: centerY - 270, opacity: 1 });
+            gsap.set(label_kn, { x: centerX - 170, y: centerY - 250, opacity: 1 });
+        });
+
+        const dotProductFormula1 = createText('formula1', 'Attention Score ∝ < qₘ , kₙ >', centerX, centerY + 500, 60, 400, 'var(--primary-text)');
+        tl.to(dotProductFormula1, { opacity: 1, duration: 1 });
+        tl.call(updateSubtitles, ['在注意力机制中，我们关心的是它们旋转后的点积。', 'In attention, we care about their dot product after rotation.']);
+
+        // The transformation
+        const dotProductFormula2 = createText('formula2', 'Attention Score ∝ < q , R(n-m) k >', centerX, centerY + 500, 60, 400, 'var(--primary-text)');
+
+        tl.to(dotProductFormula1, { opacity: 0, duration: 1, delay: 3 });
+        tl.to(dotProductFormula2, { opacity: 1, duration: 1 }, "-=0.5");
+
+        tl.call(updateSubtitles, ['神奇的是，这个结果只取决于它们的相对位置 n-m。', "The magic is, this result only depends on their relative position, n-m."], "-=0.5");
+
+        const relativeBox = document.createElementNS(svgNS, 'rect');
+        relativeBox.setAttribute('x', centerX + 115);
+        relativeBox.setAttribute('y', centerY + 475);
+        relativeBox.setAttribute('width', 150);
+        relativeBox.setAttribute('height', 70);
+        relativeBox.setAttribute('fill', 'none');
+        relativeBox.setAttribute('stroke', 'var(--accent-orange-dark)');
+        relativeBox.setAttribute('stroke-width', '4');
+        relativeBox.setAttribute('rx', '10');
+        mainSVG.appendChild(relativeBox);
+        gsap.set(relativeBox, { opacity: 0, scale: 1.2 });
+        tl.to(relativeBox, { opacity: 1, scale: 1, duration: 0.8, ease: 'back.out' });
+
+        // --- Scene 7: Conclusion ---
+        tl.to([grid2, vec_q_rel, vec_k_rel, label_qm, label_kn, dotProductFormula2, relativeBox], { opacity: 0, duration: 1.5, delay: 3 });
+
+        const conclusionTitle = createText('concTitle', 'RoPE 的优势', centerX, centerY - 200, 80, 700, 'var(--primary-text)');
+        const conclusionEN = createText('concEN', 'Advantages of RoPE', centerX, centerY - 120, 50, 400, 'var(--secondary-text)');
+
+        const benefit1 = createText('b1', '✓  编码相对位置 (Encodes Relative Position)', centerX, centerY + 50, 45, 400, 'var(--primary-text)');
+        const benefit2 = createText('b2', '✓  对序列长度有良好的外推性 (Good Extrapolation to Long Sequences)', centerX, centerY + 150, 45, 400, 'var(--primary-text)');
+        const benefit3 = createText('b3', '✓  实现高效 (Efficient to Implement)', centerX, centerY + 250, 45, 400, 'var(--primary-text)');
+
+        tl.call(updateSubtitles, ['这就是RoPE的核心思想：用旋转优雅地编码相对位置信息。', 'This is the core idea of RoPE: elegantly encoding relative position with rotation.']);
+        tl.to([conclusionTitle, conclusionEN], { opacity: 1, duration: 1 });
+        tl.fromTo(benefit1, { opacity: 0, y: '+=30' }, { opacity: 1, y: '-=30', duration: 0.8, delay: 1 });
+        tl.fromTo(benefit2, { opacity: 0, y: '+=30' }, { opacity: 1, y: '-=30', duration: 0.8 });
+        tl.fromTo(benefit3, { opacity: 0, y: '+=30' }, { opacity: 1, y: '-=30', duration: 0.8 });
+
+        // Final Fade out and loop
+        tl.to('#animation-container', { opacity: 0, duration: 1.5, delay: 5, onComplete: () => location.reload() });
+
+
+        // --- Resizing logic ---
+        function resize() {
+            const container = document.getElementById('animation-container');
+            const { clientWidth, clientHeight } = document.body;
+            const scaleX = clientWidth / 2560;
+            const scaleY = clientHeight / 1440;
+            const scale = Math.min(scaleX, scaleY);
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Boltzmann Machine Explained</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-text-color: #212529;
+            --secondary-text-color: #6C757D;
+            --primary-accent-color: #007BFF;
+            --secondary-accent-color: #6F42C1;
+            --energy-high-color: #DC3545;
+            --energy-low-color: #28A745;
+            --node-stroke-color: #ADB5BD;
+            --font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            position: relative;
+            width: 2560px;
+            height: 1440px;
+            background-color: var(--bg-color);
+            transform-origin: top left;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+
+        /* Scale container to fit screen */
+        @media (max-width: 2560px) {
+            #animation-container {
+                transform: scale(calc(100vw / 2560));
+            }
+        }
+
+        @media (max-height: 1440px) {
+            #animation-container {
+                transform: scale(calc(100vh / 1440));
+            }
+        }
+
+        @media (max-aspect-ratio: 16/9) {
+            #animation-container {
+                transform: scale(calc(100vw / 2560));
+            }
+        }
+
+        @media (min-aspect-ratio: 16/9) {
+            #animation-container {
+                transform: scale(calc(100vh / 1440));
+            }
+        }
+
+
+        .title-card {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        .title-card h1 {
+            font-size: 120px;
+            color: var(--primary-text-color);
+            margin: 0;
+            font-weight: 300;
+        }
+
+        .title-card h2 {
+            font-size: 60px;
+            color: var(--secondary-text-color);
+            margin-top: 20px;
+            font-weight: 300;
+        }
+
+        .subtitle-container {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .subtitle-cn,
+        .subtitle-en {
+            margin: 5px 0;
+            text-shadow: 0 0 10px var(--bg-color);
+        }
+
+        .subtitle-cn {
+            font-size: 42px;
+            color: var(--primary-text-color);
+            font-weight: 400;
+        }
+
+        .subtitle-en {
+            font-size: 32px;
+            color: var(--secondary-text-color);
+            font-weight: 300;
+        }
+
+        #boltzmann-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .node {
+            transition: fill 0.5s ease, r 0.5s ease, opacity 0.5s ease;
+            stroke-width: 4px;
+            cursor: pointer;
+        }
+
+        .node.visible {
+            stroke: var(--primary-accent-color);
+        }
+
+        .node.hidden {
+            stroke: var(--secondary-accent-color);
+        }
+
+        .node.off {
+            fill: var(--bg-color);
+        }
+
+        .node.on {
+            fill: currentColor;
+            /* Inherits color from parent group */
+        }
+
+        .visible-group .node.on {
+            color: var(--primary-accent-color);
+        }
+
+        .hidden-group .node.on {
+            color: var(--secondary-accent-color);
+        }
+
+
+        .node-label {
+            font-size: 28px;
+            font-family: var(--font-family);
+            fill: white;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .edge {
+            stroke: var(--node-stroke-color);
+            stroke-width: 3px;
+            opacity: 0.6;
+            transition: opacity 0.5s ease;
+        }
+
+        .pulse {
+            stroke-width: 5px;
+            fill: none;
+            stroke-linecap: round;
+        }
+
+        .label-box {
+            position: absolute;
+            padding: 15px 30px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 2px solid;
+            border-radius: 10px;
+            font-size: 32px;
+            font-weight: 500;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.8s ease, transform 0.8s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        #visible-label {
+            border-color: var(--primary-accent-color);
+            color: var(--primary-accent-color);
+        }
+
+        #hidden-label {
+            border-color: var(--secondary-accent-color);
+            color: var(--secondary-accent-color);
+        }
+
+        #energy-container {
+            position: absolute;
+            top: 50%;
+            right: 200px;
+            transform: translateY(-50%);
+            width: 120px;
+            height: 600px;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            text-align: center;
+        }
+
+        #energy-title {
+            font-size: 40px;
+            font-weight: 300;
+            color: var(--primary-text-color);
+            margin-bottom: 20px;
+        }
+
+        #energy-bar-bg {
+            width: 60px;
+            height: 500px;
+            background: #e9ecef;
+            border-radius: 30px;
+            position: relative;
+            overflow: hidden;
+            margin: 0 auto;
+            border: 1px solid #dee2e6;
+        }
+
+        #energy-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 80%;
+            /* Initial energy */
+            background: linear-gradient(to top, var(--energy-low-color), var(--energy-high-color));
+            border-radius: 30px;
+            transition: height 0.8s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        #energy-value {
+            font-size: 36px;
+            margin-top: 20px;
+            font-weight: 500;
+            color: var(--primary-text-color);
+        }
+
+        .highlight-circle {
+            fill: none;
+            stroke-width: 8px;
+            stroke-dasharray: 25 15;
+            animation: spin 10s linear infinite;
+            transform-origin: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <div id="title-card" class="title-card">
+            <h1>Boltzmann Machine</h1>
+            <h2>玻尔兹曼机</h2>
+        </div>
+
+        <svg id="boltzmann-svg"></svg>
+
+        <div id="visible-label" class="label-box">Visible Units<br>可见单元</div>
+        <div id="hidden-label" class="label-box">Hidden Units<br>隐藏单元</div>
+
+        <div id="energy-container">
+            <div id="energy-title">System Energy<br>系统能量</div>
+            <div id="energy-bar-bg">
+                <div id="energy-bar"></div>
+            </div>
+            <div id="energy-value">High</div>
+        </div>
+
+        <div class="subtitle-container" id="subtitles">
+            <p class="subtitle-cn"></p>
+            <p class="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const svgNS = "http://www.w3.org/2000/svg";
+        const container = document.getElementById('animation-container');
+        const svg = document.getElementById('boltzmann-svg');
+        const titleCard = document.getElementById('title-card');
+        const subtitleContainer = document.getElementById('subtitles');
+        const subtitleCN = subtitleContainer.querySelector('.subtitle-cn');
+        const subtitleEN = subtitleContainer.querySelector('.subtitle-en');
+        const energyContainer = document.getElementById('energy-container');
+        const energyBar = document.getElementById('energy-bar');
+        const energyValue = document.getElementById('energy-value');
+        const visibleLabel = document.getElementById('visible-label');
+        const hiddenLabel = document.getElementById('hidden-label');
+
+        const width = 2560;
+        const height = 1440;
+        const centerX = width / 2 - 200;
+        const centerY = height / 2;
+        const nodeRadius = 40;
+
+        const nodes = [];
+        const edges = [];
+
+        // Define node positions
+        const visibleNodesPos = [
+            { id: 0, x: centerX - 600, y: centerY - 300 },
+            { id: 1, x: centerX - 600, y: centerY },
+            { id: 2, x: centerX - 600, y: centerY + 300 },
+        ];
+
+        const hiddenNodesPos = [
+            { id: 3, x: centerX - 100, y: centerY - 150 },
+            { id: 4, x: centerX - 100, y: centerY + 150 },
+        ];
+
+        function createNetwork() {
+            const defs = document.createElementNS(svgNS, 'defs');
+            svg.appendChild(defs);
+
+            const visibleGroup = document.createElementNS(svgNS, 'g');
+            visibleGroup.classList.add('visible-group');
+            svg.appendChild(visibleGroup);
+
+            const hiddenGroup = document.createElementNS(svgNS, 'g');
+            hiddenGroup.classList.add('hidden-group');
+            svg.appendChild(hiddenGroup);
+
+            // Create nodes
+            visibleNodesPos.forEach(pos => {
+                const g = document.createElementNS(svgNS, 'g');
+                g.style.opacity = 0;
+                const circle = document.createElementNS(svgNS, 'circle');
+                circle.setAttribute('cx', pos.x);
+                circle.setAttribute('cy', pos.y);
+                circle.setAttribute('r', nodeRadius);
+                circle.classList.add('node', 'visible', 'off');
+                g.appendChild(circle);
+                visibleGroup.appendChild(g);
+                nodes.push({ ...pos, el: g, circle: circle, type: 'visible', state: 0 });
+            });
+
+            hiddenNodesPos.forEach(pos => {
+                const g = document.createElementNS(svgNS, 'g');
+                g.style.opacity = 0;
+                const circle = document.createElementNS(svgNS, 'circle');
+                circle.setAttribute('cx', pos.x);
+                circle.setAttribute('cy', pos.y);
+                circle.setAttribute('r', nodeRadius);
+                circle.classList.add('node', 'hidden', 'off');
+                g.appendChild(circle);
+                hiddenGroup.appendChild(g);
+                nodes.push({ ...pos, el: g, circle: circle, type: 'hidden', state: 0 });
+            });
+
+            // Create edges
+            const edgeGroup = document.createElementNS(svgNS, 'g');
+            svg.insertBefore(edgeGroup, svg.firstChild);
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const line = document.createElementNS(svgNS, 'line');
+                    line.setAttribute('x1', nodes[i].x);
+                    line.setAttribute('y1', nodes[i].y);
+                    line.setAttribute('x2', nodes[j].x);
+                    line.setAttribute('y2', nodes[j].y);
+                    line.classList.add('edge');
+                    line.style.opacity = 0;
+                    edgeGroup.appendChild(line);
+                    edges.push(line);
+                }
+            }
+        }
+
+        function setSubtitle(cn, en) {
+            subtitleCN.textContent = cn;
+            subtitleEN.textContent = en;
+        }
+
+        function show(element) {
+            element.style.opacity = 1;
+        }
+
+        function hide(element) {
+            element.style.opacity = 0;
+        }
+
+        function setNodeState(nodeIndex, state) {
+            const node = nodes[nodeIndex];
+            node.state = state;
+            if (state === 1) {
+                node.circle.classList.remove('off');
+                node.circle.classList.add('on');
+            } else {
+                node.circle.classList.remove('on');
+                node.circle.classList.add('off');
+            }
+        }
+
+        function createPulse(edge) {
+            const pulse1 = document.createElementNS(svgNS, 'path');
+            const pulse2 = document.createElementNS(svgNS, 'path');
+            const d = edge.getAttribute('d');
+            pulse1.setAttribute('d', d);
+            pulse2.setAttribute('d', d);
+            pulse1.classList.add('pulse');
+            pulse2.classList.add('pulse');
+
+            const g = document.createElementNS(svgNS, 'g');
+            g.appendChild(pulse1);
+            g.appendChild(pulse2);
+            svg.appendChild(g);
+
+            pulse1.style.stroke = 'var(--primary-accent-color)';
+            pulse2.style.stroke = 'var(--secondary-accent-color)';
+
+            const length = edge.getTotalLength();
+            pulse1.style.strokeDasharray = `${length}`;
+            pulse1.style.strokeDashoffset = `${length}`;
+            pulse2.style.strokeDasharray = `${length}`;
+            pulse2.style.strokeDashoffset = `${-length}`;
+
+            pulse1.animate([
+                { strokeDashoffset: length },
+                { strokeDashoffset: -length }
+            ], { duration: 2000, iterations: Infinity });
+
+            pulse2.animate([
+                { strokeDashoffset: -length },
+                { strokeDashoffset: length }
+            ], { duration: 2000, iterations: Infinity });
+
+            setTimeout(() => g.remove(), 2000);
+        }
+
+        function createPathFromLine(line) {
+            const path = document.createElementNS(svgNS, 'path');
+            const x1 = line.getAttribute('x1');
+            const y1 = line.getAttribute('y1');
+            const x2 = line.getAttribute('x2');
+            const y2 = line.getAttribute('y2');
+            path.setAttribute('d', `M${x1},${y1} L${x2},${y2}`);
+            return path;
+        }
+
+        const timeline = [
+            // 0. Intro Title
+            {
+                duration: 4000,
+                action: () => {
+                    show(titleCard);
+                    setSubtitle('让我们来了解一种受物理学启发的神经网络。', 'Let\'s explore a neural network inspired by physics.');
+                    show(subtitleContainer);
+                }
+            },
+            // 1. Fade out title, show network structure
+            {
+                duration: 2000,
+                action: () => {
+                    hide(titleCard);
+                    setSubtitle('这就是玻尔兹曼机。它由相互连接的单元（或神经元）组成。', 'This is a Boltzmann Machine. It consists of connected units, or neurons.');
+                    nodes.forEach((node, i) => {
+                        setTimeout(() => node.el.style.opacity = 1, i * 100);
+                    });
+                }
+            },
+            // 2. Show connections
+            {
+                duration: 2000,
+                action: () => {
+                    setSubtitle('与许多网络不同，这里的每个单元都可以连接到任何其他单元。', 'Unlike many networks, every unit can be connected to every other unit.');
+                    edges.forEach((edge, i) => {
+                        setTimeout(() => edge.style.opacity = 0.6, i * 50);
+                    });
+                }
+            },
+            // 3. Distinguish Visible and Hidden
+            {
+                duration: 4000,
+                action: () => {
+                    setSubtitle('这些单元分为两类：可见单元和隐藏单元。', 'The units are divided into two types: visible and hidden.');
+                    nodes.forEach(node => {
+                        if (node.type === 'visible') {
+                            node.circle.style.stroke = 'var(--primary-accent-color)';
+                        } else {
+                            node.circle.style.stroke = 'var(--secondary-accent-color)';
+                        }
+                    });
+                    visibleLabel.style.top = `${centerY - 300}px`;
+                    visibleLabel.style.left = `${centerX - 850}px`;
+                    hiddenLabel.style.top = `${centerY - 150}px`;
+                    hiddenLabel.style.left = `${centerX + 150}px`;
+                    show(visibleLabel);
+                    show(hiddenLabel);
+                }
+            },
+            // 4. Explain connections are symmetric
+            {
+                duration: 4000,
+                action: () => {
+                    hide(visibleLabel);
+                    hide(hiddenLabel);
+                    setSubtitle('连接是双向且对称的。信息可以自由地双向流动。', 'The connections are bidirectional and symmetric. Information flows freely both ways.');
+                    const pathEdge = createPathFromLine(edges[4]); // An edge connecting visible and hidden
+                    createPulse(pathEdge);
+                }
+            },
+            // 5. Introduce energy concept
+            {
+                duration: 3000,
+                action: () => {
+                    setSubtitle('网络的状态由一个“能量”函数来定义。', 'The state of the network is defined by an "energy" function.');
+                    show(energyContainer);
+                }
+            },
+            // 6. Explain the goal
+            {
+                duration: 3000,
+                action: () => {
+                    setSubtitle('网络的目标是达到一个低能量的稳定状态，这被称为“热平衡”。', 'The network\'s goal is to reach a low-energy, stable state, known as "thermal equilibrium".');
+                    // Set a random initial state with high energy
+                    setNodeState(0, 1);
+                    setNodeState(2, 1);
+                    setNodeState(4, 1);
+                    energyBar.style.height = '85%';
+                    energyValue.textContent = 'High';
+                }
+            },
+            // 7. Start the settling process
+            {
+                duration: 12000,
+                action: async () => {
+                    setSubtitle('单元会随机地打开或关闭，试图降低整个系统的能量。', 'Units randomly switch their states, trying to lower the system\'s total energy.');
+
+                    const settlingSteps = [
+                        { delay: 1500, node: 3, state: 1, energy: '75%', text: 'Lower' },
+                        { delay: 1500, node: 0, state: 0, energy: '60%', text: 'Lower' },
+                        { delay: 1500, node: 1, state: 1, energy: '45%', text: 'Lower' },
+                        { delay: 1500, node: 4, state: 0, energy: '30%', text: 'Lower' },
+                        { delay: 1500, node: 2, state: 0, energy: '25%', text: 'Lower' }, // small increase to show stochasticity
+                        { delay: 1500, node: 0, state: 1, energy: '35%', text: 'Higher' },
+                        { delay: 1500, node: 2, state: 1, energy: '15%', text: 'Low' },
+                    ];
+
+                    let cumulativeDelay = 0;
+                    for (const step of settlingSteps) {
+                        setTimeout(() => {
+                            const targetNode = nodes[step.node];
+
+                            // Add highlight
+                            const highlight = document.createElementNS(svgNS, 'circle');
+                            highlight.setAttribute('cx', targetNode.x);
+                            highlight.setAttribute('cy', targetNode.y);
+                            highlight.setAttribute('r', targetNode.circle.getAttribute('r') * 1.5);
+                            highlight.classList.add('highlight-circle');
+                            highlight.style.stroke = targetNode.type === 'visible' ? 'var(--primary-accent-color)' : 'var(--secondary-accent-color)';
+                            svg.appendChild(highlight);
+                            highlight.style.opacity = 0.5;
+
+                            setTimeout(() => {
+                                setNodeState(step.node, step.state);
+                                energyBar.style.height = step.energy;
+                                energyValue.textContent = step.text;
+                                highlight.style.opacity = 0;
+                                setTimeout(() => highlight.remove(), 500);
+                            }, 1000);
+
+                        }, cumulativeDelay);
+                        cumulativeDelay += step.delay;
+                    }
+                }
+            },
+            // 8. Final state
+            {
+                duration: 5000,
+                action: () => {
+                    setSubtitle('最终，网络进入一个稳定的低能量构型。这个状态代表了一个学习到的模式。', 'Finally, the network settles into a stable, low-energy configuration. This state represents a learned pattern.');
+                    nodes.forEach(n => n.circle.style.transition = 'all 1s ease');
+                    edges.forEach(e => e.style.transition = 'all 1s ease');
+                }
+            },
+            // 9. Outro
+            {
+                duration: 4000,
+                action: () => {
+                    setSubtitle('这就是玻尔兹曼机的核心思想：通过能量最小化来进行计算。', 'This is the core idea of the Boltzmann Machine: computation through energy minimization.');
+
+                }
+            },
+            // 10. Fade out everything
+            {
+                duration: 2000,
+                action: () => {
+                    hide(subtitleContainer);
+                    hide(energyContainer);
+                    nodes.forEach(node => hide(node.el));
+                    edges.forEach(edge => hide(edge));
+                }
+            },
+            // 11. Loop
+            {
+                duration: 1000,
+                action: () => {
+                    window.location.reload();
+                }
+            }
+        ];
+
+        function runAnimation() {
+            let cumulativeTime = 0;
+            timeline.forEach(step => {
+                setTimeout(() => {
+                    step.action();
+                }, cumulativeTime);
+                cumulativeTime += step.duration;
+            });
+        }
+
+        window.onload = () => {
+            createNetwork();
+            runAnimation();
+        };
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthetic Data Generation Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #f4f7fc;
+            --primary-color: #4a69e2;
+            --secondary-color: #6ac8ff;
+            --accent-color: #ff7f50;
+            --text-color: #333d52;
+            --light-text-color: #677788;
+            --border-color: #e0e6f1;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
+        }
+
+        #scaler {
+            width: 2560px;
+            height: 1440px;
+            transform-origin: center center;
+            position: relative;
+        }
+
+        #container {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #ffffff 0%, #eef2f9 100%);
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.08);
+        }
+
+        /* General Animation Styles */
+        .fade-in {
+            animation: fadeIn 1s ease-out forwards;
+        }
+
+        .fade-out {
+            animation: fadeOut 1s ease-in forwards;
+        }
+
+        .slide-up {
+            animation: slideUp 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .pop-in {
+            animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Title */
+        .title {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--text-color);
+            font-size: 64px;
+            font-weight: 600;
+            text-align: center;
+            opacity: 0;
+        }
+
+        .title .subtitle {
+            font-size: 32px;
+            font-weight: 300;
+            color: var(--light-text-color);
+            margin-top: 10px;
+        }
+
+        /* Subtitles Bar */
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            font-size: 28px;
+            font-weight: 400;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #subtitles p {
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        #subtitle-cn {
+            color: var(--text-color);
+        }
+
+        #subtitle-en {
+            color: var(--light-text-color);
+            font-size: 24px;
+        }
+
+        /* Animation Scene */
+        #scene {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        /* Data Visualization Area */
+        .data-viz {
+            position: absolute;
+            width: 1800px;
+            height: 900px;
+            left: 50%;
+            top: 55%;
+            transform: translate(-50%, -50%);
+        }
+
+        .axis {
+            stroke: var(--border-color);
+            stroke-width: 4;
+        }
+
+        .grid-line {
+            stroke: var(--border-color);
+            stroke-width: 2;
+            stroke-dasharray: 8 16;
+        }
+
+        .data-point {
+            transition: all 1.5s cubic-bezier(0.6, 0.04, 0.98, 0.335);
+            position: absolute;
+        }
+
+        .real-data {
+            width: 24px;
+            height: 24px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--primary-color);
+        }
+
+        .synthetic-data {
+            width: 20px;
+            height: 20px;
+            background-color: var(--secondary-color);
+            border-radius: 50%;
+            opacity: 0.9;
+        }
+
+        .privacy-lock {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            opacity: 0;
+        }
+
+        /* Generative Model */
+        #generative-model {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 400px;
+            height: 400px;
+            transition: transform 1s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        #generative-model.active {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .model-core {
+            animation: rotateCore 20s linear infinite;
+            transform-origin: center;
+        }
+
+        .model-glow {
+            animation: pulseGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes rotateCore {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes pulseGlow {
+            0% {
+                opacity: 0.7;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.7;
+            }
+        }
+
+        .data-stream {
+            stroke-width: 3;
+            stroke-linecap: round;
+            fill: none;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+        }
+
+        .stream-in {
+            animation: streamIn 1.5s ease-out forwards;
+        }
+
+        @keyframes streamIn {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* Benefits Area */
+        #benefits {
+            position: absolute;
+            width: 100%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            justify-content: space-around;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .benefit-card {
+            width: 400px;
+            padding: 40px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            transform: translateY(50px);
+            opacity: 0;
+        }
+
+        .benefit-card.show {
+            animation: slideUp 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .benefit-card svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+        }
+
+        .benefit-card h3 {
+            font-size: 32px;
+            color: var(--text-color);
+            margin: 0 0 10px 0;
+        }
+
+        .benefit-card p {
+            font-size: 22px;
+            color: var(--light-text-color);
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="scaler">
+        <div id="container">
+            <h1 class="title" id="main-title">
+                Synthetic Data Generation
+                <div class="subtitle">合成数据生成</div>
+            </h1>
+
+            <div id="scene">
+                <!-- Data Visualization Area -->
+                <svg class="data-viz" id="data-viz-bg">
+                    <!-- Grid -->
+                    <defs>
+                        <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+                            <path d="M 100 0 L 0 0 0 100" fill="none" class="grid-line" />
+                        </pattern>
+                    </defs>
+                    <rect width="1800" height="900" fill="url(#grid)" opacity="0.5" />
+                    <!-- Axes -->
+                    <line class="axis" x1="50" y1="850" x2="1750" y2="850" />
+                    <line class="axis" x1="50" y1="50" x2="50" y2="850" />
+                </svg>
+
+                <div class="data-viz" id="data-points-container">
+                    <!-- Data points will be injected here by JS -->
+                </div>
+
+                <!-- Privacy Lock Icon -->
+                <svg id="privacy-lock-1" class="privacy-lock" viewBox="0 0 24 24" style="left: 450px; top: 500px;">
+                    <path fill="#ff7f50"
+                        d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z" />
+                </svg>
+                <svg id="privacy-lock-2" class="privacy-lock" viewBox="0 0 24 24" style="left: 2000px; top: 800px;">
+                    <path fill="#ff7f50"
+                        d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z" />
+                </svg>
+
+                <!-- Generative Model SVG -->
+                <svg id="generative-model" viewBox="0 0 200 200">
+                    <defs>
+                        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:var(--secondary-color);stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:var(--primary-color);stop-opacity:1" />
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
+                            <feMerge>
+                                <feMergeNode in="coloredBlur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <g class="model-glow">
+                        <circle cx="100" cy="100" r="95" fill="url(#grad1)" opacity="0.3" />
+                    </g>
+                    <circle cx="100" cy="100" r="90" fill="#ffffff" stroke="var(--border-color)" stroke-width="2" />
+                    <g class="model-core">
+                        <path d="M100 20 V80 M100 180 V120 M20 100 H80 M180 100 H120" stroke="var(--border-color)"
+                            stroke-width="4" />
+                        <path d="M150 50 L120 80 M50 150 L80 120 M50 50 L80 80 M150 150 L120 120"
+                            stroke="var(--border-color)" stroke-width="4" />
+                    </g>
+                    <circle cx="100" cy="100" r="30" fill="url(#grad1)" filter="url(#glow)" />
+                    <circle cx="100" cy="100" r="25" fill="#ffffff" />
+                </svg>
+
+                <svg class="data-viz" id="data-stream-container" style="pointer-events:none;"></svg>
+
+                <!-- Benefits Display -->
+                <div id="benefits">
+                    <div class="benefit-card" id="benefit1">
+                        <svg viewBox="0 0 24 24">
+                            <path fill="var(--primary-color)"
+                                d="M9 17.2l-4.2-4.2 1.4-1.4 2.8 2.8 6.6-6.6 1.4 1.4z M19 10h-4V3h-2v7H9l5 5 5-5z M12 1C5.9 1 1 5.9 1 12s4.9 11 11 11 11-4.9 11-11S18.1 1 12 1zm0 20c-5 0-9-4-9-9s4-9 9-9 9 4 9 9-4 9-9 9z"
+                                transform="scale(1.5), translate(-4, -4)" />
+                        </svg>
+                        <h3>增强数据集</h3>
+                        <p>Enhance Datasets</p>
+                    </div>
+                    <div class="benefit-card" id="benefit2">
+                        <svg viewBox="0 0 24 24">
+                            <path fill="var(--primary-color)"
+                                d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
+                                transform="scale(1.5), translate(-4, -4)" />
+                        </svg>
+                        <h3>保护隐私</h3>
+                        <p>Protect Privacy</p>
+                    </div>
+                    <div class="benefit-card" id="benefit3">
+                        <svg viewBox="0 0 24 24">
+                            <path fill="var(--primary-color)"
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.25 14.5v-3.5H9.5v-2h1.25v-2.5c0-1.54 1.23-2.77 2.75-2.77h2.5v2h-2.5c-.41 0-.75.34-.75.75v2.5h3.25l-.5 2h-2.75v3.5h-2z"
+                                transform="scale(1.5), translate(-4, -4)" />
+                        </svg>
+                        <h3>节约成本</h3>
+                        <p>Cost-Effective</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="subtitles">
+                <p id="subtitle-cn"></p>
+                <p id="subtitle-en"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scaler = document.getElementById('scaler');
+        const container = document.getElementById('container');
+        const mainTitle = document.getElementById('main-title');
+        const subtitles = document.getElementById('subtitles');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+        const dataPointsContainer = document.getElementById('data-points-container');
+        const generativeModel = document.getElementById('generative-model');
+        const privacyLock1 = document.getElementById('privacy-lock-1');
+        const privacyLock2 = document.getElementById('privacy-lock-2');
+        const dataStreamContainer = document.getElementById('data-stream-container');
+        const benefitsContainer = document.getElementById('benefits');
+        const benefitCards = document.querySelectorAll('.benefit-card');
+
+        const REAL_DATA_COUNT = 20;
+        const SYNTHETIC_DATA_COUNT = 200;
+        const MODEL_X = 1280;
+        const MODEL_Y = 720;
+
+        let realDataPoints = [];
+        let syntheticDataPoints = [];
+
+        function setSubtitle(cn, en) {
+            subtitleCN.textContent = cn;
+            subtitleEN.textContent = en;
+        }
+
+        // --- Data Point Generation ---
+        function createDataPoints(count, type) {
+            const points = [];
+            for (let i = 0; i < count; i++) {
+                const point = document.createElement('div');
+                point.classList.add('data-point', type);
+
+                // Create a distribution that looks like a cluster
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.sqrt(Math.random()) * (type === 'real-data' ? 300 : 700);
+                const x = 900 + radius * Math.cos(angle);
+                const y = 450 + radius * Math.sin(angle) * 0.6;
+
+                point.style.left = `${x}px`;
+                point.style.top = `${y}px`;
+                point.dataset.finalX = x;
+                point.dataset.finalY = y;
+
+                dataPointsContainer.appendChild(point);
+                points.push(point);
+            }
+            return points;
+        }
+
+        function createDataStream(x1, y1, x2, y2, color) {
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const cpx1 = x1 + (x2 - x1) * 0.3;
+            const cpy1 = y1;
+            const cpx2 = x1 + (x2 - x1) * 0.7;
+            const cpy2 = y2;
+            path.setAttribute('d', `M${x1},${y1} C${cpx1},${cpy1} ${cpx2},${cpy2} ${x2},${y2}`);
+            path.setAttribute('class', 'data-stream');
+            path.style.stroke = color;
+            dataStreamContainer.appendChild(path);
+            return path;
+        }
+
+        // --- Animation Timeline ---
+        async function runAnimation() {
+            // 0. Reset state
+            mainTitle.style.opacity = '0';
+            subtitles.style.opacity = '0';
+            dataPointsContainer.innerHTML = '';
+            dataStreamContainer.innerHTML = '';
+            generativeModel.classList.remove('active');
+            privacyLock1.style.opacity = '0';
+            privacyLock2.style.opacity = '0';
+            benefitsContainer.style.opacity = '0';
+            benefitCards.forEach(c => c.classList.remove('show'));
+            realDataPoints = [];
+            syntheticDataPoints = [];
+
+            await new Promise(r => setTimeout(r, 1000));
+
+            // 1. Show Title
+            mainTitle.classList.remove('fade-out');
+            mainTitle.classList.add('fade-in');
+
+            await new Promise(r => setTimeout(r, 2000));
+
+            // 2. Introduce the Problem: Scarce & Private Real Data
+            mainTitle.classList.remove('fade-in');
+            mainTitle.classList.add('fade-out');
+            subtitles.style.opacity = '1';
+            setSubtitle(
+                "现实世界的数据往往稀疏、不完整，且涉及隐私。",
+                "Real-world data is often sparse, incomplete, and bound by privacy."
+            );
+            realDataPoints = createDataPoints(REAL_DATA_COUNT, 'real-data');
+            realDataPoints.forEach((p, i) => {
+                p.style.transitionDelay = `${i * 0.05}s`;
+                p.classList.add('pop-in');
+            });
+            privacyLock1.classList.add('pop-in');
+            privacyLock2.classList.add('pop-in');
+
+            await new Promise(r => setTimeout(r, 5000));
+
+            // 3. Learning Phase: Data flows into the model
+            setSubtitle(
+                "生成模型学习这些真实数据的底层模式与分布。",
+                "A generative model learns the underlying patterns and distribution of this real data."
+            );
+            privacyLock1.classList.remove('pop-in');
+            privacyLock2.classList.remove('pop-in');
+            privacyLock1.classList.add('fade-out');
+            privacyLock2.classList.add('fade-out');
+
+            generativeModel.classList.add('active');
+
+            await new Promise(r => setTimeout(r, 500));
+
+            realDataPoints.forEach(p => {
+                const x = parseFloat(p.style.left);
+                const y = parseFloat(p.style.top);
+                const stream = createDataStream(x, y, MODEL_X - 280, MODEL_Y - 470, 'var(--primary-color)');
+                stream.classList.add('stream-in');
+                p.style.left = `${MODEL_X - 280}px`;
+                p.style.top = `${MODEL_Y - 470}px`;
+                p.style.opacity = '0';
+                p.style.transform = 'scale(0.5)';
+            });
+
+            await new Promise(r => setTimeout(r, 3000));
+
+            // 4. Generation Phase: Creating new data
+            setSubtitle(
+                "学习完成后，模型便能生成全新的、与真实数据特征一致的合成数据。",
+                "After learning, the model can generate new, synthetic data that shares the same characteristics."
+            );
+            dataStreamContainer.innerHTML = ''; // Clear old streams
+
+            syntheticDataPoints = createDataPoints(SYNTHETIC_DATA_COUNT, 'synthetic-data');
+            syntheticDataPoints.forEach((p, i) => {
+                const finalX = p.dataset.finalX;
+                const finalY = p.dataset.finalY;
+                p.style.left = `${MODEL_X - 280}px`;
+                p.style.top = `${MODEL_Y - 470}px`;
+                p.style.opacity = '0';
+                p.style.transition = `all 1s cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+                p.style.transitionDelay = `${i * 0.015}s`;
+
+                setTimeout(() => {
+                    p.style.left = `${finalX}px`;
+                    p.style.top = `${finalY}px`;
+                    p.style.opacity = '0.9';
+                }, 100);
+            });
+
+            await new Promise(r => setTimeout(r, 5000));
+
+            // 5. Result & Benefits
+            setSubtitle(
+                "我们得到了一个庞大、高质量的数据集，同时解决了数据稀缺和隐私问题。",
+                "We get a large, high-quality dataset, solving scarcity and privacy issues."
+            );
+            generativeModel.classList.remove('active');
+            realDataPoints.forEach(p => p.remove()); // Remove original points for clarity
+
+            await new Promise(r => setTimeout(r, 1000));
+
+            benefitsContainer.style.opacity = '1';
+            benefitCards.forEach((card, i) => {
+                setTimeout(() => card.classList.add('show'), i * 300);
+            });
+
+            await new Promise(r => setTimeout(r, 6000));
+
+            // 6. Loop
+            setSubtitle(
+                "合成数据：为AI的未来提供动力。",
+                "Synthetic Data: Powering the future of AI."
+            );
+            await new Promise(r => setTimeout(r, 4000));
+
+            container.classList.add('fade-out');
+
+            await new Promise(r => setTimeout(r, 1000));
+
+            container.classList.remove('fade-out');
+            runAnimation(); // Restart
+        }
+
+        // --- Scaling Logic ---
+        function scaleContainer() {
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const scaleX = windowWidth / 2560;
+            const scaleY = windowHeight / 1440;
+            const scale = Math.min(scaleX, scaleY);
+            scaler.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', scaleContainer);
+        window.addEventListener('load', () => {
+            scaleContainer();
+            runAnimation();
+        });
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision Encoder Explained | 视觉编码器解析</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-text: #212529;
+            --secondary-text: #6c757d;
+            --accent-blue: #007bff;
+            --accent-green: #28a745;
+            --accent-purple: #6f42c1;
+            --accent-orange: #fd7e14;
+            --accent-teal: #20c997;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 95%;
+            max-width: 2560px;
+            aspect-ratio: 16 / 9;
+            position: relative;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #scene {
+            width: 100%;
+            height: 100%;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 4%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        #subtitles p {
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        #subtitle-cn {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--primary-text);
+        }
+
+        #subtitle-en {
+            font-size: 16px;
+            color: var(--secondary-text);
+            margin-top: 4px;
+        }
+
+        /* SVG Element Styles */
+        .title-text {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            fill: var(--primary-text);
+        }
+
+        .subtitle-text {
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            fill: var(--secondary-text);
+        }
+
+        .label-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 32px;
+            fill: var(--primary-text);
+            text-anchor: middle;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <div id="animation-wrapper">
+            <svg id="scene" viewBox="0 0 2560 1440" preserveAspectRatio="xMidYMid meet">
+                <!-- Background Elements -->
+                <defs>
+                    <radialGradient id="bgGradient" cx="50%" cy="50%" r="70%" fx="50%" fy="50%">
+                        <stop offset="0%" style="stop-color:#eef5ff; stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#ffffff; stop-opacity:1" />
+                    </radialGradient>
+                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="10" result="coloredBlur" />
+                        <feMerge>
+                            <feMergeNode in="coloredBlur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+                <rect width="2560" height="1440" fill="url(#bgGradient)" />
+
+                <!-- Scene 1: Title -->
+                <g id="titleGroup" opacity="0">
+                    <text x="1280" y="680" font-size="96" text-anchor="middle" class="title-text">Vision Encoder</text>
+                    <text x="1280" y="780" font-size="64" text-anchor="middle" class="title-text">视觉编码器</text>
+                </g>
+
+                <!-- Scene 2: Image Input -->
+                <g id="imageGroup" opacity="0">
+                    <defs>
+                        <clipPath id="catClip">
+                            <rect x="300" y="420" width="600" height="600" rx="20" />
+                        </clipPath>
+                    </defs>
+                    <image
+                        href="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=800&auto=format&fit=crop"
+                        x="300" y="420" width="600" height="600" clip-path="url(#catClip)" />
+                    <g id="pixelGrid" stroke="#000" stroke-opacity="0.1" stroke-width="1">
+                        <!-- Grid lines will be generated by JS -->
+                    </g>
+                </g>
+
+                <!-- Scene 3 & 4: Patches and Projection -->
+                <g id="patchesGroup"></g>
+                <g id="linearProjectionGroup" opacity="0">
+                    <rect x="1130" y="520" width="300" height="400" rx="15" fill="#fff" stroke="var(--border-color)"
+                        stroke-width="2" />
+                    <text x="1280" y="700" class="label-text">Linear</text>
+                    <text x="1280" y="750" class="label-text">Projection</text>
+                    <path d="M1130 670 L1030 670" stroke="var(--accent-blue)" stroke-width="4"
+                        marker-end="url(#arrow)" />
+                    <path d="M1430 670 L1530 670" stroke="var(--accent-green)" stroke-width="4"
+                        marker-end="url(#arrow)" />
+                </g>
+                <g id="embeddingsGroup"></g>
+
+                <!-- Scene 5: Positional Encoding -->
+                <g id="positionalEncodingsGroup"></g>
+                <g id="addSymbolGroup" opacity="0">
+                    <!-- "+" symbols -->
+                </g>
+
+                <!-- Scene 6: Transformer Encoder -->
+                <g id="encoderBlockGroup" opacity="0">
+                    <rect x="640" y="300" width="1280" height="840" rx="20" fill="rgba(255,255,255,0.7)"
+                        stroke="var(--border-color)" stroke-width="2" />
+                    <text x="1280" y="180" font-size="60" class="title-text" text-anchor="middle">Transformer
+                        Encoder</text>
+                    <text x="1280" y="240" font-size="40" class="subtitle-text" text-anchor="middle">x N Layers</text>
+
+                    <g id="attentionGroup">
+                        <rect x="740" y="480" width="500" height="150" rx="10" fill="#e3f2fd" stroke="#90caf9"
+                            stroke-width="2" />
+                        <text x="990" y="565" class="label-text" font-size="40">Multi-Head Attention</text>
+                    </g>
+                    <g id="ffnGroup">
+                        <rect x="1320" y="480" width="500" height="150" rx="10" fill="#e8f5e9" stroke="#a5d6a7"
+                            stroke-width="2" />
+                        <text x="1570" y="565" class="label-text" font-size="40">Feed Forward Network</text>
+                    </g>
+                    <path d="M1240 555 l 80 0" stroke="#bdbdbd" stroke-width="3" stroke-dasharray="10 5" />
+
+                    <g id="attentionLines" opacity="0" stroke-width="2" stroke-opacity="0.5"></g>
+                </g>
+
+                <!-- Scene 7 & 8: Output Features and Downstream Tasks -->
+                <g id="outputEmbeddingsGroup"></g>
+                <g id="downstreamTasksGroup" opacity="0">
+                    <!-- Classification -->
+                    <g transform="translate(1800, 350)">
+                        <circle cx="0" cy="0" r="80" fill="#fff" stroke="var(--border-color)" stroke-width="2" />
+                        <path d="M-40 -15 L0 25 L40 -15" fill="none" stroke="var(--accent-orange)" stroke-width="8"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                        <circle cx="0" cy="-30" r="10" fill="var(--accent-orange)" />
+                        <text y="130" class="label-text" font-size="36">Classification</text>
+                    </g>
+                    <!-- Segmentation -->
+                    <g transform="translate(1800, 720)">
+                        <circle cx="0" cy="0" r="80" fill="#fff" stroke="var(--border-color)" stroke-width="2" />
+                        <path d="M-35,35 C-50,0 -20,-50 0,-40 C20,-50 50,0 35,35 C20,50 -20,50 -35,35 Z" fill="#e1f5fe"
+                            stroke="var(--accent-blue)" stroke-width="4" />
+                        <text y="130" class="label-text" font-size="36">Segmentation</text>
+                    </g>
+                    <!-- Detection -->
+                    <g transform="translate(1800, 1090)">
+                        <circle cx="0" cy="0" r="80" fill="#fff" stroke="var(--border-color)" stroke-width="2" />
+                        <rect x="-40" y="-40" width="80" height="80" rx="5" fill="none" stroke="var(--accent-green)"
+                            stroke-width="6" stroke-dasharray="10 5" />
+                        <text y="130" class="label-text" font-size="36">Detection</text>
+                    </g>
+                </g>
+
+                <!-- Final Message -->
+                <g id="finalMessageGroup" opacity="0">
+                    <text x="1280" y="700" font-size="72" text-anchor="middle" class="title-text">This is the essence of
+                        computer vision.</text>
+                    <text x="1280" y="780" font-size="48" text-anchor="middle" class="subtitle-text">这就是计算机视觉的奥秘</text>
+                </g>
+
+            </svg>
+            <div id="subtitles">
+                <p id="subtitle-cn"></p>
+                <p id="subtitle-en"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const scene = document.getElementById('scene');
+            const titleGroup = document.getElementById('titleGroup');
+            const imageGroup = document.getElementById('imageGroup');
+            const pixelGrid = document.getElementById('pixelGrid');
+            const patchesGroup = document.getElementById('patchesGroup');
+            const linearProjectionGroup = document.getElementById('linearProjectionGroup');
+            const embeddingsGroup = document.getElementById('embeddingsGroup');
+            const positionalEncodingsGroup = document.getElementById('positionalEncodingsGroup');
+            const addSymbolGroup = document.getElementById('addSymbolGroup');
+            const encoderBlockGroup = document.getElementById('encoderBlockGroup');
+            const attentionLines = document.getElementById('attentionLines');
+            const outputEmbeddingsGroup = document.getElementById('outputEmbeddingsGroup');
+            const downstreamTasksGroup = document.getElementById('downstreamTasksGroup');
+            const finalMessageGroup = document.getElementById('finalMessageGroup');
+
+            const subtitleCN = document.getElementById('subtitle-cn');
+            const subtitleEN = document.getElementById('subtitle-en');
+
+            const PATCH_SIZE = 150;
+            const PATCH_COUNT = 4;
+            const GAP = 10;
+            const EMBEDDING_WIDTH = 40;
+            const EMBEDDING_HEIGHT = 200;
+
+            const tl = gsap.timeline({ delay: 0.5 });
+
+            function updateSubtitles(cn, en) {
+                gsap.to([subtitleCN, subtitleEN], {
+                    duration: 0.3,
+                    opacity: 0,
+                    onComplete: () => {
+                        subtitleCN.innerHTML = cn;
+                        subtitleEN.innerHTML = en;
+                        gsap.to([subtitleCN, subtitleEN], { duration: 0.3, opacity: 1 });
+                    }
+                });
+            }
+
+            // --- Animation Sequence ---
+
+            // Scene 1: Introduction
+            tl.to(titleGroup, { opacity: 1, duration: 1.5, scale: 1.1, ease: "power2.out" })
+                .call(updateSubtitles, ["计算机如何像人类一样“看见”图像？", "How do computers 'see' images like we do?"], ">-1.0")
+                .to(titleGroup, { opacity: 0, duration: 1, delay: 1.5, scale: 0.9, ease: "power2.in" });
+
+            // Scene 2: The Input Image
+            tl.addLabel("showImage")
+                .call(updateSubtitles, ["一切都始于一张图片。对计算机来说，它只是一个像素网格。", "It all starts with an image. To a computer, it's just a grid of pixels."], ">-0.5")
+                .fromTo(imageGroup, { opacity: 0, scale: 0.8, x: 256, y: 144 }, { opacity: 1, scale: 1, x: 0, y: 0, duration: 1, ease: "power2.out" });
+
+            // Generate and show pixel grid
+            for (let i = 1; i < 20; i++) {
+                const x = 300 + i * 30;
+                const y = 420 + i * 30;
+                const hLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                hLine.setAttribute('x1', 300); hLine.setAttribute('y1', y);
+                hLine.setAttribute('x2', 900); hLine.setAttribute('y2', y);
+                pixelGrid.appendChild(hLine);
+                const vLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                vLine.setAttribute('x1', x); vLine.setAttribute('y1', 420);
+                vLine.setAttribute('x2', x); vLine.setAttribute('y2', 1020);
+                pixelGrid.appendChild(vLine);
+            }
+            tl.fromTo(pixelGrid, { opacity: 0 }, { opacity: 1, duration: 0.5 })
+                .to(pixelGrid, { opacity: 0, duration: 0.5, delay: 1 });
+
+            // Scene 3: Image to Patches
+            tl.addLabel("patching")
+                .call(updateSubtitles, ["第一步：将图像分割成小块，我们称之为“图像块 (Patches)”。", "First step: We break the image into smaller pieces, called 'Patches'."])
+                .to(imageGroup, { opacity: 0, duration: 0.5 }, ">");
+
+            const patches = [];
+            for (let i = 0; i < PATCH_COUNT; i++) {
+                for (let j = 0; j < PATCH_COUNT; j++) {
+                    const patch = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    const x = 300 + j * PATCH_SIZE;
+                    const y = 420 + i * PATCH_SIZE;
+                    gsap.set(patch, {
+                        attr: { x: x, y: y, width: PATCH_SIZE, height: PATCH_SIZE, fill: '#dbeafe', stroke: '#93c5fd', 'stroke-width': 2, rx: 5 },
+                        opacity: 0,
+                    });
+                    patchesGroup.appendChild(patch);
+                    patches.push(patch);
+                }
+            }
+
+            tl.to(patches, { opacity: 1, stagger: 0.05, duration: 0.5 });
+
+            const totalPatchesWidth = (PATCH_COUNT * PATCH_COUNT * (PATCH_SIZE / 3 + GAP)) - GAP;
+            const startX = 1280 - totalPatchesWidth / 2;
+
+            tl.to(patches, {
+                duration: 1.5,
+                ease: "power2.inOut",
+                stagger: {
+                    each: 0.05,
+                    from: "start"
+                },
+                attr: {
+                    x: (i) => startX + i * (PATCH_SIZE / 3 + GAP),
+                    y: 400,
+                    width: PATCH_SIZE / 3,
+                    height: PATCH_SIZE / 3
+                }
+            }, ">+0.5");
+
+            // Scene 4: Flatten & Linear Projection
+            tl.addLabel("projection")
+                .call(updateSubtitles, ["每个图像块被“展平”并通过线性投影，转换成模型能理解的向量 (Embeddings)。", "Each patch is 'flattened' and passed through a Linear Projection to become a vector (Embedding) the model can understand."], ">-1")
+                .to(patches, {
+                    duration: 1,
+                    ease: "back.in(1)",
+                    stagger: 0.05,
+                    attr: {
+                        y: 670 - EMBEDDING_HEIGHT / 2,
+                        width: 5,
+                        height: EMBEDDING_HEIGHT
+                    }
+                });
+
+            const embeddings = [];
+            patches.forEach((patch, i) => {
+                const embedding = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                const x = 1600 + i * (EMBEDDING_WIDTH + GAP);
+                gsap.set(embedding, {
+                    attr: { x: x, y: 620, width: EMBEDDING_WIDTH, height: EMBEDDING_HEIGHT, fill: '#d1fae5', stroke: '#6ee7b7', 'stroke-width': 2, rx: 5 },
+                    opacity: 0
+                });
+                embeddingsGroup.appendChild(embedding);
+                embeddings.push(embedding);
+            });
+
+            tl.to(linearProjectionGroup, { opacity: 1, duration: 0.5 }, ">-0.5")
+                .to(patches, {
+                    x: "+=300",
+                    stagger: 0.05,
+                    duration: 1,
+                    opacity: 0
+                })
+                .to(embeddings, {
+                    opacity: 1,
+                    stagger: 0.05,
+                    duration: 1
+                }, "<0.5")
+                .to(linearProjectionGroup, { opacity: 0, duration: 0.5 });
+
+            // Scene 5: Positional Encoding
+            tl.addLabel("positional")
+                .call(updateSubtitles, ["为了保留位置信息，我们加入“位置编码 (Positional Encodings)”。", "To retain spatial information, we add 'Positional Encodings'."]);
+
+            const posEncodings = [];
+            const colors = gsap.utils.interpolate(['#ffedd5', '#dbeafe']);
+            embeddings.forEach((emb, i) => {
+                const pos = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                const x = 1600 + i * (EMBEDDING_WIDTH + GAP);
+                gsap.set(pos, {
+                    attr: { x: x, y: 900, width: EMBEDDING_WIDTH, height: EMBEDDING_HEIGHT / 2, fill: colors(i / (embeddings.length - 1)), stroke: '#fed7aa', 'stroke-width': 2, rx: 5 },
+                    opacity: 0
+                });
+                positionalEncodingsGroup.appendChild(pos);
+                posEncodings.push(pos);
+
+                const plus = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                plus.textContent = '+';
+                gsap.set(plus, {
+                    attr: { x: x + EMBEDDING_WIDTH / 2, y: 860, 'font-size': 40, fill: '#fb923c', 'text-anchor': 'middle' }
+                });
+                addSymbolGroup.appendChild(plus);
+            });
+
+            tl.to(posEncodings, { opacity: 1, y: 800, stagger: 0.05, duration: 0.8, ease: 'power2.out' })
+                .to(addSymbolGroup, { opacity: 1, duration: 0.3 }, "<")
+                .to([posEncodings, addSymbolGroup], { opacity: 0, y: '-=50', stagger: 0.05, duration: 0.8, ease: 'power2.in' })
+                .to(embeddings, {
+                    attr: { 'stroke-width': 4 },
+                    stroke: '#fb923c',
+                    duration: 0.5,
+                    stagger: 0.05
+                }, "<0.5");
+
+            // Move embeddings to center for encoder
+            const centerStartX = 1280 - (embeddings.length * (EMBEDDING_WIDTH + GAP)) / 2;
+            tl.to(embeddings, {
+                x: i => centerStartX + i * (EMBEDDING_WIDTH + GAP),
+                y: 720 - EMBEDDING_HEIGHT / 2,
+                duration: 1.5,
+                ease: "power2.inOut"
+            }, ">+0.5");
+
+            // Scene 6: Transformer Encoder
+            tl.addLabel("encoder")
+                .call(updateSubtitles, ["现在，进入Transformer编码器。在这里，每个图像块会关注所有其他块，以理解全局上下文。", "Now, they enter the Transformer Encoder. Here, each patch 'attends' to all others to understand the global context."])
+                .to(encoderBlockGroup, { opacity: 1, duration: 1 }, ">-1")
+                .to(embeddings, { y: 850, duration: 1, ease: 'power2.in' }, ">");
+
+            // Attention animation
+            for (let i = 0; i < embeddings.length; i++) {
+                for (let j = i + 1; j < embeddings.length; j++) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const x1 = centerStartX + i * (EMBEDDING_WIDTH + GAP) + EMBEDDING_WIDTH / 2;
+                    const y1 = 850;
+                    const x2 = centerStartX + j * (EMBEDDING_WIDTH + GAP) + EMBEDDING_WIDTH / 2;
+                    const y2 = 850;
+                    const controlY = y1 - 100 - Math.random() * 100;
+                    line.setAttribute('d', `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${controlY} ${x2} ${y2}`);
+                    line.setAttribute('stroke', '#a78bfa');
+                    line.setAttribute('fill', 'none');
+                    attentionLines.appendChild(line);
+                }
+            }
+            tl.to('#attentionLines path', {
+                strokeDasharray: "1000",
+                strokeDashoffset: "1000",
+                stagger: {
+                    each: 0.01,
+                    from: "random"
+                },
+                duration: 1,
+                ease: "power2.out"
+            }, ">-0.5").from('#attentionLines path', {
+                strokeDashoffset: "2000",
+                duration: 1,
+                ease: "power2.in"
+            }, "<")
+                .to('#attentionGroup', { filter: 'url(#glow)', duration: 0.5, repeat: 1, yoyo: true }, '<');
+
+            // Scene 7: Output Features
+            tl.addLabel("output")
+                .call(updateSubtitles, ["编码器输出的是一组丰富的特征表示，包含了整个图像的深度信息。", "The encoder outputs a set of rich feature representations, containing deep information about the entire image."])
+                .to(embeddings, {
+                    y: 250,
+                    fill: '#fecdd3',
+                    stroke: '#fda4af',
+                    duration: 1,
+                    ease: 'power2.out'
+                })
+                .to(encoderBlockGroup, { opacity: 0, duration: 1 }, ">-0.5");
+
+            // Scene 8: Downstream Tasks
+            tl.addLabel("tasks")
+                .call(updateSubtitles, ["这些特征可以用于各种下游任务，如分类、分割或目标检测。", "These features can be used for various downstream tasks, like classification, segmentation, or object detection."])
+                .to(downstreamTasksGroup, { opacity: 1, duration: 1 });
+
+            const outputLines = [];
+            embeddings.forEach((emb, i) => {
+                ['translate(1800, 350)', 'translate(1800, 720)', 'translate(1800, 1090)'].forEach((transform, j) => {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    const startX = parseFloat(emb.getAttribute('x')) + EMBEDDING_WIDTH / 2;
+                    const endCoords = transform.match(/(\d+)/g);
+                    gsap.set(line, {
+                        attr: {
+                            x1: startX, y1: 250 + EMBEDDING_HEIGHT,
+                            x2: startX, y2: 250 + EMBEDDING_HEIGHT,
+                            x2_end: endCoords[0], y2_end: endCoords[1],
+                            stroke: '#cbd5e1', 'stroke-width': 2
+                        },
+                        opacity: 0
+                    });
+                    outputEmbeddingsGroup.appendChild(line);
+                    outputLines.push(line);
+                });
+            });
+
+            tl.to(outputLines, {
+                opacity: 0.5,
+                attr: {
+                    x2: (i) => outputLines[i].getAttribute('x2_end'),
+                    y2: (i) => outputLines[i].getAttribute('y2_end')
+                },
+                duration: 1.5,
+                stagger: 0.01,
+                ease: 'power2.inOut'
+            }, ">-0.5")
+                .to('#downstreamTasksGroup g', { scale: 1.1, duration: 0.3, stagger: 0.2, repeat: 1, yoyo: true }, ">-1");
+
+            // Final Scene
+            tl.to([embeddingsGroup, outputEmbeddingsGroup, downstreamTasksGroup], { opacity: 0, duration: 1, delay: 2 })
+                .to(finalMessageGroup, { opacity: 1, duration: 1.5 })
+                .call(updateSubtitles, ["这就是Vision Encoder如何赋予机器“视觉”的核心原理。", "This is the core principle of how a Vision Encoder gives machines the power of 'sight'."]);
+        });
+    </script>
+</body>
+
+</html>

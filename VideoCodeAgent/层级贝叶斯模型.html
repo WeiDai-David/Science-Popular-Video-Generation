@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hierarchical Bayesian Model Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-color: #4A90E2;
+            --secondary-color: #F5A623;
+            --text-color: #343A40;
+            --light-text-color: #6C757D;
+            --data-point-color: #7B8A9B;
+            --pooled-color: #50E3C2;
+            --parent-dist-color: rgba(74, 144, 226, 0.15);
+            --parent-dist-stroke: rgba(74, 144, 226, 0.5);
+            --uncertainty-color: rgba(245, 166, 35, 0.3);
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background-color: var(--bg-color);
+            transform-origin: center center;
+        }
+
+        #main-svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .title-text {
+            font-size: 100px;
+            font-weight: 700;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .subtitle-text {
+            font-size: 50px;
+            font-weight: 600;
+            fill: var(--light-text-color);
+            text-anchor: middle;
+        }
+
+        .group-label {
+            font-size: 32px;
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .data-point {
+            fill: var(--data-point-color);
+            opacity: 0.7;
+        }
+
+        .estimate-circle {
+            stroke-width: 5;
+        }
+
+        .summary-text {
+            font-size: 36px;
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+        }
+
+        .summary-line {
+            stroke: var(--light-text-color);
+            stroke-width: 3;
+            stroke-dasharray: 10 5;
+        }
+
+        .arrow-head {
+            fill: var(--light-text-color);
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .subtitle-line {
+            font-size: 38px;
+            padding: 10px 30px;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.85);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 10px;
+            color: var(--text-color);
+            display: inline-block;
+            opacity: 0;
+            /* Initially hidden */
+        }
+
+        .subtitle-line.en {
+            font-size: 30px;
+            color: var(--light-text-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="main-svg" viewBox="0 0 2560 1440">
+            <!-- Title Screen Elements -->
+            <g id="title-screen">
+                <text id="main-title" class="title-text" x="1280" y="650">Hierarchical Bayesian Models</text>
+                <text id="sub-title" class="subtitle-text" x="1280" y="760">层级贝叶斯模型</text>
+            </g>
+
+            <!-- Main Scene Elements -->
+            <g id="main-scene" opacity="0">
+                <!-- Groups -->
+                <g id="group-A" class="group">
+                    <text class="group-label" x="500" y="300">School A / 学校A</text>
+                </g>
+                <g id="group-B" class="group">
+                    <text class="group-label" x="1000" y="300">School B / 学校B</text>
+                </g>
+                <g id="group-C" class="group">
+                    <text class="group-label" x="1500" y="300">School C / 学校C</text>
+                </g>
+                <g id="group-D" class="group">
+                    <text class="group-label" x="2000" y="300">School D / 学校D</text>
+                </g>
+
+                <!-- Data Points -->
+                <g id="data-points"></g>
+
+                <!-- Estimates -->
+                <g id="estimates"></g>
+
+                <!-- Parent Distribution -->
+                <g id="parent-distribution" opacity="0">
+                    <path id="parent-curve" d="M 400 1100 C 800 400, 1800 400, 2200 1100"
+                        fill="var(--parent-dist-color)" stroke="var(--parent-dist-stroke)" stroke-width="4" />
+                    <text class="group-label" x="1280" y="500" fill="var(--primary-color)">Parent Distribution
+                        (Hyperparameters)</text>
+                    <text class="group-label" x="1280" y="550" fill="var(--primary-color)">父分布 (超参数)</text>
+                </g>
+
+                <!-- Shrinkage Arrows -->
+                <g id="shrinkage-arrows"></g>
+
+                <!-- Final Summary Diagram -->
+                <g id="summary-diagram" opacity="0">
+                    <!-- Levels -->
+                    <rect x="1080" y="350" width="400" height="100" rx="15" fill="var(--parent-dist-color)"
+                        stroke="var(--primary-color)" stroke-width="3" />
+                    <text class="summary-text" x="1280" y="415">Hyperparameters (θ_parent)</text>
+
+                    <rect x="430" y="650" width="400" height="100" rx="15" fill="#FFF" stroke="var(--light-text-color)"
+                        stroke-width="3" />
+                    <text class="summary-text" x="630" y="715">Group Params (θ_A)</text>
+
+                    <rect x="1080" y="650" width="400" height="100" rx="15" fill="#FFF" stroke="var(--light-text-color)"
+                        stroke-width="3" />
+                    <text class="summary-text" x="1280" y="715">... (θ_i)</text>
+
+                    <rect x="1730" y="650" width="400" height="100" rx="15" fill="#FFF" stroke="var(--light-text-color)"
+                        stroke-width="3" />
+                    <text class="summary-text" x="1930" y="715">Group Params (θ_D)</text>
+
+                    <rect x="430" y="950" width="400" height="100" rx="15" fill="#FFF" stroke="var(--data-point-color)"
+                        stroke-width="3" />
+                    <text class="summary-text" x="630" y="1015">Data (y_A)</text>
+
+                    <rect x="1730" y="950" width="400" height="100" rx="15" fill="#FFF" stroke="var(--data-point-color)"
+                        stroke-width="3" />
+                    <text class="summary-text" x="1930" y="1015">Data (y_D)</text>
+
+                    <!-- Lines and Arrows -->
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6"
+                            orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head" />
+                        </marker>
+                    </defs>
+                    <line class="summary-line" x1="1280" y1="450" x2="630" y2="650" marker-end="url(#arrow)" />
+                    <line class="summary-line" x1="1280" y1="450" x2="1280" y2="650" marker-end="url(#arrow)" />
+                    <line class="summary-line" x1="1280" y1="450" x2="1930" y2="650" marker-end="url(#arrow)" />
+                    <line class="summary-line" x1="630" y1="750" x2="630" y2="950" marker-end="url(#arrow)" />
+                    <line class="summary-line" x1="1930" y1="750" x2="1930" y2="950" marker-end="url(#arrow)" />
+                </g>
+            </g>
+        </svg>
+
+        <div id="subtitles">
+            <p id="subtitle-cn" class="subtitle-line cn"></p>
+            <p id="subtitle-en" class="subtitle-line en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js"></script>
+    <script>
+        const container = document.getElementById('animation-container');
+
+        function resize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const scale = Math.min(w / 2560, h / 1440);
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Animation Setup ---
+        const svg = document.getElementById('main-svg');
+        const dataPointsContainer = document.getElementById('data-points');
+        const estimatesContainer = document.getElementById('estimates');
+        const shrinkageArrowsContainer = document.getElementById('shrinkage-arrows');
+
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        const groupCenters = { A: 500, B: 1000, C: 1500, D: 2000 };
+        const dataConfig = {
+            A: { count: 15, meanY: 700, std: 80 },
+            B: { count: 20, meanY: 800, std: 80 },
+            C: { count: 35, meanY: 900, std: 80 },
+            D: { count: 4, meanY: 1050, std: 80 }
+        };
+
+        let allDataPoints = [];
+        let groupEstimates = {};
+
+        function generateDataPoints() {
+            for (const [key, config] of Object.entries(dataConfig)) {
+                for (let i = 0; i < config.count; i++) {
+                    const point = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    const angle = Math.random() * 2 * Math.PI;
+                    const radius = Math.random() * 100 + 20;
+                    const x = groupCenters[key] + Math.cos(angle) * radius;
+                    const y = config.meanY + (Math.random() - 0.5) * 2 * config.std;
+
+                    point.setAttribute('cx', x);
+                    point.setAttribute('cy', y);
+                    point.setAttribute('r', 8);
+                    point.setAttribute('class', 'data-point');
+                    point.dataset.group = key;
+                    dataPointsContainer.appendChild(point);
+                    allDataPoints.push(point);
+                }
+            }
+        }
+
+        function updateSubtitles(cn, en, duration = 0.5) {
+            const tl = gsap.timeline();
+            tl.to([subtitleCN, subtitleEN], { opacity: 0, duration: duration / 2 })
+                .call(() => {
+                    subtitleCN.textContent = cn;
+                    subtitleEN.textContent = en;
+                })
+                .to([subtitleCN, subtitleEN], { opacity: 1, duration: duration / 2 });
+            return tl;
+        }
+
+        // --- Main Animation Timeline ---
+        const tl = gsap.timeline({ delay: 1 });
+
+        // Scene 1: Title
+        tl.from("#title-screen", { opacity: 0, duration: 2, ease: "power2.inOut" });
+        tl.add(updateSubtitles("", ""));
+        tl.to("#title-screen", { opacity: 0, duration: 1.5, ease: "power2.inOut" }, "+=2");
+
+        // Scene 2: Problem Setup
+        tl.to("#main-scene", { opacity: 1, duration: 0.5 });
+        tl.call(generateDataPoints);
+        tl.add(updateSubtitles(
+            "假设我们要估计几所学校学生的平均分。",
+            "Suppose we want to estimate the average score for students in several schools."
+        ));
+        tl.from(".group-label", { opacity: 0, y: -20, stagger: 0.2, duration: 1 });
+        tl.from(".data-point", { opacity: 0, scale: 0, stagger: 0.02, duration: 1.5, ease: "elastic.out(1, 0.5)" }, "-=0.5");
+        tl.add(updateSubtitles(
+            "注意，每所学校的学生数量（数据量）是不同的。",
+            "Notice the number of students (the amount of data) varies by school."
+        ), "+=2");
+        tl.to("#group-D .group-label", { scale: 1.2, fill: "var(--secondary-color)", duration: 0.5, repeat: 1, yoyo: true }, ">");
+
+        // Scene 3: Approach 1 - Complete Pooling
+        tl.add(updateSubtitles(
+            "方法一：完全混合 (Complete Pooling)。我们把所有学生看作一个整体。",
+            "Approach 1: Complete Pooling. We treat all students as a single group."
+        ), "+=2");
+
+        const globalMeanY = Object.values(dataConfig).reduce((acc, val) => acc + val.meanY * val.count, 0) / Object.values(dataConfig).reduce((acc, val) => acc + val.count, 0);
+
+        tl.to(".data-point", {
+            cx: 1280,
+            cy: globalMeanY,
+            stagger: 0.01,
+            duration: 2,
+            ease: "power2.inOut"
+        }, "+=1");
+
+        tl.call(() => {
+            const pooledEstimate = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            pooledEstimate.setAttribute('id', 'pooled-estimate');
+            pooledEstimate.setAttribute('cx', 1280);
+            pooledEstimate.setAttribute('cy', globalMeanY);
+            pooledEstimate.setAttribute('r', 50);
+            pooledEstimate.setAttribute('fill', 'var(--pooled-color)');
+            pooledEstimate.setAttribute('class', 'estimate-circle');
+            pooledEstimate.setAttribute('stroke', 'white');
+            estimatesContainer.appendChild(pooledEstimate);
+        });
+        tl.from("#pooled-estimate", { scale: 0, transformOrigin: "center center", duration: 1, ease: "elastic.out(1, 0.5)" });
+
+        tl.add(updateSubtitles(
+            "这很简单，但忽略了学校间的差异。",
+            "This is simple, but it ignores the differences between schools."
+        ), "+=1");
+
+        // Transition back
+        tl.to("#pooled-estimate", { scale: 0, duration: 1, ease: "power2.in" }, "+=2");
+        tl.call(() => document.getElementById('pooled-estimate').remove());
+        tl.to(".data-point", {
+            cx: (i, target) => {
+                const group = target.dataset.group;
+                const angle = Math.random() * 2 * Math.PI;
+                const radius = Math.random() * 100 + 20;
+                return groupCenters[group] + Math.cos(angle) * radius;
+            },
+            cy: (i, target) => {
+                const group = target.dataset.group;
+                return dataConfig[group].meanY + (Math.random() - 0.5) * 2 * dataConfig[group].std;
+            },
+            stagger: 0.01,
+            duration: 2,
+            ease: "power2.inOut"
+        });
+
+        // Scene 4: Approach 2 - No Pooling
+        tl.add(updateSubtitles(
+            "方法二：绝不混合 (No Pooling)。我们为每所学校单独计算均值。",
+            "Approach 2: No Pooling. We calculate a separate mean for each school."
+        ), "+=1");
+
+        tl.call(() => {
+            for (const key in groupCenters) {
+                const estimate = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                estimate.setAttribute('id', `estimate-group-${key}`);
+
+                const uncertainty = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                uncertainty.setAttribute('cx', groupCenters[key]);
+                uncertainty.setAttribute('cy', dataConfig[key].meanY);
+                uncertainty.setAttribute('r', 200 / Math.sqrt(dataConfig[key].count));
+                uncertainty.setAttribute('fill', 'var(--uncertainty-color)');
+                uncertainty.setAttribute('id', `uncertainty-${key}`);
+
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', groupCenters[key]);
+                circle.setAttribute('cy', dataConfig[key].meanY);
+                circle.setAttribute('r', 30);
+                circle.setAttribute('fill', 'var(--secondary-color)');
+                circle.setAttribute('class', 'estimate-circle');
+                circle.setAttribute('stroke', 'white');
+                circle.setAttribute('id', `circle-${key}`);
+
+                estimate.appendChild(uncertainty);
+                estimate.appendChild(circle);
+                estimatesContainer.appendChild(estimate);
+                groupEstimates[key] = { cx: groupCenters[key], cy: dataConfig[key].meanY };
+            }
+        });
+        tl.from(".estimate-circle", { scale: 0, stagger: 0.2, duration: 1, ease: "elastic.out(1, 0.5)", transformOrigin: "center center" });
+        tl.from("#uncertainty-A, #uncertainty-B, #uncertainty-C, #uncertainty-D", { r: 0, stagger: 0.2, duration: 1 }, "<");
+
+        tl.add(updateSubtitles(
+            "对于数据量少的学校D，这个估计非常不稳定且不可靠。",
+            "For School D, with little data, this estimate is very noisy and unreliable."
+        ), "+=2");
+        tl.to("#uncertainty-D", { scale: 1.2, duration: 0.5, repeat: 3, yoyo: true, ease: "power1.inOut", transformOrigin: "center" });
+
+        // Scene 5: The Hierarchical Idea
+        tl.add(updateSubtitles(
+            "层级模型提供了一个折中方案：假设各组参数来自同一个“父分布”。",
+            "The Hierarchical Model offers a compromise: assume group parameters come from a common 'parent distribution'."
+        ), "+=3");
+        tl.to("#parent-distribution", { opacity: 1, duration: 1.5 });
+        tl.from("#parent-curve", { strokeDasharray: 2000, strokeDashoffset: 2000, duration: 2 }, "-=1");
+
+        // Scene 6: Shrinkage in Action
+        tl.add(updateSubtitles(
+            "这个父分布会“拉动”或“收缩”(Shrink)每个组的估计。",
+            "This parent distribution 'pulls' or 'shrinks' each group's estimate."
+        ), "+=2");
+
+        const overallMeanY = 860; // Approximate center of the parent distribution
+
+        tl.call(() => {
+            for (const key in groupEstimates) {
+                const est = groupEstimates[key];
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', est.cx);
+                line.setAttribute('y1', est.cy);
+                line.setAttribute('x2', est.cx);
+                line.setAttribute('y2', overallMeanY);
+                line.setAttribute('stroke', 'var(--primary-color)');
+                line.setAttribute('stroke-width', 3);
+                line.setAttribute('stroke-dasharray', '8 4');
+                line.setAttribute('id', `arrow-${key}`);
+                shrinkageArrowsContainer.appendChild(line);
+            }
+        });
+        tl.from("#shrinkage-arrows line", { attr: { y2: (i, t) => t.getAttribute('y1') }, stagger: 0.1, duration: 1 });
+
+        tl.add(updateSubtitles(
+            "数据少的组被拉得更多，向其他组“借力”。",
+            "Groups with less data are pulled more, 'borrowing strength' from the others."
+        ), "+=1.5");
+
+        const shrinkageFactor = { A: 0.3, B: 0.2, C: 0.1, D: 0.7 };
+
+        for (const key in groupEstimates) {
+            const finalY = groupEstimates[key].cy * (1 - shrinkageFactor[key]) + overallMeanY * shrinkageFactor[key];
+            const uncertaintyR = 200 / Math.sqrt(dataConfig[key].count);
+            const finalR = uncertaintyR * (1 - shrinkageFactor[key] * 0.8);
+
+            tl.to(`#estimate-group-${key}`, {
+                attr: { cy: finalY },
+                duration: 2,
+                ease: "power2.inOut"
+            }, "shrink");
+            tl.to(`#circle-${key}`, { attr: { cy: finalY } }, "<shrink");
+            tl.to(`#uncertainty-${key}`, { attr: { cy: finalY, r: finalR } }, "<shrink");
+            tl.to(`#arrow-${key}`, { opacity: 0, duration: 1.5 }, "shrink");
+        }
+
+        // Scene 7: The Final Result
+        tl.add(updateSubtitles(
+            "最终，我们为每个组都得到了更稳健、更合理的估计。",
+            "In the end, we get more robust and sensible estimates for every group."
+        ), "+=1");
+        tl.to("#parent-distribution", { opacity: 0, duration: 1 });
+        tl.to(".data-point", { opacity: 0.1, duration: 1 }, "<");
+        tl.to("#estimates", { scale: 1.2, transformOrigin: "center 800px", duration: 1.5, ease: "power2.inOut" });
+
+        // Scene 8: Summary Graphic
+        tl.to("#main-scene", { opacity: 0, duration: 1.5 }, "+=2");
+        tl.to("#summary-diagram", { opacity: 1, duration: 1.5 });
+        tl.add(updateSubtitles(
+            "这就是层级结构：数据由组参数决定，组参数又由超参数决定。",
+            "This is the hierarchy: data is informed by group parameters, which are informed by hyperparameters."
+        ));
+        tl.from("#summary-diagram > *", { opacity: 0, y: 30, stagger: 0.2, duration: 1 });
+
+        // Scene 9: End
+        tl.to("#summary-diagram", { opacity: 0, duration: 1.5 }, "+=4");
+        tl.to("#subtitles", { opacity: 0, duration: 1.5 }, "<");
+        tl.set("#main-title", { textContent: "Thank You" });
+        tl.set("#sub-title", { textContent: "谢谢观看" });
+        tl.to("#title-screen", { opacity: 1, duration: 2 });
+    </script>
+</body>
+
+</html>

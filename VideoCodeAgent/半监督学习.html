@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>探索半监督学习 | Exploring Semi-Supervised Learning</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A40;
+            --subtitle-bg: rgba(248, 249, 250, 0.75);
+            --unlabeled-color: #DDE1E6;
+            --class-a-color: #4A90E2;
+            --class-b-color: #F5A623;
+            --boundary-color: #E91E63;
+            --boundary-final-color: #4CAF50;
+            --font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background-color: var(--bg-color);
+            transform-origin: center center;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        #svg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Data points styling */
+        .data-point {
+            transition: fill 0.8s cubic-bezier(0.25, 0.8, 0.25, 1), r 0.5s ease;
+        }
+
+        /* Title card styling */
+        #title-card {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0;
+            color: var(--text-color);
+        }
+
+        #title-card h1 {
+            font-size: 100px;
+            font-weight: 300;
+            margin: 0;
+            letter-spacing: 2px;
+        }
+
+        #title-card p {
+            font-size: 60px;
+            font-weight: 600;
+            margin: 10px 0 0;
+            letter-spacing: 1px;
+            background: linear-gradient(45deg, var(--class-a-color), var(--class-b-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Subtitle styling */
+        #subtitle-container {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: var(--subtitle-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            text-align: center;
+            opacity: 0;
+        }
+
+        #subtitle-cn,
+        #subtitle-en {
+            margin: 0;
+            color: var(--text-color);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitle-cn {
+            font-size: 42px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+
+        /* Decision Boundary styling */
+        #decision-boundary {
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+            stroke-dasharray: 10000;
+            stroke-dashoffset: 10000;
+        }
+
+        /* Decorative background elements */
+        .bg-shape {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0;
+            transition: all 1.5s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        #bg-shape1 {
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(74, 144, 226, 0.1) 0%, rgba(74, 144, 226, 0) 70%);
+            top: -200px;
+            left: -200px;
+        }
+
+        #bg-shape2 {
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(circle, rgba(245, 166, 35, 0.1) 0%, rgba(245, 166, 35, 0) 70%);
+            bottom: -150px;
+            right: -150px;
+        }
+
+        /* Keyframe animations */
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+            }
+        }
+
+        @keyframes drawPath {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes erasePath {
+            to {
+                stroke-dashoffset: -10000;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 1s forwards;
+        }
+
+        .fade-out {
+            animation: fadeOut 1s forwards;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <div id="bg-shape1" class="bg-shape"></div>
+        <div id="bg-shape2" class="bg-shape"></div>
+
+        <svg id="svg-canvas" viewbox="0 0 2560 1440"></svg>
+
+        <div id="title-card">
+            <h1>Semi-Supervised Learning</h1>
+            <p>半监督学习</p>
+        </div>
+
+        <div id="subtitle-container">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const config = {
+            width: 2560,
+            height: 1440,
+            padding: 200,
+            numPoints: 300,
+            labeledPointsCount: 6, // 3 for each class
+            pointRadius: 12,
+            pointRadiusLabeled: 18,
+            colors: {
+                unlabeled: 'var(--unlabeled-color)',
+                classA: 'var(--class-a-color)',
+                classB: 'var(--class-b-color)',
+                boundary: 'var(--boundary-color)',
+                boundaryFinal: 'var(--boundary-final-color)',
+            },
+            clusters: [
+                { x: 2560 * 0.3, y: 1440 * 0.4, spread: 250 },
+                { x: 2560 * 0.7, y: 1440 * 0.6, spread: 250 }
+            ]
+        };
+
+        // --- DOM ELEMENTS ---
+        const container = document.getElementById('animation-container');
+        const svg = document.getElementById('svg-canvas');
+        const titleCard = document.getElementById('title-card');
+        const subtitleContainer = document.getElementById('subtitle-container');
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+        const bgShape1 = document.getElementById('bg-shape1');
+        const bgShape2 = document.getElementById('bg-shape2');
+
+        let dataPoints = [];
+        let decisionBoundary;
+
+        // --- UTILITY FUNCTIONS ---
+        const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+        function gaussianRandom(mean = 0, stdev = 1) {
+            let u = 1 - Math.random();
+            let v = Math.random();
+            let z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            return z * stdev + mean;
+        }
+
+        function createDataPoints() {
+            for (let i = 0; i < config.numPoints; i++) {
+                const cluster = config.clusters[i % 2];
+                const point = {
+                    x: gaussianRandom(cluster.x, cluster.spread),
+                    y: gaussianRandom(cluster.y, cluster.spread),
+                    label: null,
+                    clusterIndex: i % 2,
+                    el: document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+                };
+
+                point.el.setAttribute('cx', point.x);
+                point.el.setAttribute('cy', point.y);
+                point.el.setAttribute('r', 0);
+                point.el.setAttribute('fill', config.colors.unlabeled);
+                point.el.classList.add('data-point');
+
+                svg.appendChild(point.el);
+                dataPoints.push(point);
+            }
+        }
+
+        async function updateSubtitles(cn, en, duration = 500) {
+            subtitleCn.style.opacity = 0;
+            subtitleEn.style.opacity = 0;
+            await delay(duration);
+            subtitleCn.textContent = cn;
+            subtitleEn.textContent = en;
+            subtitleCn.style.opacity = 1;
+            subtitleEn.style.opacity = 1;
+        }
+
+        // --- ANIMATION SEQUENCE ---
+
+        async function scene1_Intro() {
+            titleCard.style.animation = 'fadeIn 1.5s forwards';
+            await delay(2500);
+            titleCard.style.animation = 'fadeOut 1.5s forwards';
+            await delay(1000);
+        }
+
+        async function scene2_TheData() {
+            subtitleContainer.classList.add('fade-in');
+            await updateSubtitles(
+                '想象一下，我们有海量的未标记数据。',
+                'Imagine we have a vast amount of unlabeled data.'
+            );
+
+            dataPoints.forEach((p, i) => {
+                setTimeout(() => {
+                    p.el.setAttribute('r', config.pointRadius);
+                }, i * 5);
+            });
+
+            await delay(3000);
+
+            await updateSubtitles(
+                '手动标记所有数据，成本高昂且耗时。',
+                'Labeling it all manually is expensive and time-consuming.'
+            );
+            await delay(3000);
+        }
+
+        async function scene3_SupervisedLearning() {
+            await updateSubtitles(
+                '我们只能负担得起标记其中一小部分。',
+                'We can only afford to label a tiny fraction of it.'
+            );
+
+            const labeledA = dataPoints.filter(p => p.clusterIndex === 0).slice(0, 3);
+            const labeledB = dataPoints.filter(p => p.clusterIndex === 1).slice(0, 3);
+
+            labeledA.forEach(p => {
+                p.label = 'A';
+                p.el.setAttribute('fill', config.colors.classA);
+                p.el.setAttribute('r', config.pointRadiusLabeled);
+            });
+            labeledB.forEach(p => {
+                p.label = 'B';
+                p.el.setAttribute('fill', config.colors.classB);
+                p.el.setAttribute('r', config.pointRadiusLabeled);
+            });
+
+            await delay(3000);
+
+            await updateSubtitles(
+                '如果只用这些已标记数据进行监督学习...',
+                'If we use only this labeled data for Supervised Learning...'
+            );
+
+            decisionBoundary = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            decisionBoundary.setAttribute('id', 'decision-boundary');
+            decisionBoundary.setAttribute('d', `M 300,1440 Q 1280,720 2260,0`);
+            decisionBoundary.style.stroke = config.colors.boundary;
+            svg.appendChild(decisionBoundary);
+
+            decisionBoundary.style.animation = 'drawPath 2s cubic-bezier(0.65, 0, 0.35, 1) forwards';
+
+            await delay(3000);
+
+            await updateSubtitles(
+                '得到的模型可能并不准确，因为它忽略了数据的整体分布。',
+                'The resulting model might be inaccurate, as it ignores the overall data distribution.'
+            );
+            await delay(4000);
+        }
+
+        async function scene4_TheAhaMoment() {
+            await updateSubtitles(
+                '但这些未标记数据并非毫无价值，它们揭示了数据的内在结构。',
+                "But the unlabeled data isn't useless. It reveals the data's underlying structure."
+            );
+
+            bgShape1.style.opacity = 1;
+            bgShape2.style.opacity = 1;
+
+            await delay(4000);
+
+            await updateSubtitles(
+                '这就是半监督学习的切入点。',
+                'This is where Semi-Supervised Learning comes in.'
+            );
+
+            decisionBoundary.style.animation = 'erasePath 1.5s cubic-bezier(0.65, 0, 0.35, 1) forwards';
+            await delay(1500);
+            svg.removeChild(decisionBoundary);
+
+            await delay(2000);
+        }
+
+        async function scene5_Propagation() {
+            await updateSubtitles(
+                '它利用已标记数据，在未标记数据的结构引导下进行“学习”。',
+                'It uses the labeled data, guided by the structure of the unlabeled data, to learn.'
+            );
+            await delay(2000);
+
+            await updateSubtitles(
+                '标签信息会像涟漪一样，在相似的数据点之间传播。',
+                'Label information propagates to similar data points, like ripples in water.'
+            );
+
+            // A simplified propagation visualization
+            const unlabeledPoints = dataPoints.filter(p => p.label === null);
+            unlabeledPoints.sort((a, b) => {
+                const distA = Math.min(
+                    ...dataPoints.filter(p => p.label).map(lp => Math.hypot(a.x - lp.x, a.y - lp.y))
+                );
+                const distB = Math.min(
+                    ...dataPoints.filter(p => p.label).map(lp => Math.hypot(b.x - lp.x, b.y - lp.y))
+                );
+                return distA - distB;
+            });
+
+            for (let i = 0; i < unlabeledPoints.length; i++) {
+                const p = unlabeledPoints[i];
+                setTimeout(() => {
+                    p.el.setAttribute('fill', p.clusterIndex === 0 ? config.colors.classA : config.colors.classB);
+                }, i * 10);
+            }
+
+            await delay(unlabeledPoints.length * 10 + 1000);
+        }
+
+        async function scene6_FinalBoundary() {
+            await updateSubtitles(
+                '最终，模型学习到一个更优的决策边界。',
+                'Eventually, the model learns a much better decision boundary.'
+            );
+
+            decisionBoundary = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            decisionBoundary.setAttribute('id', 'decision-boundary');
+            decisionBoundary.setAttribute('d', `M 1280,0 C 800,700 1780,700 1280,1440`);
+            decisionBoundary.style.stroke = config.colors.boundaryFinal;
+            svg.appendChild(decisionBoundary);
+
+            decisionBoundary.style.animation = 'drawPath 2.5s cubic-bezier(0.65, 0, 0.35, 1) forwards';
+
+            await delay(4000);
+
+            await updateSubtitles(
+                '这就是半监督学习的力量：用少量标注，撬动海量数据的价值。',
+                "That's the power of Semi-Supervised Learning: leveraging vast unlabeled data with a few labels."
+            );
+            await delay(5000);
+        }
+
+        async function scene7_Conclusion() {
+            subtitleContainer.classList.remove('fade-in');
+            subtitleContainer.classList.add('fade-out');
+
+            dataPoints.forEach((p, i) => {
+                setTimeout(() => {
+                    p.el.setAttribute('r', 0);
+                }, i * 3);
+            });
+            decisionBoundary.style.animation = 'erasePath 1.5s forwards';
+            bgShape1.style.opacity = 0;
+            bgShape2.style.opacity = 0;
+
+            await delay(2000);
+
+            titleCard.style.animation = 'fadeIn 1.5s forwards';
+        }
+
+
+        // --- MAIN EXECUTION ---
+        function handleResize() {
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const scale = Math.min(screenWidth / config.width, screenHeight / config.height);
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        async function playAnimation() {
+            handleResize();
+            createDataPoints();
+            await scene1_Intro();
+            await scene2_TheData();
+            await scene3_SupervisedLearning();
+            await scene4_TheAhaMoment();
+            await scene5_Propagation();
+            await scene6_FinalBoundary();
+            await scene7_Conclusion();
+            // Loop animation
+            await delay(5000);
+            location.reload();
+        }
+
+        window.onload = playAnimation;
+
+    </script>
+</body>
+
+</html>

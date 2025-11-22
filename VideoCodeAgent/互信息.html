@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态解说：互信息 (Mutual Information)</title>
+    <style>
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-color-x: #89CFF0;
+            /* Baby Blue */
+            --primary-color-y: #F4C2C2;
+            /* Baby Pink */
+            --mutual-info-color: #B19CD9;
+            /* Light Pastel Purple */
+            --text-color: #343A40;
+            --subtitle-bg-color: rgba(255, 255, 255, 0.7);
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 100%;
+            max-width: 2560px;
+            aspect-ratio: 16 / 9;
+            position: relative;
+            background: radial-gradient(circle, #FFFFFF 0%, #E9ECEF 100%);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        #animation-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .circle {
+            transition: all 1.5s cubic-bezier(0.65, 0, 0.35, 1);
+        }
+
+        .circle-x {
+            fill: var(--primary-color-x);
+        }
+
+        .circle-y {
+            fill: var(--primary-color-y);
+        }
+
+        .intersection-path {
+            fill: var(--mutual-info-color);
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .label-text {
+            font-family: var(--font-family);
+            font-size: 64px;
+            font-weight: 600;
+            fill: var(--text-color);
+            text-anchor: middle;
+            dominant-baseline: middle;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            pointer-events: none;
+        }
+
+        .formula-text {
+            font-size: 72px;
+            font-weight: 500;
+        }
+
+        .small-label {
+            font-size: 48px;
+            font-weight: 400;
+        }
+
+        #subtitles-container {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: var(--subtitle-bg-color);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        #subtitle-cn {
+            font-size: 32px;
+            color: var(--text-color);
+            font-weight: 500;
+            margin: 0 0 10px 0;
+        }
+
+        #subtitle-en {
+            font-size: 24px;
+            color: #6C757D;
+            font-weight: 400;
+        }
+
+        /* Background particles */
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            background: var(--primary-color-x);
+            animation: float 25s infinite linear;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(0);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 0.7;
+            }
+
+            90% {
+                opacity: 0.7;
+            }
+
+            100% {
+                transform: translateY(-1500px) translateX(200px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <!-- Background decorative elements -->
+        <div id="particles-container"></div>
+
+        <svg id="animation-svg" viewBox="0 0 2560 1440">
+            <!-- Filter for a subtle "uncertainty" effect -->
+            <defs>
+                <filter id="uncertainty">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" result="turbulence" />
+                    <feDisplacementMap in2="turbulence" in="SourceGraphic" scale="10" xChannelSelector="R"
+                        yChannelSelector="G" />
+                </filter>
+            </defs>
+
+            <!-- Main visual elements -->
+            <g id="venn-diagram">
+                <circle id="circle-x" class="circle circle-x" cx="1000" cy="720" r="400" opacity="0" />
+                <circle id="circle-y" class="circle circle-y" cx="1560" cy="720" r="400" opacity="0" />
+                <path id="intersection" class="intersection-path" />
+            </g>
+
+            <!-- Labels -->
+            <g id="labels">
+                <text id="label-x" class="label-text" x="1000" y="720">X</text>
+                <text id="label-y" class="label-text" x="1560" y="720">Y</text>
+
+                <text id="label-hx" class="label-text small-label" x="800" y="450">H(X)</text>
+                <text id="label-hy" class="label-text small-label" x="1760" y="450">H(Y)</text>
+
+                <text id="label-ixy" class="label-text small-label" x="1280" y="720">I(X;Y)</text>
+
+                <text id="formula" class="label-text formula-text" x="1280" y="250"></text>
+                <text id="formula-2" class="label-text formula-text" x="1280" y="1190"></text>
+
+            </g>
+        </svg>
+
+        <div id="subtitles-container">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const svg = document.getElementById('animation-svg');
+        const circleX = document.getElementById('circle-x');
+        const circleY = document.getElementById('circle-y');
+        const intersectionPath = document.getElementById('intersection');
+
+        const labelX = document.getElementById('label-x');
+        const labelY = document.getElementById('label-y');
+        const labelHx = document.getElementById('label-hx');
+        const labelHy = document.getElementById('label-hy');
+        const labelIxy = document.getElementById('label-ixy');
+        const formula = document.getElementById('formula');
+        const formula2 = document.getElementById('formula-2');
+
+        const subtitlesContainer = document.getElementById('subtitles-container');
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+
+        const R = 400; // Radius of circles
+        const C_X_INITIAL = 930;
+        const C_Y_INITIAL = 1630;
+        const C_X_OVERLAP = 1100;
+        const C_Y_OVERLAP = 1460;
+        const C_Y_INSIDE = 1100;
+
+        const timeline = [
+            { duration: 4000, action: scene1, subtitles: { cn: "假设我们有两个随机变量，X 和 Y。", en: "Let's say we have two random variables, X and Y." } },
+            { duration: 5000, action: scene2, subtitles: { cn: "每个变量自身都包含不确定性，我们称之为“熵”。", en: "Each variable has its own uncertainty, which we call 'Entropy'." } },
+            { duration: 5000, action: scene3, subtitles: { cn: "X 的熵是 H(X)，代表了 X 的不确定性大小。", en: "The entropy of X is H(X), representing the amount of uncertainty in X." } },
+            { duration: 5000, action: scene4, subtitles: { cn: "但如果这两个变量是相关的呢？例如，天气（X）和人们是否带伞（Y）。", en: "But what if these two variables are related? For example, the weather (X) and whether people carry an umbrella (Y)." } },
+            { duration: 5000, action: scene5, subtitles: { cn: "它们重叠的部分，就是“互信息” I(X;Y)。", en: "The part where they overlap is the 'Mutual Information', I(X;Y)." } },
+            { duration: 6000, action: scene6, subtitles: { cn: "它衡量的是，知道一个变量后，另一个变量不确定性减少的程度。", en: "It measures the reduction in uncertainty of one variable, given knowledge of the other." } },
+            { duration: 6000, action: scene7, subtitles: { cn: "从图中我们可以直观地看到：I(X;Y) = H(X) + H(Y) - H(X,Y)", en: "From the diagram, we can see: I(X;Y) = H(X) + H(Y) - H(X,Y)" } },
+            { duration: 5000, action: scene8, subtitles: { cn: "现在，看两种特殊情况。如果 X 和 Y 完全独立...", en: "Now, let's consider two special cases. If X and Y are completely independent..." } },
+            { duration: 5000, action: scene9, subtitles: { cn: "那么它们之间没有共享信息，互信息为 0。", en: "They share no information, and the Mutual Information is 0." } },
+            { duration: 5000, action: scene10, subtitles: { cn: "另一种情况，如果 X 完全决定了 Y...", en: "In another case, if X completely determines Y..." } },
+            { duration: 6000, action: scene11, subtitles: { cn: "那么 Y 的所有信息都包含在 X 中。互信息等于 Y 的熵：I(X;Y) = H(Y)。", en: "Then all of Y's information is contained within X. The Mutual Information equals the entropy of Y: I(X;Y) = H(Y)." } },
+            { duration: 7000, action: scene12, subtitles: { cn: "互信息，一个优美的工具，用于量化变量之间的关联程度。", en: "Mutual Information, an elegant tool for quantifying the relationship between variables." } },
+        ];
+
+        function updateSubtitles(cn, en) {
+            subtitlesContainer.style.opacity = '1';
+            subtitleCn.textContent = cn;
+            subtitleEn.textContent = en;
+        }
+
+        function hideSubtitles() {
+            subtitlesContainer.style.opacity = '0';
+        }
+
+        function fadeElement(el, opacity, duration = 1000) {
+            el.style.transition = `opacity ${duration / 1000}s ease-in-out`;
+            el.style.opacity = opacity;
+        }
+
+        // Function to calculate and draw the intersection of two circles
+        function drawIntersection(cx1, cy1, r1, cx2, cy2, r2) {
+            const d = Math.sqrt((cx1 - cx2) ** 2 + (cy1 - cy2) ** 2);
+            if (d > r1 + r2 || d < Math.abs(r1 - r2) || d === 0) {
+                return ""; // No intersection or one circle inside another
+            }
+
+            const a = (r1 ** 2 - r2 ** 2 + d ** 2) / (2 * d);
+            const h = Math.sqrt(r1 ** 2 - a ** 2);
+
+            const x2 = cx1 + a * (cx2 - cx1) / d;
+            const y2 = cy1 + a * (cy2 - cy1) / d;
+
+            const x3 = x2 + h * (cy2 - cy1) / d;
+            const y3 = y2 - h * (cx2 - cx1) / d;
+
+            const x4 = x2 - h * (cy2 - cy1) / d;
+            const y4 = y2 + h * (cx2 - cx1) / d;
+
+            return `M ${x3},${y3} A ${r1},${r1} 0 0,0 ${x4},${y4} A ${r2},${r2} 0 0,0 ${x3},${y3}`;
+        }
+
+
+        function scene1() {
+            circleX.setAttribute('cx', C_X_INITIAL);
+            circleY.setAttribute('cx', C_Y_INITIAL);
+            circleX.setAttribute('r', R);
+            circleY.setAttribute('r', R);
+
+            fadeElement(circleX, 0.7);
+            fadeElement(circleY, 0.7);
+            fadeElement(labelX, 1);
+            labelX.setAttribute('x', C_X_INITIAL);
+            fadeElement(labelY, 1);
+            labelY.setAttribute('x', C_Y_INITIAL);
+        }
+
+        function scene2() {
+            fadeElement(labelX, 0);
+            fadeElement(labelY, 0);
+            circleX.style.filter = 'url(#uncertainty)';
+            circleY.style.filter = 'url(#uncertainty)';
+        }
+
+        function scene3() {
+            fadeElement(labelHx, 1);
+            labelHx.setAttribute('x', C_X_INITIAL - 200);
+            fadeElement(labelHy, 1);
+            labelHy.setAttribute('x', C_Y_INITIAL + 200);
+        }
+
+        function scene4() {
+            circleX.setAttribute('cx', C_X_OVERLAP);
+            circleY.setAttribute('cx', C_Y_OVERLAP);
+            labelHx.setAttribute('x', C_X_OVERLAP - 200);
+            labelHy.setAttribute('x', C_Y_OVERLAP + 200);
+            intersectionPath.setAttribute('d', drawIntersection(C_X_OVERLAP, 720, R, C_Y_OVERLAP, 720, R));
+        }
+
+        function scene5() {
+            fadeElement(intersectionPath, 1);
+            fadeElement(labelIxy, 1);
+        }
+
+        function scene6() {
+            circleX.style.opacity = 0.3;
+            circleY.style.opacity = 0.3;
+            labelHx.style.opacity = 0.3;
+            labelHy.style.opacity = 0.3;
+        }
+
+        function scene7() {
+            fadeElement(formula, 1);
+            formula.textContent = "I(X;Y) = H(X) + H(Y) - H(X,Y)";
+        }
+
+        function scene8() {
+            fadeElement(formula, 0);
+            fadeElement(labelIxy, 0);
+            fadeElement(intersectionPath, 0);
+            fadeElement(circleX, 0.7);
+            fadeElement(circleY, 0.7);
+            fadeElement(labelHx, 1);
+            fadeElement(labelHy, 1);
+        }
+
+        function scene9() {
+            circleX.setAttribute('cx', C_X_INITIAL);
+            circleY.setAttribute('cx', C_Y_INITIAL);
+            labelHx.setAttribute('x', C_X_INITIAL - 200);
+            labelHy.setAttribute('x', C_Y_INITIAL + 200);
+            fadeElement(formula2, 1);
+            formula2.textContent = "I(X;Y) = 0";
+        }
+
+        function scene10() {
+            fadeElement(formula2, 0);
+            circleY.setAttribute('cx', C_Y_INSIDE);
+            circleY.setAttribute('r', R - 150);
+            labelHy.setAttribute('x', C_Y_INSIDE + 200);
+        }
+
+        function scene11() {
+            fadeElement(formula2, 1);
+            formula2.textContent = "I(X;Y) = H(Y)";
+            intersectionPath.setAttribute('d', `M ${C_Y_INSIDE - (R - 150)}, 720 a ${R - 150},${R - 150} 0 1,0 ${(R - 150) * 2},0 a ${R - 150},${R - 150} 0 1,0 -${(R - 150) * 2},0`);
+            fadeElement(intersectionPath, 1);
+            fadeElement(circleX, 0.3);
+            fadeElement(labelHx, 0.3);
+        }
+
+        function scene12() {
+            fadeElement(formula2, 0);
+            circleX.setAttribute('cx', C_X_OVERLAP);
+            circleX.setAttribute('r', R);
+            circleY.setAttribute('cx', C_Y_OVERLAP);
+            circleY.setAttribute('r', R);
+            labelHx.setAttribute('x', C_X_OVERLAP - 200);
+            labelHy.setAttribute('x', C_Y_OVERLAP + 200);
+            intersectionPath.setAttribute('d', drawIntersection(C_X_OVERLAP, 720, R, C_Y_OVERLAP, 720, R));
+
+            fadeElement(circleX, 0.7);
+            fadeElement(circleY, 0.7);
+            fadeElement(labelHx, 1);
+            fadeElement(labelHy, 1);
+            fadeElement(labelIxy, 1);
+            fadeElement(intersectionPath, 1);
+            circleX.style.filter = 'none';
+            circleY.style.filter = 'none';
+        }
+
+        async function playAnimation() {
+            let totalTime = 0;
+            for (const scene of timeline) {
+                updateSubtitles(scene.subtitles.cn, scene.subtitles.en);
+                scene.action();
+                await new Promise(resolve => setTimeout(resolve, scene.duration));
+                totalTime += scene.duration;
+            }
+            // Keep final scene visible for a bit before potentially looping
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            // You can add logic here to restart the animation if desired.
+            // location.reload(); // simple way to loop
+        }
+
+        // Background particles generation
+        function createParticles() {
+            const container = document.getElementById('particles-container');
+            const particleCount = 20;
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                const size = Math.random() * 20 + 5;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.left = `${Math.random() * 100}%`;
+                particle.style.bottom = `-${size}px`;
+                particle.style.animationDelay = `${Math.random() * 25}s`;
+                particle.style.animationDuration = `${Math.random() * 20 + 15}s`;
+                particle.style.background = Math.random() > 0.5 ? 'var(--primary-color-y)' : 'var(--primary-color-x)';
+                particle.style.opacity = '0';
+                container.appendChild(particle);
+            }
+        }
+
+        window.onload = () => {
+            createParticles();
+            playAnimation();
+        };
+
+    </script>
+</body>
+
+</html>

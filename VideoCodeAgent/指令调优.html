@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Story of Instruction Tuning</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f9;
+            --primary-color: #4A90E2;
+            --secondary-color: #50E3C2;
+            --accent-color: #F5A623;
+            --text-color: #4A4A4A;
+            --light-text-color: #9B9B9B;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #e8eef2;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: var(--container-width);
+            height: var(--container-height);
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            transform-origin: top left;
+        }
+
+        /* This script will scale the container to fit the window */
+        #scaler {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .scene {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .subtitle-container {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .subtitle-cn {
+            font-size: 36px;
+            color: var(--text-color);
+            margin: 0;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        .subtitle-en {
+            font-size: 24px;
+            color: var(--light-text-color);
+            margin: 10px 0 0 0;
+            font-weight: 400;
+        }
+
+        /* Shared SVG styles */
+        .svg-element {
+            position: absolute;
+            opacity: 0;
+            transform-origin: center center;
+        }
+
+        /* --- Scene 1: Pre-trained Model --- */
+        #scene1-plm-brain {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+
+        #scene1-title {
+            top: 200px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--text-color);
+            font-size: 80px;
+            font-weight: 600;
+        }
+
+        .prompt {
+            position: absolute;
+            padding: 20px 30px;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            font-size: 28px;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .prompt-icon {
+            width: 40px;
+            height: 40px;
+        }
+
+        #prompt1 {
+            top: 400px;
+            left: 300px;
+        }
+
+        #completion1 {
+            top: 400px;
+            left: 1500px;
+            color: var(--light-text-color);
+        }
+
+        /* --- Scene 2: The Problem --- */
+        #scene2-plm-brain {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+
+        .user-request {
+            position: absolute;
+            padding: 25px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 6px 20px rgba(74, 144, 226, 0.2);
+            width: 100px;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #request-translate {
+            top: 30%;
+            left: 25%;
+        }
+
+        #request-summarize {
+            top: 65%;
+            left: 20%;
+        }
+
+        #request-code {
+            top: 25%;
+            left: 65%;
+        }
+
+        #request-poem {
+            top: 70%;
+            left: 70%;
+        }
+
+        .x-mark {
+            position: absolute;
+            font-size: 100px;
+            color: #E74C3C;
+            font-weight: bold;
+        }
+
+        /* --- Scene 3: The Solution - Instruction Tuning --- */
+        #scene3-title {
+            top: 150px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--primary-color);
+            font-size: 100px;
+            font-weight: 700;
+        }
+
+        #scene3-process-arrow {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #scene3-plm-brain {
+            top: 50%;
+            left: 25%;
+            transform: translate(-50%, -50%) scale(0.6);
+        }
+
+        #scene3-tuned-brain {
+            top: 50%;
+            left: 75%;
+            transform: translate(-50%, -50%) scale(0.6);
+        }
+
+        .data-pair {
+            position: absolute;
+            width: 400px;
+            height: 180px;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.07);
+            padding: 20px;
+            font-size: 24px;
+            line-height: 1.5;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .data-pair .header {
+            font-weight: 600;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid;
+        }
+
+        .data-pair .instruction {
+            color: var(--primary-color);
+        }
+
+        .data-pair .instruction .header {
+            border-color: var(--primary-color);
+        }
+
+        .data-pair .output {
+            color: var(--secondary-color);
+            margin-top: 15px;
+        }
+
+        .data-pair .output .header {
+            border-color: var(--secondary-color);
+        }
+
+        /* --- Scene 4: The Result --- */
+        #scene4-tuned-brain {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        .response-line {
+            position: absolute;
+            stroke-width: 4px;
+            stroke-dasharray: 10 10;
+        }
+
+        .response-bubble {
+            position: absolute;
+            padding: 20px 30px;
+            background: #EFFFFC;
+            border: 2px solid var(--secondary-color);
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(80, 227, 194, 0.3);
+            font-size: 28px;
+            color: #333;
+            max-width: 500px;
+        }
+
+        #response-translate {
+            top: 30%;
+            left: 75%;
+        }
+
+        #response-summarize {
+            top: 65%;
+            left: 5%;
+        }
+
+        #response-code {
+            top: 25%;
+            left: 5%;
+        }
+
+        #response-poem {
+            top: 70%;
+            left: 75%;
+        }
+
+        /* --- Scene 5: Conclusion --- */
+        #scene5-final-title {
+            top: 35%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 100px;
+            font-weight: bold;
+            text-align: center;
+            color: var(--text-color);
+        }
+
+        #scene5-subtitle {
+            top: 55%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 50px;
+            text-align: center;
+            color: var(--primary-color);
+        }
+
+        #scene5-logo {
+            top: 65%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="scaler">
+        <div id="animation-container">
+            <!-- Subtitles -->
+            <div id="subtitles" class="subtitle-container">
+                <p class="subtitle-cn" id="subtitle-cn-text">指令调优的世界</p>
+                <p class="subtitle-en" id="subtitle-en-text">The World of Instruction Tuning</p>
+            </div>
+
+            <!-- Scene 1: The Pre-trained Language Model -->
+            <div id="scene1" class="scene">
+                <div id="scene1-title" class="svg-element">预训练语言模型 (PLM)</div>
+
+                <svg id="scene1-plm-brain" class="svg-element" width="800" height="800" viewBox="0 0 300 300">
+                    <defs>
+                        <radialGradient id="brain-gradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                            <stop offset="0%" style="stop-color:rgb(255,255,255);stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:rgb(200,220,255);stop-opacity:1" />
+                        </radialGradient>
+                        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="10" result="coloredBlur" />
+                            <feMerge>
+                                <feMergeNode in="coloredBlur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <path
+                        d="M150 30 C 70 30, 70 150, 120 150 C 70 150, 70 270, 150 270 C 230 270, 230 150, 180 150 C 230 150, 230 30, 150 30 Z"
+                        fill="url(#brain-gradient)" stroke="#4A90E2" stroke-width="3" filter="url(#glow)" />
+                    <path d="M150 30 C 140 100, 160 200, 150 270" fill="none" stroke="#4A90E2" stroke-width="2"
+                        stroke-linecap="round" />
+                    <path d="M120 150 C 100 100, 130 60, 150 30" fill="none" stroke="#4A90E2" stroke-width="1.5"
+                        stroke-linecap="round" />
+                    <path d="M180 150 C 200 100, 170 60, 150 30" fill="none" stroke="#4A90E2" stroke-width="1.5"
+                        stroke-linecap="round" />
+                    <path d="M120 150 C 100 200, 130 240, 150 270" fill="none" stroke="#4A90E2" stroke-width="1.5"
+                        stroke-linecap="round" />
+                    <path d="M180 150 C 200 200, 170 240, 150 270" fill="none" stroke="#4A90E2" stroke-width="1.5"
+                        stroke-linecap="round" />
+                </svg>
+
+                <div id="prompt1" class="prompt svg-element">
+                    <span>🤔 "天空为什么是蓝色的？"</span>
+                </div>
+                <div id="completion1" class="prompt svg-element">
+                    <span>...因为它有许多云。</span>
+                </div>
+            </div>
+
+            <!-- Scene 2: The Problem -->
+            <div id="scene2" class="scene">
+                <svg id="scene2-plm-brain" class="svg-element" width="800" height="800" viewBox="0 0 300 300">
+                    <use href="#brain-gradient" />
+                    <use href="#glow" />
+                    <path
+                        d="M150 30 C 70 30, 70 150, 120 150 C 70 150, 70 270, 150 270 C 230 270, 230 150, 180 150 C 230 150, 230 30, 150 30 Z"
+                        fill="url(#brain-gradient)" stroke="#4A90E2" stroke-width="3" filter="url(#glow)" />
+                    <path d="M150 30 C 140 100, 160 200, 150 270" fill="none" stroke="#4A90E2" stroke-width="2"
+                        stroke-linecap="round" />
+                </svg>
+                <div id="request-translate" class="user-request svg-element">
+                    <svg class="prompt-icon" viewBox="0 0 24 24">
+                        <path fill="#4A90E2"
+                            d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z" />
+                    </svg>
+                </div>
+                <div id="request-summarize" class="user-request svg-element">
+                    <svg class="prompt-icon" viewBox="0 0 24 24">
+                        <path fill="#F5A623" d="M14 17H4v2h10v-2zm6-8H4v2h16V9zM4 15h16v-2H4v2zM4 5v2h16V5H4z" />
+                    </svg>
+                </div>
+                <div id="request-code" class="user-request svg-element">
+                    <svg class="prompt-icon" viewBox="0 0 24 24">
+                        <path fill="#7ED321"
+                            d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
+                    </svg>
+                </div>
+                <div id="request-poem" class="user-request svg-element">
+                    <svg class="prompt-icon" viewBox="0 0 24 24">
+                        <path fill="#BD10E0"
+                            d="M19 2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h4l3 3 3-3h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 12H6v-2h8v2zm2-4H6v-2h10v2zm0-4H6V6h10v2z" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Scene 3: The Solution -->
+            <div id="scene3" class="scene">
+                <div id="scene3-title" class="svg-element">Instruction Tuning 指令调优</div>
+                <svg id="scene3-plm-brain" class="svg-element" width="500" height="500" viewBox="0 0 300 300">
+                    <use href="#brain-gradient" />
+                    <use href="#glow" />
+                    <path
+                        d="M150 30 C 70 30, 70 150, 120 150 C 70 150, 70 270, 150 270 C 230 270, 230 150, 180 150 C 230 150, 230 30, 150 30 Z"
+                        fill="url(#brain-gradient)" stroke="#4A90E2" stroke-width="3" filter="url(#glow)" />
+                </svg>
+                <svg id="scene3-tuned-brain" class="svg-element" width="500" height="500" viewBox="0 0 300 300">
+                    <defs>
+                        <radialGradient id="tuned-brain-gradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                            <stop offset="0%" style="stop-color:rgb(230, 255, 250);stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:rgb(80, 227, 194);stop-opacity:1" />
+                        </radialGradient>
+                        <filter id="tuned-glow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur stdDeviation="12" result="coloredBlur" />
+                            <feMerge>
+                                <feMergeNode in="coloredBlur" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <path
+                        d="M150 30 C 70 30, 70 150, 120 150 C 70 150, 70 270, 150 270 C 230 270, 230 150, 180 150 C 230 150, 230 30, 150 30 Z"
+                        fill="url(#tuned-brain-gradient)" stroke="#50E3C2" stroke-width="3.5"
+                        filter="url(#tuned-glow)" />
+                    <path d="M150 30 C 140 100, 160 200, 150 270" fill="none" stroke="#ffffff" stroke-width="2.5"
+                        stroke-linecap="round" />
+                </svg>
+                <svg id="scene3-process-arrow" class="svg-element" width="800" height="200" viewBox="0 0 800 200">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#F5A623" />
+                        </marker>
+                    </defs>
+                    <line x1="50" y1="100" x2="750" y2="100" stroke="#F5A623" stroke-width="8"
+                        marker-end="url(#arrowhead)" stroke-dasharray="20 15" />
+                </svg>
+                <div id="data-pair-1" class="data-pair svg-element">
+                    <div class="instruction">
+                        <div class="header">Instruction</div>"将'你好'翻译成英文"
+                    </div>
+                    <div class="output">
+                        <div class="header">Output</div>"Hello"
+                    </div>
+                </div>
+                <div id="data-pair-2" class="data-pair svg-element">
+                    <div class="instruction">
+                        <div class="header">Instruction</div>"总结这段文字..."
+                    </div>
+                    <div class="output">
+                        <div class="header">Output</div>"核心观点是..."
+                    </div>
+                </div>
+                <div id="data-pair-3" class="data-pair svg-element">
+                    <div class="instruction">
+                        <div class="header">Instruction</div>"写一个Python函数..."
+                    </div>
+                    <div class="output">
+                        <div class="header">Output</div>"def my_func():..."
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 4: The Result -->
+            <div id="scene4" class="scene">
+                <svg id="scene4-tuned-brain" class="svg-element" width="900" height="900" viewBox="0 0 300 300">
+                    <use href="#tuned-brain-gradient" />
+                    <use href="#tuned-glow" />
+                    <path
+                        d="M150 30 C 70 30, 70 150, 120 150 C 70 150, 70 270, 150 270 C 230 270, 230 150, 180 150 C 230 150, 230 30, 150 30 Z"
+                        fill="url(#tuned-brain-gradient)" stroke="#50E3C2" stroke-width="3.5"
+                        filter="url(#tuned-glow)" />
+                    <path d="M150 30 C 140 100, 160 200, 150 270" fill="none" stroke="#ffffff" stroke-width="2.5"
+                        stroke-linecap="round" />
+                    <path d="M120 150 C 100 100, 130 60, 150 30" fill="none" stroke="#ffffff" stroke-width="2"
+                        stroke-linecap="round" />
+                    <path d="M180 150 C 200 100, 170 60, 150 30" fill="none" stroke="#ffffff" stroke-width="2"
+                        stroke-linecap="round" />
+                </svg>
+                <!-- Requests will be cloned from scene 2 -->
+                <div id="response-translate" class="response-bubble svg-element">"Hello"</div>
+                <div id="response-summarize" class="response-bubble svg-element">"这篇文章的核心观点是..."</div>
+                <div id="response-code" class="response-bubble svg-element">"def hello_world(): print('Hello')"</div>
+                <div id="response-poem" class="response-bubble svg-element">"月光如水，洒满窗棂..."</div>
+                <svg id="lines-svg"
+                    style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: -1;"></svg>
+            </div>
+
+            <!-- Scene 5: Conclusion -->
+            <div id="scene5" class="scene">
+                <div id="scene5-final-title" class="svg-element">
+                    从渊博知识到得力助手<br>From Knowledge to Action
+                </div>
+                <div id="scene5-subtitle" class="svg-element">
+                    这就是指令调优的力量
+                </div>
+                <div id="scene5-logo" class="svg-element">
+                    <svg width="150" height="150" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="var(--primary-color)" stroke-width="5" />
+                        <path d="M35 50 L50 65 L65 50" fill="none" stroke="var(--secondary-color)" stroke-width="6"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M50 35 L50 65" fill="none" stroke="var(--secondary-color)" stroke-width="6"
+                            stroke-linecap="round" />
+                    </svg>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        // --- Responsive Scaling ---
+        function scaleAnimation() {
+            const container = document.getElementById('animation-container');
+            const scaler = document.getElementById('scaler');
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+
+            const scale = Math.min(
+                scaler.clientWidth / containerWidth,
+                scaler.clientHeight / containerHeight
+            );
+
+            container.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('load', scaleAnimation);
+        window.addEventListener('resize', scaleAnimation);
+
+
+        // --- Animation Logic ---
+        const subtitles = [
+            { cn: "这是一个预训练语言模型(PLM)。", en: "This is a Pre-trained Language Model (PLM)." },
+            { cn: "它博学广识，存储了海量的知识。", en: "It's incredibly knowledgeable, storing a vast amount of information." },
+            { cn: "但它更像一个“续写”大师，而不是一个“任务”大师。", en: "But it's more of a 'sentence completer' than a 'task doer'." },
+            { cn: "对于直接的指令，它的回答可能并不符合预期。", en: "When given a direct instruction, its response might not be what you expect." },
+            { cn: "我们希望它能理解并执行各种各样的任务。", en: "We want it to understand and execute a wide variety of tasks." },
+            { cn: "比如翻译、总结、写代码，或是创作诗歌。", en: "Like translating, summarizing, writing code, or creating poetry." },
+            { cn: "但原始的PLM无法很好地遵循这些指令。", en: "But the raw PLM struggles to follow these instructions." },
+            { cn: "为了解决这个问题，我们引入了“指令调优”。", en: "To solve this, we introduce 'Instruction Tuning'." },
+            { cn: "我们用大量的“指令-期望输出”数据对来训练它。", en: "We train it on a large dataset of 'instruction-output' pairs." },
+            { cn: "就像给它看许多例题和标准答案。", en: "It's like showing it many examples with correct answers." },
+            { cn: "模型从这些范例中学习如何“听懂人话”。", en: "The model learns how to 'follow human intent' from these examples." },
+            { cn: "经过调优，模型脱胎换骨。", en: "After tuning, the model is transformed." },
+            { cn: "它现在能准确理解并执行用户的指令。", en: "It can now accurately understand and execute user commands." },
+            { cn: "无论是翻译...", en: "Whether it's translation..." },
+            { cn: "还是写代码...", en: "or writing code..." },
+            { cn: "或是进行内容总结...", en: "or summarizing content..." },
+            { cn: "甚至是充满创意的诗歌。", en: "or even composing creative poetry." },
+            { cn: "指令调优，是连接模型强大知识与人类具体意图的关键桥梁。", en: "Instruction tuning is the key bridge connecting the model's vast knowledge with specific human intent." },
+            { cn: "它让大模型从一个知识渊博的“学者”，变成了一个乐于助人的“助手”。", en: "It turns a large model from a knowledgeable 'scholar' into a helpful 'assistant'." },
+        ];
+
+        const cnSub = document.getElementById('subtitle-cn-text');
+        const enSub = document.getElementById('subtitle-en-text');
+
+        function updateSubtitles(index) {
+            gsap.to("#subtitles", {
+                opacity: 0,
+                duration: 0.3,
+                onComplete: () => {
+                    cnSub.textContent = subtitles[index].cn;
+                    enSub.textContent = subtitles[index].en;
+                    gsap.to("#subtitles", { opacity: 1, duration: 0.3 });
+                }
+            });
+        }
+
+        gsap.set(".scene", { autoAlpha: 0 });
+        gsap.set(".svg-element", { autoAlpha: 0 });
+
+        const tl = gsap.timeline({ delay: 1 });
+
+        // --- SCENE 1 ---
+        tl.addLabel("scene1_start")
+            .set("#scene1", { autoAlpha: 1 })
+            .call(updateSubtitles, [0])
+            .to("#scene1-title", { autoAlpha: 1, y: -20, duration: 1, ease: "power2.out" })
+            .to("#scene1-plm-brain", { autoAlpha: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.5)" }, "-=0.5")
+            .call(updateSubtitles, [1], "+=1")
+            .to({}, { duration: 2 })
+            .call(updateSubtitles, [2])
+            .to("#prompt1", { autoAlpha: 1, x: 20, duration: 0.7, ease: "power2.out" }, "+=1")
+            .call(updateSubtitles, [3], "+=1.5")
+            .to("#completion1", { autoAlpha: 1, x: -20, duration: 1, ease: "power2.out" }, "+=1")
+            .to({}, { duration: 2 })
+            .to("#scene1", { autoAlpha: 0, duration: 1 });
+
+        // --- SCENE 2 ---
+        tl.addLabel("scene2_start")
+            .set("#scene2", { autoAlpha: 1 })
+            .set("#scene2-plm-brain", { autoAlpha: 1, scale: 0.8 })
+            .call(updateSubtitles, [4])
+            .to("#scene2-plm-brain", { scale: 1, duration: 1, ease: "power2.out" })
+            .call(updateSubtitles, [5], "+=1")
+            .to(["#request-translate", "#request-summarize", "#request-code", "#request-poem"], {
+                autoAlpha: 1,
+                scale: 1.1,
+                duration: 0.5,
+                stagger: 0.2,
+                ease: "back.out(2)"
+            })
+            .to({}, { duration: 1 })
+            .call(updateSubtitles, [6])
+            .to("#request-translate", { x: 400, y: 150, rotate: 15, duration: 0.5, ease: "power1.in" })
+            .to("#request-translate", { x: 380, y: 160, rotate: -5, duration: 0.2, ease: "power1.out" })
+            .to("#request-summarize", { x: 500, y: -50, rotate: -15, duration: 0.5, ease: "power1.in" }, "-=0.4")
+            .to("#request-summarize", { x: 480, y: -40, rotate: 5, duration: 0.2, ease: "power1.out" })
+            .to("#request-code", { x: -400, y: 200, rotate: 10, duration: 0.5, ease: "power1.in" }, "-=0.4")
+            .to("#request-code", { x: -380, y: 190, rotate: -3, duration: 0.2, ease: "power1.out" })
+            .to("#request-poem", { x: -500, y: -100, rotate: -10, duration: 0.5, ease: "power1.in" }, "-=0.4")
+            .to("#request-poem", { x: -480, y: -90, rotate: 3, duration: 0.2, ease: "power1.out" })
+            .to({}, { duration: 2 })
+            .to("#scene2", { autoAlpha: 0, duration: 1 });
+
+        // --- SCENE 3 ---
+        tl.addLabel("scene3_start")
+            .set("#scene3", { autoAlpha: 1 })
+            .call(updateSubtitles, [7])
+            .to("#scene3-title", { autoAlpha: 1, y: 20, duration: 1, ease: "power2.out" })
+            .to({}, { duration: 1 })
+            .call(updateSubtitles, [8])
+            .to("#scene3-plm-brain", { autoAlpha: 1, scale: 0.7, duration: 1, ease: "power2.out" })
+            .to("#scene3-tuned-brain", { autoAlpha: 1, scale: 0.7, duration: 1, ease: "power2.out" }, "<")
+            .fromTo("#scene3-process-arrow line", { strokeDashoffset: 800 }, { strokeDashoffset: 0, duration: 2, ease: "none" }, "-=0.5")
+            .call(updateSubtitles, [9], "+=0.5")
+            .set(["#data-pair-1", "#data-pair-2", "#data-pair-3"], { autoAlpha: 1, scale: 0.5, y: -200 })
+            .to("#data-pair-1", { y: 0, scale: 1, duration: 0.7, ease: "back.out(1.5)" })
+            .to("#data-pair-1", { y: 200, scale: 0.5, autoAlpha: 0, duration: 0.7, ease: "back.in(1.5)", delay: 1.5 })
+            .call(updateSubtitles, [10], "-=0.5")
+            .to("#data-pair-2", { y: 0, scale: 1, duration: 0.7, ease: "back.out(1.5)" }, "-=0.5")
+            .to("#data-pair-2", { y: 200, scale: 0.5, autoAlpha: 0, duration: 0.7, ease: "back.in(1.5)", delay: 1.5 })
+            .to("#data-pair-3", { y: 0, scale: 1, duration: 0.7, ease: "back.out(1.5)" }, "-=0.5")
+            .to("#data-pair-3", { y: 200, scale: 0.5, autoAlpha: 0, duration: 0.7, ease: "back.in(1.5)", delay: 1.5 })
+            .to("#scene3-plm-brain", { x: 1000, duration: 1, ease: "power2.in" }, "-=0.7")
+            .to("#scene3-tuned-brain", { scale: 1, duration: 1.5, ease: "elastic.out(1, 0.5)" }, "-=0.5")
+            .to({}, { duration: 1 })
+            .to("#scene3", { autoAlpha: 0, duration: 1 });
+
+        // --- SCENE 4 ---
+        tl.addLabel("scene4_start")
+            .set("#scene4", { autoAlpha: 1 })
+            .call(updateSubtitles, [11])
+            .set("#scene4-tuned-brain", { autoAlpha: 1, scale: 0.9 })
+            .to("#scene4-tuned-brain", { scale: 1, duration: 1, ease: "power2.out" })
+            .call(updateSubtitles, [12], "+=1")
+            .to({}, { duration: 1 });
+
+        // Clone requests from scene 2 to scene 4
+        const requests = ["translate", "summarize", "code", "poem"];
+        requests.forEach(req => {
+            const original = document.getElementById(`request-${req}`);
+            const clone = original.cloneNode(true);
+            clone.id = `scene4-request-${req}`;
+            document.getElementById("scene4").appendChild(clone);
+            gsap.set(clone, { autoAlpha: 0, scale: 0.8 });
+        });
+
+        const linesSvg = document.getElementById('lines-svg');
+        function drawLine(fromElem, toElem, color, id) {
+            const fromRect = fromElem.getBoundingClientRect();
+            const toRect = toElem.getBoundingClientRect();
+            const containerRect = linesSvg.getBoundingClientRect();
+
+            const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
+            const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
+            const x2 = toRect.left + toRect.width / 2 - containerRect.left;
+            const y2 = toRect.top + toRect.height / 2 - containerRect.top;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('id', `line-${id}`);
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x1); // Start with same x2,y2 for animation
+            line.setAttribute('y2', y1);
+            line.setAttribute('stroke', color);
+            line.setAttribute('stroke-width', '4');
+            line.setAttribute('stroke-dasharray', '10 10');
+            linesSvg.appendChild(line);
+
+            gsap.to(line, { attr: { x2: x2, y2: y2 }, duration: 0.8, ease: "power2.out" });
+        }
+
+        tl.to("#scene4-request-translate", { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out" })
+            .call(() => {
+                drawLine(
+                    document.getElementById('scene4-request-translate'),
+                    document.getElementById('response-translate'),
+                    '#4A90E2', 'translate');
+            })
+            .call(updateSubtitles, [13], "+=0.2")
+            .to("#response-translate", { autoAlpha: 1, y: -10, duration: 0.5, ease: "back.out" }, "+=0.3");
+
+        tl.to("#scene4-request-code", { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out" }, "-=0.2")
+            .call(() => {
+                drawLine(
+                    document.getElementById('scene4-request-code'),
+                    document.getElementById('response-code'),
+                    '#7ED321', 'code');
+            })
+            .call(updateSubtitles, [14], "+=0.2")
+            .to("#response-code", { autoAlpha: 1, y: -10, duration: 0.5, ease: "back.out" }, "+=0.3");
+
+        tl.to("#scene4-request-summarize", { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out" }, "-=0.2")
+            .call(() => {
+                drawLine(
+                    document.getElementById('scene4-request-summarize'),
+                    document.getElementById('response-summarize'),
+                    '#F5A623', 'summarize');
+            })
+            .call(updateSubtitles, [15], "+=0.2")
+            .to("#response-summarize", { autoAlpha: 1, y: -10, duration: 0.5, ease: "back.out" }, "+=0.3");
+
+        tl.to("#scene4-request-poem", { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out" }, "-=0.2")
+            .call(() => {
+                drawLine(
+                    document.getElementById('scene4-request-poem'),
+                    document.getElementById('response-poem'),
+                    '#BD10E0', 'poem');
+            })
+            .call(updateSubtitles, [16], "+=0.2")
+            .to("#response-poem", { autoAlpha: 1, y: -10, duration: 0.5, ease: "back.out" }, "+=0.3")
+            .to({}, { duration: 3 })
+            .to("#scene4", { autoAlpha: 0, duration: 1 });
+
+        // --- SCENE 5 ---
+        tl.addLabel("scene5_start")
+            .set("#scene5", { autoAlpha: 1 })
+            .call(updateSubtitles, [17])
+            .fromTo("#scene5-final-title", { autoAlpha: 0, y: 50 }, { autoAlpha: 1, y: 0, duration: 1.5, ease: "power3.out" })
+            .to({}, { duration: 1 })
+            .call(updateSubtitles, [18])
+            .fromTo("#scene5-subtitle", { autoAlpha: 0, y: 50 }, { autoAlpha: 1, y: 0, duration: 1.5, ease: "power3.out" }, "-=0.5")
+            .fromTo("#scene5-logo", { autoAlpha: 0, scale: 0.5 }, { autoAlpha: 1, scale: 1, duration: 1, ease: "elastic.out(1, 0.5)" }, "+=0.5");
+
+    </script>
+</body>
+
+</html>

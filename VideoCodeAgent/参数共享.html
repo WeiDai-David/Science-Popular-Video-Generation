@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Magic of Parameter Sharing | 参数共享的魅力</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f9;
+            --primary-text: #2c3e50;
+            --secondary-text: #7f8c8d;
+            --accent-color-1: #3498db;
+            --accent-color-2: #e74c3c;
+            --accent-color-3: #2ecc71;
+            --accent-color-4: #f1c40f;
+            --kernel-bg: rgba(52, 152, 219, 0.1);
+            --kernel-border: #3498db;
+            --output-bg: rgba(46, 204, 113, 0.1);
+            --output-border: #2ecc71;
+            --line-color: #bdc3c7;
+            --highlight-color: #f39c12;
+            --font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #e8eef2;
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 1920px;
+            height: 1080px;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+            transform-origin: top left;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .subtitle-container {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            z-index: 1000;
+        }
+
+        .subtitle-container.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn {
+            font-size: 32px;
+            font-weight: 500;
+            color: var(--primary-text);
+            margin: 0 0 10px 0;
+        }
+
+        #subtitle-en {
+            font-size: 22px;
+            color: var(--secondary-text);
+            margin: 0;
+        }
+
+        .scene-element {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+        }
+
+        /* --- Scene 1: The Problem --- */
+        #scene1-title {
+            top: 100px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            font-size: 50px;
+            color: var(--primary-text);
+            font-weight: 600;
+        }
+
+        #s1-image-grid {
+            top: 250px;
+            left: 200px;
+            transform: scale(0.9);
+        }
+
+        #s1-neuron-layer {
+            top: 350px;
+            right: 250px;
+            transform: scale(0.9);
+        }
+
+        #s1-connections {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        #s1-connections path {
+            stroke: var(--line-color);
+            stroke-width: 1;
+            fill: none;
+            opacity: 0.1;
+        }
+
+        #s1-param-count {
+            bottom: 250px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            background-color: rgba(231, 76, 60, 0.1);
+            color: var(--accent-color-2);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            padding: 20px 40px;
+            font-size: 40px;
+            font-weight: bold;
+            border-radius: 10px;
+        }
+
+        /* --- Scene 2: The Solution --- */
+        #scene2-title {
+            top: 100px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            font-size: 50px;
+            color: var(--primary-text);
+            font-weight: 600;
+        }
+
+        #s2-image-grid {
+            top: 50%;
+            left: 30%;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        #s2-kernel {
+            top: 50%;
+            left: 70%;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        #s2-kernel text {
+            font-size: 30px;
+            font-weight: bold;
+            fill: var(--kernel-border);
+        }
+
+        /* --- Scene 3: The Convolution Process --- */
+        #s3-title {
+            top: 80px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            font-size: 50px;
+            color: var(--primary-text);
+            font-weight: 600;
+        }
+
+        #s3-input-group {
+            top: 250px;
+            left: 150px;
+        }
+
+        #s3-output-group {
+            top: 250px;
+            right: 150px;
+        }
+
+        .grid-label {
+            font-size: 28px;
+            font-weight: 500;
+            color: var(--secondary-text);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #s3-convolution-kernel {
+            position: absolute;
+            /* JS will set top/left */
+            transition: top 0.5s ease-in-out, left 0.5s ease-in-out;
+        }
+
+        #s3-convolution-kernel rect {
+            fill: var(--kernel-bg);
+            stroke: var(--kernel-border);
+            stroke-width: 4px;
+        }
+
+        #s3-convolution-kernel text {
+            font-size: 25px;
+            font-weight: bold;
+            fill: var(--kernel-border);
+        }
+
+        #s3-output-grid .output-cell-text {
+            opacity: 0;
+            transition: opacity 0.3s linear;
+        }
+
+        #s3-calculation {
+            top: 800px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            font-size: 36px;
+            font-family: 'Courier New', monospace;
+            color: var(--primary-text);
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            letter-spacing: 2px;
+        }
+
+        .highlighted-input {
+            transition: fill 0.3s;
+        }
+
+        /* --- Scene 4: The Benefits --- */
+        #scene4-title {
+            top: 100px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            font-size: 50px;
+            color: var(--primary-text);
+            font-weight: 600;
+        }
+
+        .benefit-box {
+            top: 300px;
+            width: 600px;
+            height: 500px;
+            background-color: #fff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 40px;
+            box-sizing: border-box;
+        }
+
+        #s4-benefit1 {
+            left: 250px;
+            transform: translateX(20px);
+        }
+
+        #s4-benefit2 {
+            right: 250px;
+            transform: translateX(-20px);
+        }
+
+        .benefit-title {
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--primary-text);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .benefit-icon {
+            width: 120px;
+            height: 120px;
+            margin: 20px auto;
+            display: block;
+        }
+
+        .benefit-text {
+            font-size: 24px;
+            color: var(--secondary-text);
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        #param-comparison {
+            font-size: 28px;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        #param-old {
+            color: var(--accent-color-2);
+            text-decoration: line-through;
+        }
+
+        #param-new {
+            color: var(--accent-color-3);
+            font-weight: bold;
+        }
+
+        #s4-translation-invariance-demo {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            margin-top: 40px;
+        }
+
+        #s4-cat-face {
+            position: absolute;
+            font-size: 80px;
+            top: 50px;
+            left: 30px;
+            transition: left 2s ease-in-out;
+        }
+
+        #s4-detector {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border: 3px dashed var(--accent-color-1);
+            border-radius: 50%;
+            top: 40px;
+            left: 25px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: left 2s ease-in-out, background-color 0.3s;
+        }
+
+        #s4-detector::after {
+            content: '🔍';
+            font-size: 50px;
+        }
+
+        /* --- Scene 5: Conclusion --- */
+        #scene5-title {
+            top: 150px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            font-size: 50px;
+            color: var(--primary-text);
+            font-weight: 600;
+        }
+
+        #s5-summary-diagram {
+            top: 350px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 50px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-label {
+            margin-top: 20px;
+            font-size: 28px;
+            color: var(--secondary-text);
+        }
+
+        #s5-arrow1,
+        #s5-arrow2 {
+            font-size: 80px;
+            color: var(--accent-color-1);
+            transform: translateY(-30px);
+        }
+
+        #s5-kernel-group {
+            text-align: center;
+        }
+
+        #s5-kernel-label {
+            font-size: 24px;
+            color: var(--accent-color-1);
+            background: var(--kernel-bg);
+            padding: 5px 15px;
+            border-radius: 20px;
+            border: 1px solid var(--kernel-border);
+            margin-top: 20px;
+            display: inline-block;
+        }
+
+        #s5-final-text {
+            bottom: 250px;
+            left: 50%;
+            transform: translate(-50%, 20px);
+            font-size: 40px;
+            color: var(--primary-text);
+        }
+
+        /* Generic animation classes */
+        .fade-in {
+            opacity: 1 !important;
+            transform: translate(-50%, 0) !important;
+        }
+
+        .fade-in-norm {
+            opacity: 1 !important;
+            transform: translate(0, 0) !important;
+        }
+
+        .fade-out {
+            opacity: 0 !important;
+            transform: translateY(20px) !important;
+        }
+
+        .pop-in {
+            animation: pop-in 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes pop-in {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .draw-line {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: draw 1.5s linear forwards;
+        }
+
+        @keyframes draw {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .glow {
+            animation: glow 1s infinite alternate;
+        }
+
+        @keyframes glow {
+            from {
+                box-shadow: 0 0 10px #3498db, 0 0 20px #3498db;
+            }
+
+            to {
+                box-shadow: 0 0 20px #5dade2, 0 0 30px #5dade2;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="animation-container">
+
+        <!-- Subtitles -->
+        <div id="subtitle-box" class="subtitle-container">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+
+        <!-- Scene 1: The Problem with Fully Connected Networks -->
+        <div id="scene1" class="scene-element" style="opacity: 1; width: 100%; height: 100%;">
+            <div id="scene1-title" class="scene-element">处理图像的传统方法：参数爆炸</div>
+            <svg id="s1-image-grid" class="scene-element" width="400" height="400" viewBox="0 0 400 400">
+                <defs>
+                    <filter id="glow-filter" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="5" result="coloredBlur"></feGaussianBlur>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"></feMergeNode>
+                            <feMergeNode in="SourceGraphic"></feMergeNode>
+                        </feMerge>
+                    </filter>
+                </defs>
+                <g id="s1-input-pixels">
+                    <!-- JS will generate 9x9 grid -->
+                </g>
+            </svg>
+            <svg id="s1-neuron-layer" class="scene-element" width="200" height="600" viewBox="0 0 200 600">
+                <g id="s1-neurons">
+                    <!-- JS will generate neurons -->
+                </g>
+            </svg>
+            <svg id="s1-connections" class="scene-element"></svg>
+            <div id="s1-param-count" class="scene-element"></div>
+        </div>
+
+        <!-- Scene 2: The Solution: A Shared Kernel -->
+        <div id="scene2" class="scene-element" style="width: 100%; height: 100%;">
+            <div id="scene2-title" class="scene-element">一个更聪明的想法：共享的“卷积核”</div>
+            <svg id="s2-image-grid" class="scene-element" width="600" height="600" viewBox="0 0 600 600"></svg>
+            <svg id="s2-kernel" class="scene-element" width="220" height="220" viewBox="0 0 220 220">
+                <rect x="10" y="10" width="200" height="200" rx="15" fill="var(--kernel-bg)"
+                    stroke="var(--kernel-border)" stroke-width="4" />
+                <text x="60" y="70" text-anchor="middle">1</text>
+                <text x="160" y="70" text-anchor="middle">0</text>
+                <text x="60" y="170" text-anchor="middle">0</text>
+                <text x="160" y="170" text-anchor="middle">-1</text>
+            </svg>
+        </div>
+
+        <!-- Scene 3: The Convolution Process in Action -->
+        <div id="scene3" class="scene-element" style="width: 100%; height: 100%;">
+            <div id="s3-title" class="scene-element">工作原理：滑动、计算、重复</div>
+            <div id="s3-input-group" class="scene-element">
+                <div class="grid-label">输入图像 (Input Image)</div>
+                <svg id="s3-input-grid" width="600" height="600" viewBox="0 0 600 600"></svg>
+            </div>
+            <div id="s3-output-group" class="scene-element">
+                <div class="grid-label">特征图 (Feature Map)</div>
+                <svg id="s3-output-grid" width="450" height="450" viewBox="0 0 450 450"></svg>
+            </div>
+            <svg id="s3-convolution-kernel" class="scene-element" width="200" height="200" viewBox="0 0 200 200">
+                <rect x="0" y="0" width="200" height="200" rx="10" fill="var(--kernel-bg)" stroke="var(--kernel-border)"
+                    stroke-width="4" />
+                <g>
+                    <text x="50" y="60" text-anchor="middle">1</text>
+                    <text x="150" y="60" text-anchor="middle">0</text>
+                    <text x="50" y="160" text-anchor="middle">0</text>
+                    <text x="150" y="160" text-anchor="middle">-1</text>
+                </g>
+            </svg>
+            <div id="s3-calculation" class="scene-element"></div>
+        </div>
+
+        <!-- Scene 4: The Benefits -->
+        <div id="scene4" class="scene-element" style="width: 100%; height: 100%;">
+            <div id="scene4-title" class="scene-element">参数共享带来的两大优势</div>
+            <div id="s4-benefit1" class="scene-element benefit-box">
+                <svg class="benefit-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M12 8V12M12 16H12.01M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"
+                        stroke="#2ecc71" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <div class="benefit-title">1. 高效 (Efficiency)</div>
+                <div class="benefit-text">大大减少需要训练的参数数量，使网络更轻量、训练更快。</div>
+                <div id="param-comparison">
+                    <span id="param-old">9x9x9=729 params</span>
+                    <span> → </span>
+                    <span id="param-new">2x2=4 params!</span>
+                </div>
+            </div>
+            <div id="s4-benefit2" class="scene-element benefit-box">
+                <svg class="benefit-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 12H21M3 6H21M3 18H21" stroke="#3498db" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+                <div class="benefit-title">2. 平移不变性</div>
+                <div class="benefit-text">(Translation Invariance)</div>
+                <div class="benefit-text">同一个特征，无论出现在图像的哪个位置，都可以被同一个卷积核识别。</div>
+                <div id="s4-translation-invariance-demo">
+                    <div id="s4-cat-face">😺</div>
+                    <div id="s4-detector"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scene 5: Conclusion -->
+        <div id="scene5" class="scene-element" style="width: 100%; height: 100%;">
+            <div id="scene5-title" class="scene-element">总结：用共享的智慧，看懂世界</div>
+            <div id="s5-summary-diagram" class="scene-element">
+                <div class="summary-item">
+                    <svg width="300" height="300" viewBox="0 0 300 300">
+                        <!-- Simplified input image -->
+                        <rect x="10" y="10" width="280" height="280" rx="15" fill="#ecf0f1" />
+                        <circle cx="100" cy="100" r="20" fill="#3498db" />
+                        <rect x="150" y="150" width="80" height="80" fill="#e74c3c" rx="10" />
+                        <path d="M50 200 L100 250 L150 200" stroke="#2ecc71" stroke-width="10" fill="none" />
+                    </svg>
+                    <div class="summary-label">输入图像 (Input)</div>
+                </div>
+                <div id="s5-arrow1" class="scene-element">➔</div>
+                <div id="s5-kernel-group" class="summary-item">
+                    <svg width="180" height="180" viewBox="0 0 180 180">
+                        <rect x="5" y="5" width="170" height="170" rx="15" fill="var(--kernel-bg)"
+                            stroke="var(--kernel-border)" stroke-width="4" />
+                        <circle cx="55" cy="55" r="10" fill="var(--kernel-border)" />
+                        <circle cx="125" cy="55" r="10" fill="var(--kernel-border)" />
+                        <circle cx="55" cy="125" r="10" fill="var(--kernel-border)" />
+                        <circle cx="125" cy="125" r="10" fill="var(--kernel-border)" />
+                    </svg>
+                    <div id="s5-kernel-label" class="scene-element">共享参数 (Shared Parameters)</div>
+                </div>
+                <div id="s5-arrow2" class="scene-element">➔</div>
+                <div class="summary-item">
+                    <svg width="300" height="300" viewBox="0 0 300 300">
+                        <rect x="10" y="10" width="280" height="280" rx="15" fill="#ecf0f1" />
+                        <rect x="30" y="30" width="80" height="80" fill="rgba(52, 152, 219, 0.5)" rx="10" />
+                        <rect x="190" y="190" width="80" height="80" fill="rgba(231, 76, 60, 0.5)" rx="10" />
+                    </svg>
+                    <div class="summary-label">特征图 (Feature Map)</div>
+                </div>
+            </div>
+            <div id="s5-final-text" class="scene-element">Smarter, not harder.</div>
+        </div>
+
+    </div>
+
+    <script>
+        const subtitles = [
+            { cn: "在分析图像时，传统神经网络会遇到一个大问题。", en: "When analyzing images, traditional neural networks face a big problem." },
+            { cn: "它试图将每个像素，连接到下一层的每个神经元。", en: "It tries to connect every single pixel to every neuron in the next layer." },
+            { cn: "随着图像尺寸和网络层数的增加，参数数量会急剧膨胀。", en: "As image size and network depth grow, the number of parameters explodes." },
+            { cn: "这导致了所谓的“参数爆炸”，模型难以训练且容易过拟合。", en: "This leads to a 'parameter explosion', making the model hard to train and prone to overfitting." },
+            { cn: "为了解决这个问题，我们引入了一个绝妙的想法：参数共享。", en: "To solve this, we introduce a brilliant idea: Parameter Sharing." },
+            { cn: "我们不再为每个连接都设置一个独立的权重...", en: "Instead of having a unique weight for every connection..." },
+            { cn: "而是使用一个小的、可重复使用的“卷积核”或“过滤器”。", en: "...we use a small, reusable 'kernel' or 'filter'." },
+            { cn: "这个卷积核包含一组固定的权重，也就是我们要共享的参数。", en: "This kernel contains a fixed set of weights – these are the parameters we will share." },
+            { cn: "现在，让我们看看它是如何工作的。", en: "Now, let's see how it works in action." },
+            { cn: "这个卷积核会像探照灯一样，在整张输入图像上滑动。", en: "The kernel slides over the entire input image, like a searchlight." },
+            { cn: "在每个位置，它都会与覆盖的图像区域进行计算...", en: "At each position, it performs a calculation with the image patch it covers..." },
+            { cn: "将计算结果输出到“特征图”的一个像素上。", en: "...and outputs the result to a single pixel in the 'feature map'." },
+            { cn: "最关键的一点是：无论移动到哪里，卷积核内部的参数始终不变。", en: "The crucial point is: no matter where it moves, the parameters inside the kernel remain the same." },
+            { cn: "这，就是参数共享的核心。", en: "This is the very essence of parameter sharing." },
+            { cn: "这个过程不断重复，直到扫描完整个图像。", en: "This process repeats until the entire image has been scanned." },
+            { cn: "参数共享为我们带来了两大核心优势。", en: "Parameter sharing brings us two major advantages." },
+            { cn: "首先是极高的效率。", en: "First, it's incredibly efficient." },
+            { cn: "我们用极少数的共享参数，替代了数以万计的独立参数。", en: "We replace tens of thousands of individual parameters with just a handful of shared ones." },
+            { cn: "其次，它赋予了网络“平移不变性”。", en: "Second, it gives the network 'translation invariance'." },
+            { cn: "这意味着，如果一个卷积核学会了识别猫的眼睛...", en: "This means if a kernel learns to recognize a cat's eye..." },
+            { cn: "那么无论这只眼睛出现在图像的任何位置，它都能被识别出来。", en: "...it can find that eye no matter where it appears in the image." },
+            { cn: "总而言之，参数共享是卷积神经网络的基石。", en: "In conclusion, parameter sharing is the cornerstone of Convolutional Neural Networks." },
+            { cn: "它通过一个共享的卷积核，从输入图像中提取有用的特征。", en: "It uses a shared kernel to extract useful features from an input image." },
+            { cn: "从而生成一个浓缩了关键信息的特征图。", en: "This generates a feature map that condenses key information." },
+            { cn: "参数共享：用更少的参数，学到更多。更聪明，而非更费力。", en: "Parameter Sharing: Learn more with less. Smarter, not harder." }
+        ];
+
+        const subtitleBox = document.getElementById('subtitle-box');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        let subtitleIndex = 0;
+
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        function updateSubtitles() {
+            if (subtitleIndex < subtitles.length) {
+                subtitleBox.classList.remove('visible');
+                setTimeout(() => {
+                    const { cn, en } = subtitles[subtitleIndex];
+                    subtitleCN.textContent = cn;
+                    subtitleEN.textContent = en;
+                    subtitleBox.classList.add('visible');
+                    subtitleIndex++;
+                }, 500);
+            }
+        }
+
+        function hideSubtitles() {
+            subtitleBox.classList.remove('visible');
+        }
+
+        function getElement(id) {
+            return document.getElementById(id);
+        }
+
+        // --- SCENE 1 SETUP ---
+        function setupScene1() {
+            const s1InputPixels = getElement('s1-input-pixels');
+            const s1Neurons = getElement('s1-neurons');
+            const s1Connections = getElement('s1-connections');
+            const gridSize = 9;
+            const pixelSize = 40;
+            const gap = 5;
+            const neuronRadius = 20;
+            const neuronGap = 30;
+
+            let pixelPositions = [];
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const x = j * (pixelSize + gap);
+                    const y = i * (pixelSize + gap);
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', x);
+                    rect.setAttribute('y', y);
+                    rect.setAttribute('width', pixelSize);
+                    rect.setAttribute('height', pixelSize);
+                    rect.setAttribute('fill', '#ecf0f1');
+                    rect.setAttribute('stroke', '#bdc3c7');
+                    rect.setAttribute('rx', 5);
+                    s1InputPixels.appendChild(rect);
+                    pixelPositions.push({ x: 200 + x + pixelSize / 2, y: 250 + y + pixelSize / 2 });
+                }
+            }
+
+            let neuronPositions = [];
+            for (let i = 0; i < gridSize; i++) {
+                const cx = 100;
+                const cy = i * (2 * neuronRadius + neuronGap) + 50;
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', cx);
+                circle.setAttribute('cy', cy);
+                circle.setAttribute('r', neuronRadius);
+                circle.setAttribute('fill', 'var(--accent-color-1)');
+                s1Neurons.appendChild(circle);
+                neuronPositions.push({ x: 1920 - 250 - 200 + cx, y: 350 + cy });
+            }
+
+            // Create connection paths
+            pixelPositions.forEach(pPos => {
+                neuronPositions.forEach(nPos => {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = `M ${pPos.x} ${pPos.y} Q ${(pPos.x + nPos.x) / 2} ${pPos.y} ${nPos.x} ${nPos.y}`;
+                    path.setAttribute('d', d);
+                    s1Connections.appendChild(path);
+                });
+            });
+        }
+
+        // --- SCENE 3 SETUP ---
+        function setupScene3() {
+            const s3InputGrid = getElement('s3-input-grid');
+            const s3OutputGrid = getElement('s3-output-grid');
+            const gridSize = 5;
+            const cellSize = 100;
+            const gap = 10;
+            const inputData = [
+                [8, 1, 3, 4, 2],
+                [9, 5, 7, 0, 6],
+                [2, 0, 1, 1, 3],
+                [6, 3, 8, 5, 1],
+                [4, 2, 0, 2, 7]
+            ];
+
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    const x = j * (cellSize + gap);
+                    const y = i * (cellSize + gap);
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('id', `s3-input-${i}-${j}`);
+                    rect.setAttribute('x', x);
+                    rect.setAttribute('y', y);
+                    rect.setAttribute('width', cellSize);
+                    rect.setAttribute('height', cellSize);
+                    rect.setAttribute('fill', '#ecf0f1');
+                    rect.setAttribute('stroke', '#bdc3c7');
+                    rect.setAttribute('rx', 5);
+
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', x + cellSize / 2);
+                    text.setAttribute('y', y + cellSize / 2 + 10);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '30');
+                    text.setAttribute('fill', 'var(--primary-text)');
+                    text.textContent = inputData[i][j];
+
+                    g.appendChild(rect);
+                    g.appendChild(text);
+                    s3InputGrid.appendChild(g);
+                }
+            }
+
+            const outputGridSize = 4;
+            const outputCellSize = 100;
+            for (let i = 0; i < outputGridSize; i++) {
+                for (let j = 0; j < outputGridSize; j++) {
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    const x = j * (outputCellSize + gap);
+                    const y = i * (outputCellSize + gap);
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', x);
+                    rect.setAttribute('y', y);
+                    rect.setAttribute('width', outputCellSize);
+                    rect.setAttribute('height', outputCellSize);
+                    rect.setAttribute('fill', 'var(--output-bg)');
+                    rect.setAttribute('stroke', 'var(--output-border)');
+                    rect.setAttribute('rx', 5);
+
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('id', `s3-output-text-${i}-${j}`);
+                    text.setAttribute('class', 'output-cell-text');
+                    text.setAttribute('x', x + outputCellSize / 2);
+                    text.setAttribute('y', y + outputCellSize / 2 + 10);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('font-size', '30');
+                    text.setAttribute('font-weight', 'bold');
+                    text.setAttribute('fill', 'var(--accent-color-3)');
+
+                    g.appendChild(rect);
+                    g.appendChild(text);
+                    s3OutputGrid.appendChild(g);
+                }
+            }
+        }
+
+        async function playAnimation() {
+            // Wait for everything to be ready
+            await sleep(500);
+
+            // --- SCENE 1 ---
+            const scene1 = getElement('scene1');
+            const s1Title = getElement('scene1-title');
+            const s1ImageGrid = getElement('s1-image-grid');
+            const s1NeuronLayer = getElement('s1-neuron-layer');
+            const s1Connections = getElement('s1-connections');
+            const s1ParamCount = getElement('s1-param-count');
+
+            s1Title.style.opacity = 1;
+            s1Title.style.transform = 'translate(-50%, 0)';
+            updateSubtitles(); // 0
+            await sleep(2000);
+
+            s1ImageGrid.style.opacity = 1;
+            s1ImageGrid.style.transform = 'scale(1)';
+            s1NeuronLayer.style.opacity = 1;
+            s1NeuronLayer.style.transform = 'scale(1)';
+            updateSubtitles(); // 1
+            await sleep(2000);
+
+            s1Connections.style.opacity = 1;
+            const paths = s1Connections.querySelectorAll('path');
+            paths.forEach((path, i) => {
+                setTimeout(() => {
+                    path.style.transition = 'opacity 0.2s';
+                    path.style.opacity = '0.1';
+                }, i * 0.5);
+            });
+            updateSubtitles(); // 2
+            await sleep(4000);
+
+            s1ParamCount.innerHTML = `9x9 Input &times; 9 Neurons = <strong>729</strong> Parameters!`;
+            s1ParamCount.style.opacity = 1;
+            s1ParamCount.style.transform = 'translate(-50%, 0)';
+            updateSubtitles(); // 3
+            await sleep(4000);
+
+            // Transition to Scene 2
+            scene1.style.opacity = 0;
+            hideSubtitles();
+            await sleep(1000);
+
+            // --- SCENE 2 ---
+            const scene2 = getElement('scene2');
+            const s2Title = getElement('scene2-title');
+            const s2ImageGrid = getElement('s2-image-grid');
+            const s2Kernel = getElement('s2-kernel');
+
+            scene2.style.opacity = 1;
+            s2Title.style.opacity = 1;
+            s2Title.style.transform = 'translate(-50%, 0)';
+            updateSubtitles(); // 4
+            await sleep(2000);
+
+            s2ImageGrid.innerHTML = getElement('s1-image-grid').innerHTML; // Reuse the grid
+            s2ImageGrid.style.opacity = 1;
+            s2ImageGrid.style.transform = 'translate(-50%, -50%) scale(1)';
+            updateSubtitles(); // 5
+            await sleep(2000);
+
+            s2Kernel.style.opacity = 1;
+            s2Kernel.style.transform = 'translate(-50%, -50%) scale(1)';
+            s2Kernel.classList.add('pop-in');
+            updateSubtitles(); // 6
+            await sleep(3000);
+            updateSubtitles(); // 7
+            await sleep(3000);
+
+            // Transition to Scene 3
+            scene2.style.opacity = 0;
+            hideSubtitles();
+            await sleep(1000);
+
+            // --- SCENE 3 ---
+            const scene3 = getElement('scene3');
+            const s3Title = getElement('s3-title');
+            const s3InputGroup = getElement('s3-input-group');
+            const s3OutputGroup = getElement('s3-output-group');
+            const s3Kernel = getElement('s3-convolution-kernel');
+            const s3Calc = getElement('s3-calculation');
+
+            scene3.style.opacity = 1;
+            s3Title.style.opacity = 1;
+            s3Title.style.transform = 'translate(-50%, 0)';
+            updateSubtitles(); // 8
+            await sleep(2000);
+
+            s3InputGroup.style.opacity = 1;
+            s3OutputGroup.style.opacity = 1;
+            updateSubtitles(); // 9
+            await sleep(2000);
+
+            s3Kernel.style.opacity = 1;
+            s3Calc.style.opacity = 1;
+
+            const inputData = [[8, 1, 3, 4, 2], [9, 5, 7, 0, 6], [2, 0, 1, 1, 3], [6, 3, 8, 5, 1], [4, 2, 0, 2, 7]];
+            const kernelData = [[1, 0], [0, -1]];
+            const baseLeft = 150;
+            const baseTop = 250 + 50; // 50 for label
+            const step = 110;
+
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    if (i == 0 && j == 0) updateSubtitles(); // 10
+                    if (i == 0 && j == 2) updateSubtitles(); // 11
+                    if (i == 1 && j == 0) updateSubtitles(); // 12
+                    if (i == 2 && j == 2) updateSubtitles(); // 13, 14
+                    if (i == 3 && j == 3) updateSubtitles();
+
+                    s3Kernel.style.left = `${baseLeft + j * step}px`;
+                    s3Kernel.style.top = `${baseTop + i * step}px`;
+                    await sleep(600);
+
+                    const p1 = inputData[i][j], p2 = inputData[i][j + 1];
+                    const p3 = inputData[i + 1][j], p4 = inputData[i + 1][j + 1];
+                    const k1 = kernelData[0][0], k2 = kernelData[0][1];
+                    const k3 = kernelData[1][0], k4 = kernelData[1][1];
+
+                    const result = p1 * k1 + p2 * k2 + p3 * k3 + p4 * k4;
+
+                    s3Calc.innerHTML = `(${p1}×<span style="color:var(--kernel-border)">${k1}</span>)+(${p2}×<span style="color:var(--kernel-border)">${k2}</span>)+(${p3}×<span style="color:var(--kernel-border)">${k3}</span>)+(${p4}×<span style="color:var(--kernel-border)">${k4}</span>) = <strong>${result}</strong>`;
+
+                    // Highlight input cells
+                    const cellsToHighlight = [`s3-input-${i}-${j}`, `s3-input-${i}-${j + 1}`, `s3-input-${i + 1}-${j}`, `s3-input-${i + 1}-${j + 1}`];
+                    cellsToHighlight.forEach(id => getElement(id).style.fill = 'var(--highlight-color)');
+                    await sleep(800);
+
+                    const outputText = getElement(`s3-output-text-${i}-${j}`);
+                    outputText.textContent = result;
+                    outputText.style.opacity = 1;
+
+                    cellsToHighlight.forEach(id => getElement(id).style.fill = '#ecf0f1');
+                    await sleep(400);
+                }
+            }
+            s3Calc.style.opacity = 0;
+
+            // Transition to Scene 4
+            scene3.style.opacity = 0;
+            hideSubtitles();
+            await sleep(1000);
+
+            // --- SCENE 4 ---
+            const scene4 = getElement('scene4');
+            const s4Title = getElement('scene4-title');
+            const s4b1 = getElement('s4-benefit1');
+            const s4b2 = getElement('s4-benefit2');
+
+            scene4.style.opacity = 1;
+            s4Title.style.opacity = 1;
+            s4Title.style.transform = 'translate(-50%, 0)';
+            updateSubtitles(); // 15
+            await sleep(2000);
+
+            s4b1.style.opacity = 1;
+            s4b1.style.transform = 'translateX(0)';
+            updateSubtitles(); // 16
+            await sleep(2000);
+            updateSubtitles(); // 17
+            await sleep(3000);
+
+            s4b2.style.opacity = 1;
+            s4b2.style.transform = 'translateX(0)';
+            updateSubtitles(); // 18
+            await sleep(2000);
+
+            const catFace = getElement('s4-cat-face');
+            const detector = getElement('s4-detector');
+
+            updateSubtitles(); // 19
+            detector.style.backgroundColor = 'rgba(46, 204, 113, 0.3)';
+            await sleep(500);
+            detector.style.backgroundColor = 'transparent';
+            await sleep(2000);
+
+            updateSubtitles(); // 20
+            catFace.style.left = '400px';
+            detector.style.left = '395px';
+            await sleep(2100);
+            detector.style.backgroundColor = 'rgba(46, 204, 113, 0.3)';
+            await sleep(500);
+            detector.style.backgroundColor = 'transparent';
+            await sleep(3000);
+
+            // Transition to Scene 5
+            scene4.style.opacity = 0;
+            hideSubtitles();
+            await sleep(1000);
+
+            // --- SCENE 5 ---
+            const scene5 = getElement('scene5');
+            const s5Title = getElement('scene5-title');
+            const s5Diagram = getElement('s5-summary-diagram');
+            const s5Arrow1 = getElement('s5-arrow1');
+            const s5Arrow2 = getElement('s5-arrow2');
+            const s5KernelLabel = getElement('s5-kernel-label');
+            const s5FinalText = getElement('s5-final-text');
+
+            scene5.style.opacity = 1;
+            s5Title.style.opacity = 1;
+            s5Title.style.transform = 'translate(-50%, 0)';
+            updateSubtitles(); // 21
+            await sleep(2000);
+
+            s5Diagram.style.opacity = 1;
+            s5Diagram.querySelectorAll('.summary-item').forEach(item => item.classList.add('pop-in'));
+            await sleep(1000);
+
+            updateSubtitles(); // 22
+            s5Arrow1.style.opacity = 1;
+            s5Arrow1.classList.add('pop-in');
+            s5KernelLabel.style.opacity = 1;
+            s5KernelLabel.classList.add('pop-in');
+            await sleep(3000);
+
+            updateSubtitles(); // 23
+            s5Arrow2.style.opacity = 1;
+            s5Arrow2.classList.add('pop-in');
+            await sleep(3000);
+
+            updateSubtitles(); // 24
+            s5FinalText.style.opacity = 1;
+            s5FinalText.style.transform = 'translate(-50%, 0)';
+            await sleep(4000);
+
+            // End of animation
+            hideSubtitles();
+        }
+
+
+        window.onload = () => {
+            const container = document.getElementById('animation-container');
+            function resize() {
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                const scale = Math.min(w / 1920, h / 1080);
+                container.style.transform = `scale(${scale})`;
+                container.style.left = `${(w - 1920 * scale) / 2}px`;
+                container.style.top = `${(h - 1080 * scale) / 2}px`;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            setupScene1();
+            setupScene3();
+            playAnimation();
+        };
+
+    </script>
+</body>
+
+</html>

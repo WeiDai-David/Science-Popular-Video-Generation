@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Variational Bayes Explained</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --text-color: #343A40;
+            --primary-color: #4C6EF5;
+            /* P(Z|X) */
+            --secondary-color: #FFA94D;
+            /* Q(Z) */
+            --accent-color: #20C997;
+            /* ELBO */
+            --kl-color: #FA5252;
+            --border-color: #DEE2E6;
+            --subtitle-bg: rgba(255, 255, 255, 0.7);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-container {
+            width: 1920px;
+            height: 1080px;
+            background-color: #FFFFFF;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            border-radius: 12px;
+            position: relative;
+            transform-origin: center center;
+            overflow: hidden;
+        }
+
+        #main-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Text Styles */
+        .main-title {
+            font-size: 64px;
+            font-weight: 600;
+            fill: var(--text-color);
+        }
+
+        .label-text {
+            font-size: 32px;
+            font-weight: 400;
+            fill: var(--text-color);
+        }
+
+        .formula-text {
+            font-family: 'Times New Roman', serif;
+            font-size: 48px;
+            font-style: italic;
+        }
+
+        .highlight-text {
+            font-weight: 600;
+        }
+
+        /* Distribution Styles */
+        #p_dist {
+            fill: var(--primary-color);
+            fill-opacity: 0.2;
+            stroke: var(--primary-color);
+            stroke-width: 4;
+            stroke-linejoin: round;
+        }
+
+        #q_dist {
+            fill: var(--secondary-color);
+            fill-opacity: 0.5;
+            stroke: var(--secondary-color);
+            stroke-width: 4;
+            stroke-linejoin: round;
+        }
+
+        #kl-area {
+            fill: var(--kl-color);
+            fill-opacity: 0.3;
+        }
+
+        /* Subtitles */
+        #subtitle-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 15px 30px;
+            background-color: var(--subtitle-bg);
+            backdrop-filter: blur(8px);
+            border-radius: 8px;
+            text-align: center;
+            opacity: 0;
+        }
+
+        #subtitle-cn {
+            font-size: 28px;
+            font-weight: 400;
+            color: var(--text-color);
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        #subtitle-en {
+            font-size: 20px;
+            font-weight: 300;
+            color: #6C757D;
+            margin: 5px 0 0 0;
+        }
+
+        /* For scaling to fit screen */
+        @media (max-width: 1920px) {
+            #animation-container {
+                transform: scale(calc(100vw / 1920));
+            }
+
+            body {
+                align-items: flex-start;
+                padding-top: calc((100vh - (1080px * (100vw / 1920))) / 2);
+            }
+        }
+
+        @media (max-height: 1080px) and (min-aspect-ratio: 16/9) {
+            #animation-container {
+                transform: scale(calc(100vh / 1080));
+            }
+
+            body {
+                align-items: center;
+                padding-top: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <svg id="main-svg" viewBox="0 0 1920 1080">
+            <!-- Definitions for markers, etc. -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#343A40" />
+                </marker>
+            </defs>
+
+            <!-- Scene 1: The Problem -->
+            <g id="scene1">
+                <text x="960" y="150" class="main-title" text-anchor="middle" opacity="0">变分贝叶斯 Variational Bayes</text>
+
+                <!-- Axis -->
+                <line x1="200" y1="800" x2="1720" y2="800" stroke="#ADB5BD" stroke-width="2" />
+                <text x="1700" y="840" class="label-text" fill="#ADB5BD">Z</text>
+
+                <!-- P(Z|X) Distribution -->
+                <path id="p_dist"
+                    d="M300,800 C400,800 450,400 650,450 C850,500 800,250 1000,300 C1200,350 1300,600 1450,550 C1600,500 1620,800 1620,800 Z"
+                    opacity="0" />
+                <text id="p_label" x="1000" y="220" class="label-text" text-anchor="middle" opacity="0">
+                    <tspan class="formula-text">P(Z|X)</tspan>
+                    <tspan dx="10">后验分布 (Posterior)</tspan>
+                </text>
+                <text id="p_problem" x="1000" y="600" class="label-text" fill="#E03131" text-anchor="middle"
+                    opacity="0">
+                    难以计算 (Intractable)
+                </text>
+            </g>
+
+            <!-- Scene 2 & 3: The Approximation -->
+            <g id="scene2">
+                <path id="q_dist" d="M1250,800 C1350,800 1350,600 1450,600 C1550,600 1550,800 1650,800 Z" opacity="0" />
+                <text id="q_label" x="1450" y="550" class="label-text" text-anchor="middle" opacity="0">
+                    <tspan class="formula-text" fill="#D9480F">Q(Z)</tspan>
+                    <tspan dx="10">简单的近似分布</tspan>
+                </text>
+            </g>
+
+            <!-- Scene 4: KL Divergence -->
+            <g id="scene4" opacity="0">
+                <text x="350" y="300" class="label-text" text-anchor="middle">衡量“距离”</text>
+                <text x="350" y="360" class="formula-text" text-anchor="middle">
+                    KL(<tspan fill="#D9480F">Q</tspan> || <tspan fill="#4C6EF5">P</tspan>)
+                </text>
+                <path id="kl-area" d=""></path>
+                <text id="kl_value_text" x="350" y="420" class="label-text" text-anchor="middle">KL Divergence: <tspan
+                        id="kl_value">10.82</tspan></text>
+                <path d="M450 345 H 650" stroke="#ADB5BD" stroke-dasharray="5,5" stroke-width="2" />
+            </g>
+
+            <!-- Scene 5: The Breakthrough (ELBO) -->
+            <g id="scene5" opacity="0">
+                <rect x="200" y="200" width="1520" height="650" rx="10" fill="white" stroke="var(--border-color)" />
+                <text x="960" y="300" class="label-text" text-anchor="middle" font-size="40px">关键恒等式 The Key
+                    Identity</text>
+
+                <text x="960" y="450" text-anchor="middle" class="formula-text" font-size="60px">
+                    log <tspan>P(X)</tspan> =
+                    <tspan id="elbo_term_formula" fill="var(--accent-color)">ELBO(Q)</tspan> +
+                    <tspan id="kl_term_formula" fill="var(--kl-color)">KL(Q||P)</tspan>
+                </text>
+
+                <!-- Visual representation -->
+                <g transform="translate(400, 600)">
+                    <text x="0" y="-20" class="label-text">证据 Evidence log P(X)</text>
+                    <rect id="log_p_bar" x="0" y="0" width="1120" height="80" fill="var(--border-color)" rx="5" />
+                    <text x="1050" y="-20" class="label-text" text-anchor="end">(固定值 Constant)</text>
+
+                    <rect id="elbo_bar" x="0" y="0" width="560" height="80" fill="var(--accent-color)" rx="5" />
+                    <text id="elbo_bar_label" x="280" y="50" class="label-text" fill="white"
+                        text-anchor="middle">ELBO</text>
+
+                    <rect id="kl_bar" x="560" y="0" width="560" height="80" fill="var(--kl-color)" rx="5"
+                        fill-opacity="0.8" />
+                    <text id="kl_bar_label" x="840" y="50" class="label-text" fill="white"
+                        text-anchor="middle">KL</text>
+
+                    <line id="arrow_up" x1="280" y1="120" x2="280" y2="90" stroke="#343A40" stroke-width="3"
+                        marker-end="url(#arrowhead)" />
+                    <text id="arrow_up_text" x="280" y="150" class="label-text" text-anchor="middle">最大化 Maximize</text>
+
+                    <line id="arrow_down" x1="840" y1="120" x2="840" y2="90" stroke="#343A40" stroke-width="3"
+                        marker-end="url(#arrowhead)" />
+                    <text id="arrow_down_text" x="840" y="150" class="label-text" text-anchor="middle">最小化
+                        Minimize</text>
+                </g>
+            </g>
+
+            <!-- Scene 6: The Solution -->
+            <g id="scene6" opacity="0">
+                <text x="960" y="200" class="label-text" text-anchor="middle" font-size="40px">
+                    将积分问题 <tspan text-decoration="line-through">∫ P(Z|X) dZ</tspan>
+                </text>
+                <text x="960" y="270" class="label-text" text-anchor="middle" font-size="40px">
+                    转化为优化问题 <tspan fill="var(--accent-color)" class="highlight-text">max ELBO(Q)</tspan>
+                </text>
+            </g>
+
+            <!-- Final Scene -->
+            <g id="scene_final" opacity="0">
+                <text x="960" y="540" class="main-title" text-anchor="middle">这就是变分贝叶斯的核心思想</text>
+                <text x="960" y="620" class="label-text" text-anchor="middle">That's the core idea of Variational
+                    Bayes</text>
+            </g>
+
+
+        </svg>
+        <div id="subtitle-container">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        const subtitles = [
+            { cn: "在贝叶斯推断中，我们常常关心一个叫“后验分布”的东西。", en: "In Bayesian inference, we are often interested in the 'posterior distribution'." },
+            { cn: "它告诉我们，在观察到数据X后，未知参数Z可能是什么样子。", en: "It tells us what the unknown parameters Z might look like after observing data X." },
+            { cn: "但问题是，这个后验分布 P(Z|X) 通常形状非常复杂，难以直接计算。", en: "The problem is, this posterior P(Z|X) is often very complex and intractable to compute directly." },
+            { cn: "既然精确求解很困难，我们不妨换个思路：找一个简单的分布来近似它。", en: "Since an exact solution is difficult, let's try a different approach: find a simple distribution to approximate it." },
+            { cn: "我们引入一个更简单的、我们能掌控的分布，称之为 Q(Z)。比如一个高斯分布。", en: "We introduce a simpler, manageable distribution, called Q(Z), like a Gaussian." },
+            { cn: "我们的目标，就是调整 Q(Z) 的参数，让它尽可能地靠近真实的后验 P(Z|X)。", en: "Our goal is to adjust the parameters of Q(Z) to make it as close as possible to the true posterior P(Z|X)." },
+            { cn: "我们用 KL 散度来衡量这两个分布之间的“距离”。", en: "We use KL Divergence to measure the 'distance' between these two distributions." },
+            { cn: "KL 散度越小，意味着 Q(Z) 对 P(Z|X) 的近似就越好。", en: "The smaller the KL Divergence, the better the approximation of P(Z|X) by Q(Z)." },
+            { cn: "我们的任务变成了最小化 KL(Q || P)。", en: "Our task becomes minimizing KL(Q || P)." },
+            { cn: "但是，请看 KL 散度的定义，它里面包含了 P(Z|X)！这正是我们一开始就想避开的难题。", en: "However, the definition of KL Divergence contains P(Z|X)! This is the very problem we wanted to avoid." },
+            { cn: "这里就是变分贝叶斯的绝妙之处。通过一个数学恒等式，我们发现...", en: "This is where the magic of Variational Bayes happens. Through a mathematical identity, we discover..." },
+            { cn: "证据的对数 log P(X) 等于一个叫 ELBO 的项，加上 KL 散度。", en: "The log evidence, log P(X), is equal to a term called the ELBO plus the KL Divergence." },
+            { cn: "对于给定的数据和模型，log P(X) 是一个常数。", en: "For a given model and data, log P(X) is a constant value." },
+            { cn: "所以，当 KL 散度减小时，为了维持等式平衡，ELBO 必须增大！", en: "Therefore, to maintain the equality, as the KL Divergence decreases, the ELBO must increase!" },
+            { cn: "这意味着，最小化 KL 散度，等价于最大化 ELBO！", en: "This means that minimizing the KL Divergence is equivalent to maximizing the ELBO!" },
+            { cn: "而 ELBO 的计算不依赖于后验 P(Z|X)，这是一个我们可以处理的优化问题。", en: "And the ELBO can be calculated without the posterior P(Z|X), making it a tractable optimization problem." },
+            { cn: "所以，我们把一个棘手的积分问题，成功转化成了一个更容易的优化问题。", en: "So, we successfully transformed a difficult integration problem into a much easier optimization problem." },
+            { cn: "我们通过不断调整 Q(Z)，最大化 ELBO，最终得到一个非常好的近似。", en: "By iteratively adjusting Q(Z) to maximize the ELBO, we find an excellent approximation." },
+            { cn: "这就是变分贝叶斯的核心思想。谢谢观看！", en: "This is the core idea of Variational Bayes. Thanks for watching!" }
+        ];
+
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+        const subtitleContainer = document.getElementById('subtitle-container');
+
+        let subtitleIndex = -1;
+        function showNextSubtitle() {
+            subtitleIndex++;
+            if (subtitleIndex < subtitles.length) {
+                const sub = subtitles[subtitleIndex];
+                gsap.to(subtitleContainer, {
+                    opacity: 1,
+                    duration: 0.5,
+                    onStart: () => {
+                        subtitleCn.textContent = sub.cn;
+                        subtitleEn.textContent = sub.en;
+                    }
+                });
+            } else {
+                gsap.to(subtitleContainer, { opacity: 0, duration: 0.5 });
+            }
+        }
+
+        // Helper to generate Gaussian path
+        function generateGaussianPath(mean, stdDev, scale, base) {
+            let path = `M${mean - 4 * stdDev},${base} `;
+            for (let x = mean - 4 * stdDev; x <= mean + 4 * stdDev; x += 5) {
+                const y = scale * Math.exp(-Math.pow(x - mean, 2) / (2 * Math.pow(stdDev, 2)));
+                path += `L${x},${base - y} `;
+            }
+            path += `L${mean + 4 * stdDev},${base} Z`;
+            return path;
+        }
+
+
+        const tl = gsap.timeline({
+            onStart: () => {
+                // Set initial state of Q
+                gsap.set("#q_dist", { attr: { d: generateGaussianPath(1450, 50, 400, 800) } });
+            }
+        });
+
+        // --- Animation Timeline ---
+
+        // Intro
+        tl.to("#scene1 .main-title", { opacity: 1, duration: 1.5 }, "+=1");
+        tl.call(showNextSubtitle);
+        tl.to("#scene1 .main-title", { opacity: 0, duration: 1 }, "+=3");
+
+        // Scene 1: The Problem
+        tl.addLabel("scene1_start")
+            .to("#p_dist", { opacity: 1, duration: 1.5 }, "scene1_start")
+            .to("#p_label", { opacity: 1, duration: 1.5 }, "scene1_start+=0.5")
+            .call(showNextSubtitle)
+            .to("#p_problem", { opacity: 1, duration: 1, ease: "power2.inOut" }, "+=3")
+            .call(showNextSubtitle);
+
+        // Scene 2: The Idea
+        tl.addLabel("scene2_start", "+=3")
+            .to("#q_dist", { opacity: 1, duration: 1.5 }, "scene2_start")
+            .to("#q_label", { opacity: 1, duration: 1.5 }, "scene2_start+=0.5")
+            .call(showNextSubtitle, [], "+=0.5")
+            .call(showNextSubtitle, [], "+=3");
+
+        // Scene 3: Making them close
+        tl.addLabel("scene3_start", "+=2")
+            .to("#q_dist", {
+                attr: { d: generateGaussianPath(950, 100, 800, 800) },
+                duration: 3,
+                ease: "power2.inOut"
+            }, "scene3_start")
+            .to("#q_label", { x: 950, y: 300, duration: 3, ease: "power2.inOut" }, "scene3_start")
+            .call(showNextSubtitle, [], "+=1");
+
+        // Scene 4: KL Divergence
+        tl.addLabel("scene4_start", "+=2")
+            .to("#scene4", { opacity: 1, duration: 1 }, "scene4_start")
+            .call(showNextSubtitle)
+            .fromTo("#kl_value", { innerText: 10.82 }, {
+                innerText: 0.47,
+                duration: 3,
+                snap: { innerText: 0.01 },
+                ease: "power2.inOut"
+            }, "scene3_start") // Animate KL value during the move
+            .call(showNextSubtitle, [], "+=2")
+            .call(showNextSubtitle, [], "+=3");
+
+        // Transition to Scene 5
+        tl.to(["#scene1", "#scene2", "#scene4"], { opacity: 0, duration: 1.5 }, "+=3");
+
+        // Scene 5: The Breakthrough
+        tl.addLabel("scene5_start")
+            .to("#scene5", { opacity: 1, duration: 1.5 }, "scene5_start")
+            .call(showNextSubtitle, [], "+=0.5")
+            .call(showNextSubtitle, [], "+=3")
+            .call(showNextSubtitle, [], "+=3")
+            .call(showNextSubtitle, [], "+=3")
+            .to("#kl_bar", { width: 50, x: 1070, duration: 2, ease: "power2.inOut" }, "+=2")
+            .to("#elbo_bar", { width: 1070, duration: 2, ease: "power2.inOut" }, "-=2")
+            .to("#kl_bar_label", { x: 1095, duration: 2, ease: "power2.inOut" }, "-=2")
+            .to("#elbo_bar_label", { x: 535, duration: 2, ease: "power2.inOut" }, "-=2")
+            .call(showNextSubtitle, [], "+=0.5")
+            .call(showNextSubtitle, [], "+=3")
+            .call(showNextSubtitle, [], "+=3");
+
+        // Transition to Scene 6
+        tl.to("#scene5", { opacity: 0, duration: 1.5 }, "+=3");
+
+        // Scene 6: The Solution
+        tl.addLabel("scene6_start")
+            .set("#p_dist", { opacity: 1 })
+            .set("#q_dist", { attr: { d: generateGaussianPath(1450, 50, 400, 800) }, opacity: 1 })
+            .to(["#scene1", "#scene2"], { opacity: 1, duration: 1.5 }, "scene6_start")
+            .to("#p_label", { opacity: 0 })
+            .to("#p_problem", { opacity: 0 })
+            .to("#q_label", { opacity: 0 })
+            .to("#scene6", { opacity: 1, duration: 1.5 }, "scene6_start")
+            .call(showNextSubtitle, [], "+=0.5")
+            .to("#q_dist", {
+                attr: { d: generateGaussianPath(1000, 120, 950, 800) },
+                duration: 3,
+                ease: "bounce.out"
+            }, "+=3")
+            .call(showNextSubtitle, [], "+=1");
+
+        // Final Scene
+        tl.to(["#scene1", "#scene2", "#scene6"], { opacity: 0, duration: 1.5 }, "+=4");
+        tl.to("#scene_final", { opacity: 1, duration: 2 });
+        tl.call(showNextSubtitle, [], "+=0.5");
+
+    </script>
+</body>
+
+</html>

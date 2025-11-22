@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Causal Attention Explained</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        :root {
+            --bg-color: #f8f9fa;
+            --primary-text: #212529;
+            --secondary-text: #6c757d;
+            --accent-color-1: #4a90e2;
+            /* A friendly blue */
+            --accent-color-2: #50e3c2;
+            /* A vibrant teal/green */
+            --highlight-color: #fdb813;
+            /* A warm yellow/gold */
+            --mask-color: rgba(108, 117, 125, 0.2);
+            --masked-text-color: #adb5bd;
+            --container-width: 2560px;
+            --container-height: 1440px;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            width: 100vw;
+            height: 56.25vw;
+            /* 16:9 Aspect Ratio */
+            max-width: var(--container-width);
+            max-height: 100vh;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+            background: #ffffff;
+            border-radius: 20px;
+        }
+
+        #animation-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #subtitle-container {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            padding: 0 5%;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+
+        .subtitle-zh,
+        .subtitle-en {
+            margin: 0;
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+
+        .subtitle-zh {
+            font-size: 42px;
+            font-weight: 600;
+            color: var(--primary-text);
+            margin-bottom: 10px;
+        }
+
+        .subtitle-en {
+            font-size: 28px;
+            font-weight: 400;
+            color: var(--secondary-text);
+        }
+
+        .token {
+            cursor: default;
+        }
+
+        .token-rect {
+            transition: fill 0.3s ease;
+        }
+
+        .token-text {
+            font-weight: 600;
+            font-size: 40px;
+            fill: var(--primary-text);
+            pointer-events: none;
+        }
+
+        .attention-grid-cell {
+            transition: fill 0.3s ease, opacity 0.3s ease;
+        }
+
+        .attention-line {
+            stroke-width: 3;
+            stroke: var(--accent-color-1);
+            opacity: 0.5;
+        }
+
+        .title-text {
+            font-size: 120px;
+            font-weight: 700;
+            fill: var(--primary-text);
+        }
+
+        .subtitle-text {
+            font-size: 60px;
+            font-weight: 400;
+            fill: var(--secondary-text);
+        }
+
+        .cursor {
+            fill: var(--accent-color-1);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-wrapper">
+        <div id="animation-container">
+            <svg id="main-svg" viewBox="0 0 2560 1440" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div id="subtitle-container">
+            <p class="subtitle-zh" id="subtitle-zh-el"></p>
+            <p class="subtitle-en" id="subtitle-en-el"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.getElementById('main-svg');
+        const zhSub = document.getElementById('subtitle-zh-el');
+        const enSub = document.getElementById('subtitle-en-el');
+
+        const state = {
+            tokens: [],
+            grid: [],
+            lines: [],
+            mask: null,
+            elements: {}
+        };
+
+        const config = {
+            width: 2560,
+            height: 1440,
+            sentence: ["The", "robot", "writes", "a", "poem"],
+            token: {
+                width: 220,
+                height: 90,
+                rx: 15,
+                spacing: 40,
+                startY: 300,
+                fill: '#e9ecef',
+                highlightFill: 'var(--accent-color-2)',
+            },
+            matrix: {
+                size: 150,
+                spacing: 10,
+                startX: 0, // will be calculated
+                startY: 500,
+                fill: '#dee2e6',
+                highlightFill: 'var(--accent-color-1)',
+            }
+        };
+        config.matrix.startX = (config.width - (config.sentence.length * config.matrix.size + (config.sentence.length - 1) * config.matrix.spacing)) / 2;
+
+
+        function createSVGElement(tag, attributes) {
+            const el = document.createElementNS(svgNS, tag);
+            for (let key in attributes) {
+                el.setAttribute(key, attributes[key]);
+            }
+            return el;
+        }
+
+        function setupScene() {
+            // Create background gradient
+            const defs = createSVGElement('defs');
+            const radialGradient = createSVGElement('radialGradient', { id: 'bg-gradient' });
+            radialGradient.innerHTML = `
+                <stop offset="0%" stop-color="#ffffff" />
+                <stop offset="100%" stop-color="#f0f2f5" />
+            `;
+            defs.appendChild(radialGradient);
+            svg.appendChild(defs);
+            const bgRect = createSVGElement('rect', { width: '100%', height: '100%', fill: 'url(#bg-gradient)' });
+            svg.appendChild(bgRect);
+
+            // Create title
+            state.elements.title = createSVGElement('text', {
+                x: config.width / 2, y: config.height / 2 - 50, 'text-anchor': 'middle',
+                class: 'title-text', opacity: 0
+            });
+            state.elements.title.textContent = '因果注意力';
+            svg.appendChild(state.elements.title);
+
+            state.elements.subtitle = createSVGElement('text', {
+                x: config.width / 2, y: config.height / 2 + 50, 'text-anchor': 'middle',
+                class: 'subtitle-text', opacity: 0
+            });
+            state.elements.subtitle.textContent = 'Causal Attention';
+            svg.appendChild(state.elements.subtitle);
+
+            // Create sentence tokens
+            const totalTokenWidth = config.sentence.length * config.token.width + (config.sentence.length - 1) * config.token.spacing;
+            let currentX = (config.width - totalTokenWidth) / 2;
+
+            config.sentence.forEach((word, i) => {
+                const g = createSVGElement('g', {
+                    class: 'token',
+                    transform: `translate(${currentX}, ${config.token.startY})`,
+                    opacity: 0
+                });
+
+                const rect = createSVGElement('rect', {
+                    width: config.token.width, height: config.token.height, rx: config.token.rx,
+                    fill: config.token.fill, class: 'token-rect'
+                });
+
+                const text = createSVGElement('text', {
+                    x: config.token.width / 2, y: config.token.height / 2,
+                    'text-anchor': 'middle', 'dominant-baseline': 'central',
+                    class: 'token-text'
+                });
+                text.textContent = word;
+
+                g.appendChild(rect);
+                g.appendChild(text);
+                svg.appendChild(g);
+                state.tokens.push({ g, rect, text, x: currentX, y: config.token.startY });
+                currentX += config.token.width + config.token.spacing;
+            });
+
+            // Create cursor
+            state.elements.cursor = createSVGElement('rect', {
+                x: currentX + 5, y: config.token.startY + 10,
+                width: 8, height: config.token.height - 20,
+                rx: 4,
+                class: 'cursor',
+                opacity: 0,
+            });
+            svg.appendChild(state.elements.cursor);
+
+            // Create attention matrix grid
+            const matrixGroup = createSVGElement('g', { id: 'matrix-group', opacity: 0 });
+            svg.appendChild(matrixGroup);
+            state.elements.matrixGroup = matrixGroup;
+
+            for (let i = 0; i < config.sentence.length; i++) { // Query (row)
+                state.grid[i] = [];
+                for (let j = 0; j < config.sentence.length; j++) { // Key (column)
+                    const cell = createSVGElement('rect', {
+                        x: config.matrix.startX + j * (config.matrix.size + config.matrix.spacing),
+                        y: config.matrix.startY + i * (config.matrix.size + config.matrix.spacing),
+                        width: config.matrix.size, height: config.matrix.size, rx: 10,
+                        fill: config.matrix.fill,
+                        class: 'attention-grid-cell',
+                        'data-row': i, 'data-col': j,
+                    });
+                    matrixGroup.appendChild(cell);
+                    state.grid[i][j] = cell;
+                }
+            }
+
+            // Create causal mask
+            const maskPath = `M${config.matrix.startX - 10},${config.matrix.startY - 10} ` +
+                `L${config.matrix.startX + config.sentence.length * (config.matrix.size + config.matrix.spacing)},${config.matrix.startY - 10} ` +
+                `L${config.matrix.startX - 10},${config.matrix.startY + config.sentence.length * (config.matrix.size + config.matrix.spacing)} Z`;
+
+            state.elements.mask = createSVGElement('path', {
+                d: maskPath,
+                fill: 'var(--mask-color)',
+                'clip-path': 'url(#mask-clip)',
+                opacity: 0,
+                transform: `translate(${config.width}, 0)` // Start off-screen
+            });
+
+            const maskClipPath = createSVGElement('clipPath', { id: 'mask-clip' });
+            let clipPathData = '';
+            for (let i = 0; i < config.sentence.length; i++) {
+                for (let j = i + 1; j < config.sentence.length; j++) {
+                    const x = config.matrix.startX + j * (config.matrix.size + config.matrix.spacing) - 5;
+                    const y = config.matrix.startY + i * (config.matrix.size + config.matrix.spacing) - 5;
+                    const size = config.matrix.size + 10;
+                    clipPathData += `M${x},${y} h${size} v${size} h-${size} Z `;
+                }
+            }
+            const clipRect = createSVGElement('path', { d: clipPathData });
+            maskClipPath.appendChild(clipRect);
+            defs.appendChild(maskClipPath);
+            svg.appendChild(state.elements.mask);
+
+        }
+
+        function updateSubtitles(zh, en, duration = 0.5) {
+            const tl = gsap.timeline();
+            tl.to([zhSub, enSub], { opacity: 0, y: 15, duration: duration / 2, ease: 'power2.in' })
+                .call(() => {
+                    zhSub.innerHTML = zh;
+                    enSub.innerHTML = en;
+                })
+                .to([zhSub, enSub], { opacity: 1, y: 0, duration: duration / 2, ease: 'power2.out' });
+            return tl;
+        }
+
+        function createAttentionLines() {
+            const linesGroup = createSVGElement('g', { id: 'lines-group' });
+            svg.insertBefore(linesGroup, state.elements.matrixGroup);
+
+            for (let i = 0; i < config.sentence.length; i++) {
+                state.lines[i] = [];
+                for (let j = 0; j < config.sentence.length; j++) {
+                    const token1 = state.tokens[i];
+                    const token2 = state.tokens[j];
+                    const line = createSVGElement('line', {
+                        x1: token1.x + config.token.width / 2,
+                        y1: token1.y + config.token.height,
+                        x2: token2.x + config.token.width / 2,
+                        y2: token2.y + config.token.height,
+                        class: 'attention-line',
+                        'stroke-dasharray': 1000,
+                        'stroke-dashoffset': 1000,
+                    });
+                    linesGroup.appendChild(line);
+                    state.lines[i][j] = line;
+                }
+            }
+            state.elements.linesGroup = linesGroup;
+        }
+
+
+        function playAnimation() {
+            const tl = gsap.timeline({ delay: 0.5 });
+
+            // Scene 1: Title
+            tl.to([state.elements.title, state.elements.subtitle], { opacity: 1, duration: 1.5, ease: 'power2.out' });
+            tl.add(updateSubtitles(
+                '欢迎来到因果注意力的世界',
+                'Welcome to the world of Causal Attention'
+            ));
+            tl.to({}, { duration: 2.5 });
+
+            // Scene 2: Introduce the task
+            tl.to([state.elements.title, state.elements.subtitle], { opacity: 0, duration: 1, ease: 'power2.in' });
+            tl.add(updateSubtitles(
+                '语言模型的核心任务之一是：预测下一个词',
+                'One of a language model\'s core tasks is to predict the next word'
+            ), '+=0.5');
+            tl.to(state.tokens.map(t => t.g), {
+                opacity: 1,
+                stagger: 0.2,
+                duration: 0.5,
+                ease: 'power1.out'
+            });
+            tl.to(state.elements.cursor, { opacity: 1, duration: 0.1 });
+            tl.to({}, { duration: 2.5 });
+
+            // Scene 3: Standard Self-Attention
+            tl.add(updateSubtitles(
+                '在标准的自注意力机制中，每个词都会关注序列中的所有词',
+                'In standard Self-Attention, each word attends to all other words'
+            ));
+            tl.to(state.tokens.map(t => t.g), {
+                y: 150,
+                duration: 1,
+                ease: 'back.inOut(1.2)'
+            });
+            tl.to(state.elements.cursor, { opacity: 0, duration: 0.3 }, "<");
+            tl.to(state.elements.matrixGroup, { opacity: 1, duration: 1 }, "-=0.5");
+
+            createAttentionLines();
+
+            const allLines = state.lines.flat();
+            tl.to(allLines, {
+                strokeDashoffset: 0,
+                duration: 1.5,
+                stagger: 0.005,
+                ease: 'power2.out'
+            }, '-=0.5');
+
+            const allCells = state.grid.flat();
+            tl.to(allCells, {
+                fill: 'var(--accent-color-2)',
+                duration: 1.5,
+                stagger: {
+                    grid: [config.sentence.length, config.sentence.length],
+                    from: "edges",
+                    amount: 0.5
+                },
+                ease: 'sine.inOut'
+            }, "<");
+            tl.to({}, { duration: 2 });
+
+            // Scene 4: The Problem & The Mask
+            tl.add(updateSubtitles(
+                '但是，为了预测下一个词，模型不能“偷看”未来的信息',
+                'However, to predict the next word, the model can\'t "peek" at future information'
+            ));
+            tl.to({}, { duration: 2 });
+            tl.add(updateSubtitles(
+                '这就是“因果遮罩”(Causal Mask)的作用',
+                'This is where the "Causal Mask" comes in'
+            ));
+
+            tl.to(state.elements.mask, {
+                opacity: 1,
+                x: 0,
+                transform: 'translateX(0)',
+                duration: 1.5,
+                ease: 'power3.inOut'
+            });
+
+            // Masking animation
+            const futureLines = [];
+            const futureCells = [];
+            for (let i = 0; i < config.sentence.length; i++) {
+                for (let j = i + 1; j < config.sentence.length; j++) {
+                    futureLines.push(state.lines[i][j], state.lines[j][i]);
+                    futureCells.push(state.grid[i][j]);
+                }
+            }
+
+            // For decoder-style causal attention, only upper triangle is masked.
+            const maskedCells = [];
+            const maskedLines = [];
+            for (let i = 0; i < config.sentence.length; i++) {
+                for (let j = i + 1; j < config.sentence.length; j++) {
+                    maskedCells.push(state.grid[i][j]);
+                    maskedLines.push(state.lines[i][j]);
+                }
+            }
+
+            tl.to(maskedLines, { strokeDashoffset: 1000, duration: 1, ease: 'power2.in' }, "-=1");
+            tl.to(maskedCells, { fill: 'var(--matrix-fill)', duration: 1, ease: 'power2.in' }, "<");
+            tl.to({}, { duration: 2 });
+
+            // Scene 5: Step-by-step example
+            const focusIndex = 2; // "writes"
+            tl.add(updateSubtitles(
+                `例如，当模型计算“${config.sentence[focusIndex]}”的表示时...`,
+                `For example, when the model computes the representation for "${config.sentence[focusIndex]}"...`
+            ));
+
+            const otherTokensRects = state.tokens.filter((_, i) => i !== focusIndex).map(t => t.rect);
+            const otherTokensTexts = state.tokens.filter((_, i) => i !== focusIndex).map(t => t.text);
+            const focusToken = state.tokens[focusIndex];
+
+            tl.to(focusToken.rect, { fill: 'var(--highlight-color)', duration: 0.5 });
+            tl.to([otherTokensRects, otherTokensTexts], { opacity: 0.3, duration: 0.5 }, "<");
+
+            const allElementsToFade = state.grid.flat().concat(state.lines.flat());
+            tl.to(allElementsToFade, { opacity: 0.1, duration: 0.5 }, "<");
+
+            // Highlight the allowed connections
+            const allowedLines = [];
+            const allowedCells = [];
+            for (let j = 0; j <= focusIndex; j++) {
+                allowedLines.push(state.lines[focusIndex][j]);
+                allowedCells.push(state.grid[focusIndex][j]);
+            }
+            tl.to(allowedLines, { opacity: 1, stroke: 'var(--highlight-color)', 'stroke-width': 5, duration: 0.5 });
+            tl.to(allowedCells, { opacity: 1, fill: 'var(--highlight-color)', duration: 0.5 }, "<");
+
+            tl.to({}, { duration: 2 });
+            tl.add(updateSubtitles(
+                '...它只能关注自身和之前的所有词',
+                '...it can only attend to itself and all previous words.'
+            ));
+            tl.to({}, { duration: 2.5 });
+            tl.add(updateSubtitles(
+                '所有未来的词都被有效地“忽略”了',
+                'All future words are effectively "ignored".'
+            ));
+            tl.to({}, { duration: 2.5 });
+
+            // Scene 6: Conclusion
+            tl.to([otherTokensRects, otherTokensTexts], { opacity: 1, duration: 0.5 });
+            tl.to(focusToken.rect, { fill: 'var(--token-fill)', duration: 0.5 }, "<");
+            tl.to(allElementsToFade, { opacity: 1, duration: 0.5 }, "<");
+            tl.to(allowedLines, { stroke: 'var(--accent-color-1)', 'stroke-width': 3, duration: 0.5 }, "<");
+            tl.to(maskedLines, { opacity: 0 }, "<");
+            for (let i = 0; i < config.sentence.length; i++) {
+                for (let j = 0; j <= i; j++) {
+                    tl.to(state.grid[i][j], { fill: 'var(--accent-color-2)', opacity: 1 }, "<");
+                }
+            }
+            for (let i = 0; i < config.sentence.length; i++) {
+                for (let j = i + 1; j < config.sentence.length; j++) {
+                    tl.to(state.grid[i][j], { fill: 'var(--matrix-fill)', opacity: 1 }, "<");
+                }
+            }
+
+
+            tl.add(updateSubtitles(
+                '这种机制确保了信息只从过去流向未来，实现了“因果”关系',
+                'This ensures information only flows from the past to the future, hence "Causal"'
+            ));
+            tl.to({}, { duration: 3 });
+            tl.add(updateSubtitles(
+                '这就是因果注意力的精髓所在',
+                'And that is the essence of Causal Attention.'
+            ));
+            tl.to({}, { duration: 3 });
+
+            // Fade out
+            tl.to('#animation-container > *, #subtitle-container > *', {
+                opacity: 0,
+                duration: 2,
+                ease: 'power2.in'
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupScene();
+            playAnimation();
+        });
+
+    </script>
+</body>
+
+</html>

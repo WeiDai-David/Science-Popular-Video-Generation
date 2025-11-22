@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concept Activation Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-text-color: #343A40;
+            --secondary-text-color: #6C757D;
+            --accent-color-1: #FFB703;
+            --accent-color-2: #FB8500;
+            --glow-color: rgba(251, 133, 0, 0.5);
+            --line-color: #FFD6A5;
+            --inactive-color: #E9ECEF;
+            --inactive-text: #ADB5BD;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            width: 100%;
+            max-width: 2560px;
+            /* Max width for 2K */
+            aspect-ratio: 16 / 9;
+            position: relative;
+        }
+
+        #animation-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #FDFCFB 0%, #E2D1C3 100%);
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+        }
+
+        /* Bokeh background effect */
+        .bokeh-circle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0;
+            animation: float 20s infinite linear;
+            filter: blur(15px);
+        }
+
+        .bokeh-circle:nth-child(1) {
+            width: 20%;
+            height: 20%;
+            left: 5%;
+            top: 10%;
+            background: rgba(255, 183, 3, 0.1);
+            animation-duration: 25s;
+        }
+
+        .bokeh-circle:nth-child(2) {
+            width: 15%;
+            height: 15%;
+            left: 80%;
+            top: 20%;
+            background: rgba(251, 133, 0, 0.1);
+            animation-duration: 30s;
+        }
+
+        .bokeh-circle:nth-child(3) {
+            width: 25%;
+            height: 25%;
+            left: 30%;
+            top: 70%;
+            background: rgba(255, 214, 165, 0.1);
+            animation-duration: 20s;
+        }
+
+        .bokeh-circle:nth-child(4) {
+            width: 10%;
+            height: 10%;
+            left: 60%;
+            top: 50%;
+            background: rgba(255, 183, 3, 0.08);
+            animation-duration: 35s;
+        }
+
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(0) scale(1);
+                opacity: 0.1;
+            }
+
+            25% {
+                transform: translateY(20px) translateX(-20px) scale(1.1);
+            }
+
+            50% {
+                transform: translateY(-20px) translateX(20px) scale(1);
+                opacity: 0.15;
+            }
+
+            75% {
+                transform: translateY(20px) translateX(20px) scale(1.1);
+            }
+
+            100% {
+                transform: translateY(0) translateX(0) scale(1);
+                opacity: 0.1;
+            }
+        }
+
+        /* Title Screen */
+        .title-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .title-screen h1 {
+            font-size: 5vw;
+            /* Responsive font size */
+            color: var(--primary-text-color);
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .title-screen h2 {
+            font-size: 2.5vw;
+            color: var(--accent-color-2);
+            margin: 0;
+            font-weight: 400;
+        }
+
+        .title-screen.visible {
+            opacity: 1;
+        }
+
+        /* Concept Nodes */
+        .node {
+            position: absolute;
+            width: 10%;
+            height: 10%;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 0;
+            background-color: var(--inactive-color);
+            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+                opacity 0.8s ease,
+                background-color 0.5s ease,
+                box-shadow 0.5s ease;
+        }
+
+        .node.visible {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+
+        .node.activated {
+            background-color: var(--accent-color-1);
+            box-shadow: 0 0 30px 5px var(--glow-color);
+            animation: pulse 2s infinite;
+        }
+
+        .node.activated .cn-text {
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .node.activated .en-text {
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .node.faded {
+            opacity: 0.2;
+            transform: translate(-50%, -50%) scale(0.9);
+            box-shadow: none;
+            background-color: var(--inactive-color);
+        }
+
+        .cn-text {
+            font-size: 1.2vw;
+            font-weight: 600;
+            color: var(--inactive-text);
+            transition: color 0.5s ease;
+        }
+
+        .en-text {
+            font-size: 0.9vw;
+            font-weight: 300;
+            color: var(--inactive-text);
+            transition: color 0.5s ease;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        /* SVG for connections */
+        #connections-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .connection-line {
+            stroke: var(--line-color);
+            stroke-width: 5;
+            stroke-linecap: round;
+            fill: none;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: draw-line 1.5s ease-out forwards;
+        }
+
+        @keyframes draw-line {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* Subtitles */
+        #subtitles {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitles.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn,
+        #subtitle-en {
+            margin: 0;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        #subtitle-cn {
+            font-size: 2vw;
+            font-weight: 600;
+            color: var(--primary-text-color);
+        }
+
+        #subtitle-en {
+            font-size: 1.3vw;
+            font-weight: 300;
+            color: var(--secondary-text-color);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-wrapper">
+        <div id="animation-container">
+            <!-- Bokeh Background -->
+            <div class="bokeh-circle"></div>
+            <div class="bokeh-circle"></div>
+            <div class="bokeh-circle"></div>
+            <div class="bokeh-circle"></div>
+
+            <!-- Title Screen -->
+            <div id="title-screen" class="title-screen">
+                <h1>概念激活</h1>
+                <h2>Concept Activation</h2>
+            </div>
+
+            <!-- SVG Layer for connections -->
+            <svg id="connections-svg"></svg>
+
+            <!-- Concept Nodes will be added by JS -->
+
+            <!-- Subtitles -->
+            <div id="subtitles">
+                <p id="subtitle-cn"></p>
+                <p id="subtitle-en"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const container = document.getElementById('animation-container');
+        const svgContainer = document.getElementById('connections-svg');
+        const subtitlesEl = document.getElementById('subtitles');
+        const subtitleCnEl = document.getElementById('subtitle-cn');
+        const subtitleEnEl = document.getElementById('subtitle-en');
+        const titleScreen = document.getElementById('title-screen');
+
+        // Node positions are defined in percentages of the container size
+        // This ensures they are correctly placed regardless of the actual pixel dimensions
+        const nodePositions = {
+            cat: { x: 50, y: 50 },
+            furry: { x: 35, y: 35 },
+            meow: { x: 65, y: 35 },
+            fish: { x: 50, y: 20 },
+            warm: { x: 20, y: 25 },
+            ocean: { x: 65, y: 10 },
+            soft: { x: 25, y: 50 },
+        };
+
+        const nodeData = {
+            cat: { cn: "猫", en: "Cat" },
+            furry: { cn: "毛茸茸的", en: "Furry" },
+            meow: { cn: "喵", en: "Meow" },
+            fish: { cn: "鱼", en: "Fish" },
+            warm: { cn: "温暖", en: "Warm" },
+            ocean: { cn: "海洋", en: "Ocean" },
+            soft: { cn: "柔软", en: "Soft" },
+        };
+
+        // Create node elements
+        Object.keys(nodeData).forEach(id => {
+            const nodeInfo = nodeData[id];
+            const pos = nodePositions[id];
+            const nodeEl = document.createElement('div');
+            nodeEl.id = `node-${id}`;
+            nodeEl.className = 'node';
+            nodeEl.style.left = `${pos.x}%`;
+            nodeEl.style.top = `${pos.y}%`;
+            nodeEl.innerHTML = `
+                <span class="cn-text">${nodeInfo.cn}</span>
+                <span class="en-text">${nodeInfo.en}</span>
+            `;
+            container.appendChild(nodeEl);
+        });
+
+        function createLine(fromId, toId) {
+            const fromPos = nodePositions[fromId];
+            const toPos = nodePositions[toId];
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const d = `M ${fromPos.x}% ${fromPos.y}% L ${toPos.x}% ${toPos.y}%`;
+            line.setAttribute('d', d);
+            line.setAttribute('class', 'connection-line');
+            svgContainer.appendChild(line);
+        }
+
+        function showSubtitle(cn, en, duration) {
+            return new Promise(resolve => {
+                subtitleCnEl.textContent = cn;
+                subtitleEnEl.textContent = en;
+                subtitlesEl.classList.add('visible');
+                setTimeout(() => {
+                    subtitlesEl.classList.remove('visible');
+                    setTimeout(resolve, 500); // Wait for fade out
+                }, duration);
+            });
+        }
+
+        function showNode(id) {
+            const node = document.getElementById(`node-${id}`);
+            if (node) node.classList.add('visible');
+        }
+
+        function activateNode(id) {
+            const node = document.getElementById(`node-${id}`);
+            if (node) {
+                node.classList.add('activated');
+                // Make other nodes less prominent except the source
+                Object.keys(nodeData).forEach(nodeId => {
+                    if (nodeId !== id && document.getElementById(`node-${nodeId}`).classList.contains('activated')) {
+                        // Keep previously activated nodes visible but not pulsing
+                        document.getElementById(`node-${nodeId}`).style.animation = 'none';
+                    }
+                });
+            }
+        }
+
+        function fadeNode(id) {
+            const node = document.getElementById(`node-${id}`);
+            if (node) {
+                node.classList.remove('activated');
+                node.classList.add('faded');
+                node.style.animation = 'none';
+            }
+        }
+
+        function drawConnection(from, to) {
+            createLine(from, to);
+        }
+
+        async function startAnimation() {
+            // 1. Show Title Screen
+            titleScreen.classList.add('visible');
+            await new Promise(r => setTimeout(r, 2000));
+            titleScreen.classList.remove('visible');
+            await new Promise(r => setTimeout(r, 1000));
+
+            // 2. Introduction Subtitle
+            await showSubtitle(
+                "在我们的大脑中，知识并非孤立存在。",
+                "In our minds, knowledge isn't isolated.",
+                4000
+            );
+
+            // 3. Show the main concept "Cat"
+            await showSubtitle(
+                "当我们想到一个概念，比如‘猫’...",
+                "When we think of a concept, like 'Cat'...",
+                3500
+            );
+            showNode('cat');
+            await new Promise(r => setTimeout(r, 800));
+            activateNode('cat');
+            await new Promise(r => setTimeout(r, 2000));
+
+
+            // 4. First wave of activation
+            await showSubtitle(
+                "...与之强相关的概念就会被立刻激活。",
+                "...strongly related concepts are immediately activated.",
+                5000
+            );
+            showNode('furry');
+            showNode('meow');
+            showNode('fish');
+            await new Promise(r => setTimeout(r, 500));
+            drawConnection('cat', 'furry');
+            activateNode('furry');
+            await new Promise(r => setTimeout(r, 600));
+            drawConnection('cat', 'meow');
+            activateNode('meow');
+            await new Promise(r => setTimeout(r, 600));
+            drawConnection('cat', 'fish');
+            activateNode('fish');
+            await new Promise(r => setTimeout(r, 3000));
+
+            // 5. Spreading activation (second wave)
+            await showSubtitle(
+                "这种激活会像涟漪一样，继续扩散出去。",
+                "This activation spreads outwards, like ripples in a pond.",
+                5500
+            );
+            showNode('warm');
+            await new Promise(r => setTimeout(r, 500));
+            drawConnection('furry', 'warm');
+            activateNode('warm');
+            await new Promise(r => setTimeout(r, 800));
+
+            showNode('ocean');
+            await new Promise(r => setTimeout(r, 500));
+            drawConnection('fish', 'ocean');
+            activateNode('ocean');
+            await new Promise(r => setTimeout(r, 3000));
+
+            // 6. The complete network
+            await showSubtitle(
+                "一个概念激活另一个，形成了思维的链条。",
+                "One concept activates another, forming a chain of thought.",
+                4500
+            );
+
+            showNode('soft');
+            await new Promise(r => setTimeout(r, 500));
+            drawConnection('furry', 'soft');
+            activateNode('soft');
+            await new Promise(r => setTimeout(r, 4000));
+
+            // 7. Fading and conclusion
+            await showSubtitle(
+                "这个过程，就叫做概念激活。",
+                "This process is called Concept Activation.",
+                4000
+            );
+            fadeNode('ocean'); // Fade a less relevant concept
+            fadeNode('fish');
+            await new Promise(r => setTimeout(r, 3000));
+
+            // 8. Final Title Screen
+            titleScreen.style.backgroundColor = 'rgba(248, 249, 250, 0.8)'; // Semi-transparent overlay
+            titleScreen.classList.add('visible');
+        }
+
+        // Start the animation when the page loads
+        window.onload = startAnimation;
+
+    </script>
+</body>
+
+</html>

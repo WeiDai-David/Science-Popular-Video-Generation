@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图卷积网络 GCN 动画讲解</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #495057;
+            --primary-color: #0d6efd;
+            --primary-light-color: #cfe2ff;
+            --border-color: #dee2e6;
+            --node-color: #e9ecef;
+            --node-border-color: #adb5bd;
+            --edge-color: #ced4da;
+            --feature-color-1: #fd7e14;
+            --feature-color-2: #20c997;
+            --feature-color-3: #6f42c1;
+            --transform-box-color: #fff;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        #gcn-container {
+            position: relative;
+            width: 2560px;
+            height: 1440px;
+            transform-origin: center center;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+
+        #animation-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .title-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        .title-text h1 {
+            font-size: 100px;
+            color: var(--text-color);
+            margin: 0;
+            font-weight: 300;
+        }
+
+        .title-text p {
+            font-size: 50px;
+            color: var(--node-border-color);
+            margin-top: 20px;
+            font-weight: 300;
+        }
+
+        #subtitles {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitles p {
+            margin: 5px 0;
+            font-weight: 400;
+        }
+
+        #subtitle-cn {
+            font-size: 42px;
+            color: var(--text-color);
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            color: var(--node-border-color);
+        }
+
+        /* SVG Element Styles */
+        .node {
+            transition: all 0.5s ease-in-out;
+        }
+
+        .node-circle {
+            fill: var(--node-color);
+            stroke: var(--node-border-color);
+            stroke-width: 6px;
+            transition: all 0.5s ease-in-out;
+        }
+
+        .node-label {
+            font-size: 40px;
+            fill: var(--text-color);
+            font-weight: 500;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .edge {
+            stroke: var(--edge-color);
+            stroke-width: 5px;
+            transition: all 0.5s ease-in-out;
+        }
+
+        .feature-bar {
+            transition: all 0.5s ease-in-out;
+        }
+
+        /* Animation Classes */
+        .fade-in {
+            opacity: 1 !important;
+        }
+
+        .fade-out {
+            opacity: 0 !important;
+        }
+
+        .dimmed {
+            opacity: 0.2;
+        }
+
+        .highlighted .node-circle {
+            stroke: var(--primary-color);
+            stroke-width: 10px;
+            fill: var(--primary-light-color);
+        }
+
+        .neighbor .node-circle {
+            stroke: var(--feature-color-1);
+            stroke-width: 8px;
+        }
+
+        .highlighted-edge {
+            stroke: var(--primary-color);
+            opacity: 0.7;
+        }
+
+        .transform-box {
+            opacity: 0;
+        }
+
+        .transform-box-rect {
+            fill: var(--transform-box-color);
+            stroke: var(--primary-color);
+            stroke-width: 6px;
+            rx: 20;
+            ry: 20;
+        }
+
+        .transform-box-text {
+            font-size: 80px;
+            font-weight: bold;
+            fill: var(--primary-color);
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        /* Keyframe Animations */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .pulse {
+            animation: pulse 1s ease-in-out;
+        }
+
+        @keyframes draw-line {
+            from {
+                stroke-dashoffset: 1000;
+            }
+
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .edge-draw {
+            stroke-dasharray: 1000;
+            animation: draw-line 1s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="gcn-container">
+        <div id="title-container">
+            <div id="main-title" class="title-text">
+                <h1>图卷积网络</h1>
+                <p>Graph Convolutional Networks</p>
+            </div>
+            <div id="final-title" class="title-text" style="opacity: 0;">
+                <h1>图卷积：连接的智慧</h1>
+                <p>Graph Convolution: The Wisdom of Connections</p>
+            </div>
+        </div>
+
+        <svg id="animation-svg"></svg>
+
+        <div id="subtitles">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        // --- UTILITY FUNCTIONS ---
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const svgNS = "http://www.w3.org/2000/svg";
+
+        // --- DOM ELEMENTS ---
+        const container = document.getElementById('gcn-container');
+        const svg = document.getElementById('animation-svg');
+        const mainTitle = document.getElementById('main-title');
+        const finalTitle = document.getElementById('final-title');
+        const subtitlesContainer = document.getElementById('subtitles');
+        const subtitleCN = document.getElementById('subtitle-cn');
+        const subtitleEN = document.getElementById('subtitle-en');
+
+        // --- CONFIGURATION ---
+        const NODE_RADIUS = 80;
+        const FEATURE_BAR_WIDTH = 30;
+        const FEATURE_BAR_GAP = 10;
+        const NODES_CONFIG = {
+            'A': { x: 1280, y: 450, features: [0.8, 0.4, 0.6] },
+            'B': { x: 880, y: 720, features: [0.3, 0.9, 0.5] },
+            'C': { x: 1680, y: 720, features: [0.7, 0.2, 0.8] },
+            'D': { x: 1280, y: 1000, features: [0.5, 0.6, 0.9] },
+            'E': { x: 600, y: 1050, features: [0.9, 0.7, 0.3] },
+            'F': { x: 1960, y: 1050, features: [0.4, 0.8, 0.2] }
+        };
+        const EDGES_CONFIG = [
+            ['A', 'B'], ['A', 'C'], ['A', 'D'],
+            ['B', 'D'], ['B', 'E'],
+            ['C', 'D'], ['C', 'F']
+        ];
+        const FEATURE_COLORS = ['var(--feature-color-1)', 'var(--feature-color-2)', 'var(--feature-color-3)'];
+
+        // --- STATE MANAGEMENT ---
+        let elements = {
+            nodes: {},
+            edges: {},
+            features: {},
+        };
+
+        // --- RESIZE LOGIC ---
+        function resizeContainer() {
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const containerWidth = 2560;
+            const containerHeight = 1440;
+
+            const scale = Math.min(viewportWidth / containerWidth, viewportHeight / containerHeight);
+            container.style.transform = `scale(${scale})`;
+        }
+
+        // --- ANIMATION HELPERS ---
+        async function updateSubtitles(cn, en, duration = 500) {
+            subtitlesContainer.classList.add('fade-out');
+            await sleep(duration);
+            subtitleCN.textContent = cn;
+            subtitleEN.textContent = en;
+            subtitlesContainer.classList.remove('fade-out');
+            subtitlesContainer.classList.add('fade-in');
+        }
+
+        async function clearSubtitles(duration = 500) {
+            subtitlesContainer.classList.remove('fade-in');
+            subtitlesContainer.classList.add('fade-out');
+            await sleep(duration);
+        }
+
+        function createFeatureBars(nodeId, config, group) {
+            const featureGroup = document.createElementNS(svgNS, 'g');
+            featureGroup.setAttribute('class', 'feature-group');
+            const totalWidth = config.features.length * FEATURE_BAR_WIDTH + (config.features.length - 1) * FEATURE_BAR_GAP;
+            const startX = config.x - totalWidth / 2;
+
+            config.features.forEach((value, i) => {
+                const bar = document.createElementNS(svgNS, 'rect');
+                const barHeight = value * (NODE_RADIUS * 1.2);
+                bar.setAttribute('x', startX + i * (FEATURE_BAR_WIDTH + FEATURE_BAR_GAP));
+                bar.setAttribute('y', config.y - barHeight / 2);
+                bar.setAttribute('width', FEATURE_BAR_WIDTH);
+                bar.setAttribute('height', barHeight);
+                bar.setAttribute('fill', FEATURE_COLORS[i]);
+                bar.setAttribute('rx', 5);
+                bar.setAttribute('ry', 5);
+                bar.setAttribute('class', 'feature-bar');
+                featureGroup.appendChild(bar);
+            });
+            group.appendChild(featureGroup);
+            return featureGroup;
+        }
+
+        // --- ANIMATION SEQUENCE ---
+        async function mainAnimation() {
+            // --- SCENE 1: INTRODUCTION ---
+            await sleep(500);
+            mainTitle.classList.add('fade-in');
+            await updateSubtitles("我们生活在一个充满连接的世界里。", "We live in a world full of connections.");
+            await sleep(3500);
+            mainTitle.classList.remove('fade-in');
+            mainTitle.classList.add('fade-out');
+            await sleep(1000);
+
+            // --- SCENE 2: PRESENT THE GRAPH ---
+            await updateSubtitles("这些连接可以被抽象为一种数据结构：图。", "These connections can be represented as a data structure: a Graph.");
+
+            const edgesGroup = document.createElementNS(svgNS, 'g');
+            edgesGroup.id = 'edges-group';
+            svg.appendChild(edgesGroup);
+
+            const nodesGroup = document.createElementNS(svgNS, 'g');
+            nodesGroup.id = 'nodes-group';
+            svg.appendChild(nodesGroup);
+
+            // Draw edges first so they are behind nodes
+            for (const [u, v] of EDGES_CONFIG) {
+                const edge = document.createElementNS(svgNS, 'line');
+                const posU = NODES_CONFIG[u];
+                const posV = NODES_CONFIG[v];
+                edge.setAttribute('x1', posU.x);
+                edge.setAttribute('y1', posU.y);
+                edge.setAttribute('x2', posV.x);
+                edge.setAttribute('y2', posV.y);
+                edge.setAttribute('class', 'edge edge-draw');
+                elements.edges[`${u}-${v}`] = edge;
+                elements.edges[`${v}-${u}`] = edge;
+                edgesGroup.appendChild(edge);
+            }
+
+            await sleep(1000);
+            await updateSubtitles("图由节点（Nodes）和边（Edges）构成。", "A graph consists of nodes and edges.");
+
+            for (const [id, config] of Object.entries(NODES_CONFIG)) {
+                const nodeGroup = document.createElementNS(svgNS, 'g');
+                nodeGroup.id = `node-${id}`;
+                nodeGroup.setAttribute('class', 'node fade-out');
+
+                const circle = document.createElementNS(svgNS, 'circle');
+                circle.setAttribute('cx', config.x);
+                circle.setAttribute('cy', config.y);
+                circle.setAttribute('r', NODE_RADIUS);
+                circle.setAttribute('class', 'node-circle');
+
+                const label = document.createElementNS(svgNS, 'text');
+                label.setAttribute('x', config.x);
+                label.setAttribute('y', config.y);
+                label.setAttribute('class', 'node-label');
+                label.textContent = id;
+
+                nodeGroup.appendChild(circle);
+
+                // Features are initially hidden
+                const featureGroup = createFeatureBars(id, config, nodeGroup);
+                featureGroup.style.opacity = '0';
+                elements.features[id] = featureGroup;
+
+                nodeGroup.appendChild(label);
+                nodesGroup.appendChild(nodeGroup);
+                elements.nodes[id] = nodeGroup;
+            }
+
+            Object.values(elements.nodes).forEach(node => {
+                node.classList.remove('fade-out');
+                node.classList.add('fade-in');
+            });
+
+            await sleep(3000);
+
+            await updateSubtitles("在图网络中，每个节点都拥有自己的特征（Features）。", "In a graph network, each node has its own features.");
+
+            for (const [id, featureGroup] of Object.entries(elements.features)) {
+                elements.nodes[id].querySelector('.node-label').style.opacity = '0';
+                featureGroup.style.transition = 'opacity 0.5s';
+                featureGroup.style.opacity = '1';
+            }
+
+            await sleep(4000);
+
+            // --- SCENE 3: FOCUS ON A TARGET NODE ---
+            await updateSubtitles("图卷积的核心思想，是聚合邻居信息来更新自己。", "The core idea of graph convolution is to update a node by aggregating information from its neighbors.");
+
+            const allNodes = Object.values(elements.nodes);
+            const allEdges = document.querySelectorAll('.edge');
+            const targetNodeId = 'A';
+            const targetNode = elements.nodes[targetNodeId];
+            const neighborIds = ['B', 'C', 'D'];
+
+            allNodes.forEach(node => node.classList.add('dimmed'));
+            allEdges.forEach(edge => edge.classList.add('dimmed'));
+
+            targetNode.classList.remove('dimmed');
+            targetNode.classList.add('highlighted');
+
+            neighborIds.forEach(id => {
+                elements.nodes[id].classList.remove('dimmed');
+                elements.nodes[id].classList.add('neighbor');
+                elements.edges[`${targetNodeId}-${id}`].classList.remove('dimmed');
+                elements.edges[`${targetNodeId}-${id}`].classList.add('highlighted-edge');
+            });
+
+            await sleep(4000);
+
+            // --- SCENE 4: AGGREGATION ---
+            await updateSubtitles("第一步：聚合（Aggregate）。", "Step 1: Aggregate.");
+            await sleep(2000);
+            await updateSubtitles("目标节点收集自身及其所有邻居节点的特征。", "The target node gathers features from itself and all its neighbors.");
+
+            const nodesToAggregate = [targetNodeId, ...neighborIds];
+            const flyingFeatures = [];
+            const targetPos = NODES_CONFIG[targetNodeId];
+
+            nodesToAggregate.forEach((id, index) => {
+                const originalFeatures = elements.features[id];
+                const flyingClone = originalFeatures.cloneNode(true);
+                flyingClone.style.transition = 'transform 1.5s cubic-bezier(0.6, -0.28, 0.735, 0.045)';
+                svg.appendChild(flyingClone);
+                flyingFeatures.push(flyingClone);
+
+                setTimeout(() => {
+                    const offsetX = (index - (nodesToAggregate.length - 1) / 2) * 200;
+                    flyingClone.style.transform = `translate(${targetPos.x - NODES_CONFIG[id].x + offsetX}px, ${targetPos.y - NODES_CONFIG[id].y + 250}px)`;
+                }, 100);
+            });
+
+            await sleep(2500);
+
+            // Animate aggregation into one feature vector
+            const aggregatedFeatures = flyingFeatures[0].cloneNode(true);
+            aggregatedFeatures.style.transition = 'all 1s ease-in-out';
+            svg.appendChild(aggregatedFeatures);
+
+            // Calculate average features
+            const avgFeatures = [0, 0, 0];
+            nodesToAggregate.forEach(id => {
+                NODES_CONFIG[id].features.forEach((val, i) => avgFeatures[i] += val);
+            });
+            avgFeatures.forEach((val, i) => avgFeatures[i] /= nodesToAggregate.length);
+
+            flyingFeatures.forEach((group, index) => {
+                group.style.transition = 'all 1s ease-in-out';
+                group.style.transform = `${group.style.transform} scale(0.1)`;
+                group.style.opacity = '0';
+            });
+
+            await sleep(1000);
+
+            const aggTotalWidth = avgFeatures.length * FEATURE_BAR_WIDTH + (avgFeatures.length - 1) * FEATURE_BAR_GAP;
+            const aggStartX = targetPos.x - aggTotalWidth / 2;
+
+            Array.from(aggregatedFeatures.children).forEach((bar, i) => {
+                const newHeight = avgFeatures[i] * (NODE_RADIUS * 1.2);
+                bar.setAttribute('y', targetPos.y + 250 - newHeight / 2);
+                bar.setAttribute('x', aggStartX);
+                bar.setAttribute('height', newHeight);
+            });
+
+            flyingFeatures.forEach(f => f.remove());
+            await sleep(2000);
+
+            // --- SCENE 5: TRANSFORMATION ---
+            await updateSubtitles("第二步：变换（Transform）。", "Step 2: Transform.");
+            await sleep(2000);
+            await updateSubtitles("聚合后的信息会经过一个线性变换（乘以权重W）...", "The aggregated information goes through a linear transformation (multiplied by weights W)...");
+
+            const transformBoxW = document.createElementNS(svgNS, 'g');
+            transformBoxW.setAttribute('class', 'transform-box');
+            transformBoxW.innerHTML = `
+            <rect class="transform-box-rect" x="1800" y="670" width="300" height="200"></rect>
+            <text class="transform-box-text" x="1950" y="770">W</text>
+        `;
+            svg.appendChild(transformBoxW);
+
+            const transformBoxReLU = document.createElementNS(svgNS, 'g');
+            transformBoxReLU.setAttribute('class', 'transform-box');
+            transformBoxReLU.innerHTML = `
+            <rect class="transform-box-rect" x="2200" y="670" width="300" height="200"></rect>
+            <text class="transform-box-text" x="2350" y="770">ReLU</text>
+        `;
+            svg.appendChild(transformBoxReLU);
+
+            transformBoxW.style.transition = 'opacity 1s';
+            transformBoxW.style.opacity = '1';
+
+            aggregatedFeatures.style.transform = `translate(700px, 320px)`;
+
+            await sleep(2000);
+
+            // Simulate transformation
+            Array.from(aggregatedFeatures.children).forEach((bar, i) => {
+                const newHeight = [0.9, 0.2, 0.7][i] * (NODE_RADIUS * 1.2);
+                bar.setAttribute('height', newHeight);
+                bar.setAttribute('y', targetPos.y + 250 - newHeight / 2);
+                bar.style.fill = ['#ffc107', '#198754', '#6610f2'][i];
+            });
+
+            await sleep(2000);
+            await updateSubtitles("...和一个非线性激活函数（如ReLU）。", "...and a non-linear activation function (like ReLU).");
+
+            transformBoxReLU.style.transition = 'opacity 1s';
+            transformBoxReLU.style.opacity = '1';
+            aggregatedFeatures.style.transform = `translate(1100px, 320px)`;
+
+            await sleep(2000);
+
+            // Simulate ReLU (e.g., one bar was negative and becomes 0)
+            // Here we just slightly change it for visual effect
+            const finalFeatureValues = [0.9, 0.0, 0.7]; // one became 0
+            Array.from(aggregatedFeatures.children).forEach((bar, i) => {
+                const newHeight = finalFeatureValues[i] * (NODE_RADIUS * 1.2);
+                bar.setAttribute('height', newHeight);
+                bar.setAttribute('y', targetPos.y + 250 - newHeight / 2);
+            });
+
+            await sleep(2000);
+
+            // --- SCENE 6: UPDATE ---
+            await updateSubtitles("这就得到了节点更新后的新特征。", "This results in the node's new, updated features.");
+
+            transformBoxW.style.opacity = '0';
+            transformBoxReLU.style.opacity = '0';
+
+            aggregatedFeatures.style.transition = 'transform 2s cubic-bezier(0.165, 0.84, 0.44, 1)';
+            aggregatedFeatures.style.transform = `translate(0, 0)`;
+
+            await sleep(2000);
+
+            const oldFeatures = elements.features[targetNodeId];
+            oldFeatures.style.transition = 'opacity 1s';
+            oldFeatures.style.opacity = '0';
+
+            await sleep(1000);
+            oldFeatures.remove();
+            elements.features[targetNodeId] = aggregatedFeatures;
+
+            targetNode.classList.add('pulse');
+
+            await sleep(2000);
+            await updateSubtitles("这个过程同时在图中的每一个节点上发生。", "This process happens for every node in the graph simultaneously.");
+
+            // Reset styles and show all nodes updating
+            allNodes.forEach(node => {
+                node.classList.remove('dimmed', 'highlighted', 'neighbor');
+            });
+            allEdges.forEach(edge => {
+                edge.classList.remove('dimmed', 'highlighted-edge');
+            });
+
+            await sleep(1000);
+
+            for (const [id, node] of Object.entries(elements.nodes)) {
+                if (id !== targetNodeId) {
+                    const featureGroup = elements.features[id];
+                    const newValues = [Math.random(), Math.random(), Math.random()];
+                    Array.from(featureGroup.children).forEach((bar, i) => {
+                        const barHeight = newValues[i] * (NODE_RADIUS * 1.2);
+                        bar.style.transition = 'all 1s ease-in-out';
+                        bar.setAttribute('height', barHeight);
+                        bar.setAttribute('y', NODES_CONFIG[id].y - barHeight / 2);
+                    });
+                }
+            }
+
+            allNodes.forEach(node => node.classList.add('pulse'));
+
+            await sleep(3000);
+
+            // --- SCENE 7: CONCLUSION ---
+            await updateSubtitles("通过堆叠多层图卷积...", "By stacking multiple graph convolution layers...");
+            await sleep(3000);
+            await updateSubtitles("我们就能捕捉到图中更复杂的模式和结构。", "...we can capture more complex patterns and structures in the graph.");
+            await sleep(3000);
+
+            await clearSubtitles();
+
+            svg.style.transition = 'opacity 2s';
+            svg.style.opacity = '0';
+
+            await sleep(1000);
+
+            finalTitle.classList.add('fade-in');
+        }
+
+
+        // --- INITIALIZATION ---
+        window.addEventListener('load', () => {
+            resizeContainer();
+            window.addEventListener('resize', resizeContainer);
+            mainAnimation();
+        });
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Understanding Global Average Pooling</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color: #F8F9FA;
+            --primary-color: #007BFF;
+            --secondary-color: #28A745;
+            --accent-color: #FFC107;
+            --text-color: #343A40;
+            --light-text-color: #6C757D;
+            --border-color: #DEE2E6;
+            --cube-face-color: rgba(0, 123, 255, 0.1);
+            --cube-edge-color: rgba(0, 123, 255, 0.5);
+            --highlight-color: rgba(255, 193, 7, 0.4);
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
+        }
+
+        #container {
+            width: 2560px;
+            height: 1440px;
+            position: relative;
+            background-color: var(--bg-color);
+            transform-origin: top left;
+        }
+
+        #scene {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #subtitles-container {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            padding: 20px 40px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #subtitles-container.visible {
+            opacity: 1;
+        }
+
+        #subtitle-cn {
+            font-size: 42px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0 0 10px 0;
+        }
+
+        #subtitle-en {
+            font-size: 28px;
+            font-weight: 300;
+            color: var(--light-text-color);
+            margin: 0;
+        }
+
+        /* Animation utility classes */
+        .fade-in {
+            animation: fadeIn 1s ease-in-out forwards;
+        }
+
+        .fade-out {
+            animation: fadeOut 1s ease-in-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="container">
+        <svg id="scene"></svg>
+        <div id="subtitles-container">
+            <p id="subtitle-cn"></p>
+            <p id="subtitle-en"></p>
+        </div>
+    </div>
+
+    <script>
+        const SVG_NS = "http://www.w3.org/2000/svg";
+        const W = 2560;
+        const H = 1440;
+
+        const scene = document.getElementById('scene');
+        const subtitlesContainer = document.getElementById('subtitles-container');
+        const subtitleCn = document.getElementById('subtitle-cn');
+        const subtitleEn = document.getElementById('subtitle-en');
+
+        // --- Helper Functions to create SVG elements ---
+
+        function createText(text, x, y, size, weight, color, anchor = 'middle') {
+            const el = document.createElementNS(SVG_NS, 'text');
+            el.setAttribute('x', x);
+            el.setAttribute('y', y);
+            el.setAttribute('font-size', size);
+            el.setAttribute('font-weight', weight);
+            el.setAttribute('fill', color);
+            el.setAttribute('text-anchor', anchor);
+            el.setAttribute('dominant-baseline', 'middle');
+            el.textContent = text;
+            el.style.opacity = 0;
+            return el;
+        }
+
+        function createRect(x, y, width, height, fill, stroke, strokeWidth = 2) {
+            const el = document.createElementNS(SVG_NS, 'rect');
+            el.setAttribute('x', x);
+            el.setAttribute('y', y);
+            el.setAttribute('width', width);
+            el.setAttribute('height', height);
+            el.setAttribute('fill', fill);
+            el.setAttribute('stroke', stroke);
+            el.setAttribute('stroke-width', strokeWidth);
+            el.style.opacity = 0;
+            return el;
+        }
+
+        function createLine(x1, y1, x2, y2, stroke, strokeWidth = 2) {
+            const el = document.createElementNS(SVG_NS, 'line');
+            el.setAttribute('x1', x1);
+            el.setAttribute('y1', y1);
+            el.setAttribute('x2', x2);
+            el.setAttribute('y2', y2);
+            el.setAttribute('stroke', stroke);
+            el.setAttribute('stroke-width', strokeWidth);
+            el.style.opacity = 0;
+            return el;
+        }
+
+        function createPath(d, fill, stroke, strokeWidth = 2) {
+            const el = document.createElementNS(SVG_NS, 'path');
+            el.setAttribute('d', d);
+            el.setAttribute('fill', fill);
+            el.setAttribute('stroke', stroke);
+            el.setAttribute('stroke-width', strokeWidth);
+            el.style.opacity = 0;
+            return el;
+        }
+
+        function createIcon(pathData, x, y, size, color) {
+            const g = document.createElementNS(SVG_NS, 'g');
+            g.setAttribute('transform', `translate(${x}, ${y}) scale(${size / 24})`);
+            const path = document.createElementNS(SVG_NS, 'path');
+            path.setAttribute('d', pathData);
+            path.setAttribute('fill', color);
+            g.appendChild(path);
+            g.style.opacity = 0;
+            return g;
+        }
+
+        // --- Animation Timeline ---
+        const timeline = [
+            // 0: Title
+            {
+                duration: 4000,
+                run: () => {
+                    updateSubtitles(
+                        "什么是全局平均池化?",
+                        "What is Global Average Pooling?"
+                    );
+                    const title = createText("Global Average Pooling", W / 2, H / 2 - 50, 100, 600, 'var(--primary-color)');
+                    const subtitle = createText("全局平均池化", W / 2, H / 2 + 50, 60, 400, 'var(--text-color)');
+                    scene.append(title, subtitle);
+                    animate(title, { opacity: [0, 1], transform: ['translateY(20px)', 'translateY(0)'] }, 1000);
+                    animate(subtitle, { opacity: [0, 1], transform: ['translateY(20px)', 'translateY(0)'] }, 1000, 500);
+                }
+            },
+            // 1: The Problem - Traditional CNN
+            {
+                duration: 6000,
+                run: () => {
+                    clearScene();
+                    updateSubtitles(
+                        "在传统的卷积神经网络末端, 我们会得到一些高维度的特征图。",
+                        "At the end of a traditional CNN, we get high-dimensional feature maps."
+                    );
+
+                    const group = create3DCube(W / 2 - 400, H / 2, 200, 200, 300, 'var(--cube-face-color)', 'var(--cube-edge-color)');
+                    scene.appendChild(group);
+                    animate(group, { opacity: [0, 1] }, 1000);
+
+                    const label = createText("7 x 7 x 512", W / 2 - 400, H / 2 + 200, 40, 400, 'var(--text-color)');
+                    scene.appendChild(label);
+                    animate(label, { opacity: [0, 1] }, 1000);
+
+                    const desc = createText("Feature Maps", W / 2 - 400, H / 2 - 200, 50, 600, 'var(--text-color)');
+                    scene.appendChild(desc);
+                    animate(desc, { opacity: [0, 1] }, 1000);
+                }
+            },
+            // 2: Flattening
+            {
+                duration: 6000,
+                run: () => {
+                    updateSubtitles(
+                        "为了连接全连接层, 传统方法是将其“展平”成一个巨大的向量。",
+                        "To connect to a fully connected layer, the traditional method is to 'flatten' it into a huge vector."
+                    );
+
+                    const arrow = createArrow(W / 2 - 100, H / 2, W / 2 + 100, H / 2);
+                    const flattenText = createText("Flatten / 展平", W / 2, H / 2 - 50, 30, 400, 'var(--light-text-color)');
+                    scene.append(arrow, flattenText);
+                    animate(arrow, { opacity: [0, 1] }, 500);
+                    animate(flattenText, { opacity: [0, 1] }, 500);
+
+                    const flatVector = createRect(W / 2 + 150, H / 2 - 15, 800, 30, 'var(--secondary-color)', 'var(--secondary-color)');
+                    flatVector.setAttribute('rx', 15);
+                    scene.appendChild(flatVector);
+                    animate(flatVector, { opacity: [0, 1], width: [0, 800] }, 1500);
+
+                    const flatLabel = createText("1 x 25088", W / 2 + 550, H / 2 + 50, 40, 400, 'var(--text-color)');
+                    scene.appendChild(flatLabel);
+                    animate(flatLabel, { opacity: [0, 1] }, 1000, 1000);
+                }
+            },
+            // 3: The Overfitting Problem
+            {
+                duration: 6000,
+                run: () => {
+                    updateSubtitles(
+                        "这会产生巨量的参数, 极易导致模型过拟合。",
+                        "This creates a massive number of parameters, which can easily lead to model overfitting."
+                    );
+
+                    const fcLayer = createRect(W / 2 + 1050, H / 2 - 150, 50, 300, 'var(--accent-color)', 'var(--accent-color)');
+                    fcLayer.setAttribute('rx', 10);
+                    scene.appendChild(fcLayer);
+                    animate(fcLayer, { opacity: [0, 1] }, 1000);
+
+                    const fcText = createText("Fully Connected Layer", W / 2 + 1075, H / 2 + 200, 30, 400, 'var(--light-text-color)', 'middle');
+                    scene.appendChild(fcText);
+                    animate(fcText, { opacity: [0, 1] }, 1000);
+
+                    // Draw many lines to represent connections
+                    for (let i = 0; i < 10; i++) {
+                        const line = createLine(W / 2 + 150 + 800, H / 2, W / 2 + 1050, H / 2 - 140 + i * 30);
+                        line.setAttribute('stroke', 'var(--border-color)');
+                        scene.appendChild(line);
+                        animate(line, { opacity: [0, 0.5] }, 500, 1000 + i * 50);
+                    }
+
+                    const warningGroup = document.createElementNS(SVG_NS, 'g');
+                    const warningRect = createRect(W / 2 + 300, H / 2 + 100, 600, 100, 'rgba(255,0,0,0.1)', 'rgba(255,0,0,0.5)');
+                    warningRect.setAttribute('rx', 20);
+                    const warningText = createText("大量参数 (容易过拟合)", W / 2 + 600, H / 2 + 150, 32, 600, 'rgb(200,0,0)');
+                    warningGroup.append(warningRect, warningText);
+                    scene.appendChild(warningGroup);
+                    animate(warningGroup, { opacity: [0, 1] }, 1000, 2000);
+                }
+            },
+            // 4: Introducing GAP
+            {
+                duration: 5000,
+                run: () => {
+                    clearScene();
+                    updateSubtitles(
+                        "全局平均池化(GAP)提供了一种优雅的解决方案。",
+                        "Global Average Pooling (GAP) offers an elegant solution."
+                    );
+
+                    const group = create3DCube(W / 2, H / 2, 200, 200, 300, 'var(--cube-face-color)', 'var(--cube-edge-color)');
+                    scene.appendChild(group);
+                    animate(group, { opacity: [0, 1] }, 1000);
+
+                    const label = createText("7 x 7 x 512", W / 2, H / 2 + 200, 40, 400, 'var(--text-color)');
+                    scene.appendChild(label);
+                    animate(label, { opacity: [0, 1] }, 1000);
+                }
+            },
+            // 5: How GAP Works - Focus on one channel
+            {
+                duration: 7000,
+                run: () => {
+                    updateSubtitles(
+                        "它的原理很简单: 对每一个特征图通道, 计算所有像素的平均值。",
+                        "Its principle is simple: for each feature map channel, calculate the average of all its pixel values."
+                    );
+
+                    const oldCube = scene.querySelector('g');
+                    animate(oldCube, { transform: ['scale(1)', 'scale(0.8) translateX(-1000px)'] }, 1000);
+
+                    const gridGroup = document.createElementNS(SVG_NS, 'g');
+                    const gridSize = 420;
+                    const cellSize = gridSize / 7;
+
+                    const gridRect = createRect(W / 2 - gridSize / 2, H / 2 - gridSize / 2, gridSize, gridSize, 'white', 'var(--border-color)');
+                    gridGroup.appendChild(gridRect);
+                    animate(gridRect, { opacity: [0, 1] }, 500);
+
+                    for (let i = 0; i < 7; i++) {
+                        for (let j = 0; j < 7; j++) {
+                            const cellText = createText(
+                                (Math.random() * 2).toFixed(1),
+                                W / 2 - gridSize / 2 + cellSize * (j + 0.5),
+                                H / 2 - gridSize / 2 + cellSize * (i + 0.5),
+                                24, 300, 'var(--light-text-color)'
+                            );
+                            gridGroup.appendChild(cellText);
+                            animate(cellText, { opacity: [0, 1] }, 500, 500 + (i * 7 + j) * 20);
+                        }
+                    }
+
+                    const channelLabel = createText("一个通道 (7x7)", W / 2, H / 2 - gridSize / 2 - 50, 40, 600, 'var(--text-color)');
+                    gridGroup.appendChild(channelLabel);
+                    animate(channelLabel, { opacity: [0, 1] }, 500);
+
+                    scene.appendChild(gridGroup);
+
+                    const highlight = createRect(W / 2 - gridSize / 2, H / 2 - gridSize / 2, gridSize, gridSize, 'var(--highlight-color)', 'var(--accent-color)', 4);
+                    highlight.style.opacity = 1;
+                    highlight.style.transformOrigin = 'center';
+                    scene.appendChild(highlight);
+                    animate(highlight, { opacity: [0, 1, 0], transform: ['scale(0)', 'scale(1)', 'scale(1.1)'] }, 2000, 2500);
+                }
+            },
+            // 6: Calculation
+            {
+                duration: 5000,
+                run: () => {
+                    updateSubtitles(
+                        "将这个平均值, 作为这个通道的唯一输出。",
+                        "This average value becomes the single output for this entire channel."
+                    );
+
+                    const arrow = createArrow(W / 2 + 250, H / 2, W / 2 + 450, H / 2);
+                    const avgText = createText("Average / 求平均", W / 2 + 350, H / 2 - 50, 30, 400, 'var(--light-text-color)');
+                    scene.append(arrow, avgText);
+                    animate(arrow, { opacity: [0, 1] }, 500);
+                    animate(avgText, { opacity: [0, 1] }, 500);
+
+                    const resultBox = createRect(W / 2 + 500, H / 2 - 50, 100, 100, 'white', 'var(--secondary-color)', 4);
+                    resultBox.setAttribute('rx', 10);
+                    const resultText = createText('1.2', W / 2 + 550, H / 2, 40, 600, 'var(--secondary-color)');
+                    scene.append(resultBox, resultText);
+
+                    animate(resultBox, { opacity: [0, 1], transform: ['scale(0.5)', 'scale(1)'] }, 1000, 500);
+                    animate(resultText, { opacity: [0, 1] }, 1000, 500);
+                }
+            },
+            // 7: Apply to all channels
+            {
+                duration: 8000,
+                run: () => {
+                    clearScene();
+                    updateSubtitles(
+                        "对所有512个通道重复此过程...",
+                        "Repeating this for all 512 channels..."
+                    );
+
+                    const startCube = create3DCube(W / 2 - 600, H / 2, 200, 200, 300, 'var(--cube-face-color)', 'var(--cube-edge-color)');
+                    const startLabel = createText("7 x 7 x 512", W / 2 - 600, H / 2 + 200, 40, 400, 'var(--text-color)');
+                    scene.append(startCube, startLabel);
+                    animate(startCube, { opacity: [0, 1] }, 1000);
+                    animate(startLabel, { opacity: [0, 1] }, 1000);
+
+                    const arrow = createArrow(W / 2 - 200, H / 2, W / 2, H / 2);
+                    const gapText = createText("Global Average Pooling", W / 2 - 100, H / 2 - 50, 30, 400, 'var(--light-text-color)');
+                    scene.append(arrow, gapText);
+                    animate(arrow, { opacity: [0, 1] }, 500, 1000);
+                    animate(gapText, { opacity: [0, 1] }, 500, 1000);
+
+                    // Animate collapsing channels
+                    for (let i = 0; i < 10; i++) {
+                        const slice = createPath(`M-100,-100 L100,-100 L130,-70 L30,-70 Z`, `rgba(0,123,255,${0.1 + i * 0.02})`, 'var(--cube-edge-color)', 2);
+                        const depth = 300 - i * 30;
+                        slice.setAttribute('transform', `translate(${W / 2 - 600 + depth * 0.5}, ${H / 2 - depth * 0.25})`);
+                        scene.appendChild(slice);
+                        animate(slice, {
+                            transform: [
+                                `translate(${W / 2 - 600 + depth * 0.5}, ${H / 2 - depth * 0.25}) scale(1)`,
+                                `translate(${W / 2 + 200 + i * 1.5}, ${H / 2 - 75 + i * 15}) scale(0.05)`
+                            ],
+                            opacity: [1, 0]
+                        }, 1500, 1500 + i * 200);
+                    }
+
+                    setTimeout(() => {
+                        updateSubtitles(
+                            "...我们就得到了一个长度为512的特征向量。",
+                            "...we get a feature vector of length 512."
+                        );
+                        const endVector = create3DCube(W / 2 + 200, H / 2, 15, 15, 300, 'var(--secondary-color)', 'var(--secondary-color)');
+                        const endLabel = createText("1 x 1 x 512", W / 2 + 200, H / 2 + 200, 40, 400, 'var(--text-color)');
+                        scene.append(endVector, endLabel);
+                        animate(endVector, { opacity: [0, 1] }, 1000);
+                        animate(endLabel, { opacity: [0, 1] }, 1000);
+                    }, 4000);
+                }
+            },
+            // 8: Benefits
+            {
+                duration: 8000,
+                run: () => {
+                    clearScene();
+                    updateSubtitles(
+                        "全局平均池化有诸多优点。",
+                        "Global Average Pooling has several key advantages."
+                    );
+
+                    const title = createText("优点 / Advantages", W / 2, 200, 70, 600, 'var(--text-color)');
+                    scene.appendChild(title);
+                    animate(title, { opacity: [0, 1] }, 1000);
+
+                    const benefits = [
+                        {
+                            cn: "大幅减少参数",
+                            en: "Drastically reduces parameters",
+                            icon: "M12 1.5a10.5 10.5 0 1 0 10.5 10.5A10.51 10.51 0 0 0 12 1.5zm0 19.5a9 9 0 1 1 9-9 9.01 9.01 0 0 1-9 9z M17.25 11.25H6.75a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5z",
+                            color: 'var(--primary-color)'
+                        },
+                        {
+                            cn: "防止过拟合",
+                            en: "Prevents overfitting",
+                            icon: "M12 1.5a10.5 10.5 0 1 0 10.5 10.5A10.5 10.5 0 0 0 12 1.5zm4.36 6.36l-5.63 5.62a.75.75 0 0 1-1.06 0l-2.63-2.62a.75.75 0 0 1 1.06-1.06l2.1 2.1 5.1-5.1a.75.75 0 1 1 1.06 1.06z",
+                            color: 'var(--secondary-color)'
+                        },
+                        {
+                            cn: "加强特征图与类别的对应",
+                            en: "Enforces correspondence between feature maps and categories",
+                            icon: "M19.5 4.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5zM4.5 18V6h15v12z M8.25 15.75h7.5a.75.75 0 0 0 0-1.5h-7.5a.75.75 0 0 0 0 1.5zM8.25 11.25h7.5a.75.75 0 0 0 0-1.5h-7.5a.75.75 0 0 0 0 1.5z",
+                            color: 'var(--accent-color)'
+                        }
+                    ];
+
+                    benefits.forEach((b, i) => {
+                        const yPos = 450 + i * 250;
+                        const g = document.createElementNS(SVG_NS, 'g');
+
+                        const icon = createIcon(b.icon, W / 2 - 600, yPos, 80, b.color);
+                        const textCn = createText(b.cn, W / 2 - 500, yPos - 20, 42, 600, 'var(--text-color)', 'start');
+                        const textEn = createText(b.en, W / 2 - 500, yPos + 30, 28, 300, 'var(--light-text-color)', 'start');
+
+                        g.append(icon, textCn, textEn);
+                        scene.appendChild(g);
+                        animate(g, { opacity: [0, 1] }, 1000, 1000 + i * 500);
+                    });
+                }
+            },
+            // 9: Conclusion
+            {
+                duration: 5000,
+                run: () => {
+                    clearScene();
+                    updateSubtitles(
+                        "全局平均池化: 优雅、高效、强大。",
+                        "Global Average Pooling: Elegant, efficient, and effective."
+                    );
+                    const text1 = createText("Global Average Pooling", W / 2, H / 2 - 40, 80, 600, 'var(--primary-color)');
+                    const text2 = createText("优雅, 高效, 强大", W / 2, H / 2 + 50, 50, 400, 'var(--text-color)');
+                    scene.append(text1, text2);
+                    animate(text1, { opacity: [0, 1] }, 1000);
+                    animate(text2, { opacity: [0, 1] }, 1000, 500);
+                }
+            },
+            // 10: Loop
+            {
+                duration: 1000,
+                run: () => {
+                    clearScene();
+                    updateSubtitles("", "");
+                    subtitlesContainer.classList.remove('visible');
+                    currentStep = -1; // Will be incremented to 0
+                }
+            }
+        ];
+
+        // --- Core Animation Logic ---
+
+        let currentStep = 0;
+
+        function runTimeline() {
+            if (currentStep < timeline.length) {
+                const step = timeline[currentStep];
+                step.run();
+                setTimeout(runTimeline, step.duration);
+                currentStep++;
+            }
+        }
+
+        function updateSubtitles(cn, en) {
+            if (cn || en) {
+                subtitlesContainer.classList.add('visible');
+                subtitleCn.textContent = cn;
+                subtitleEn.textContent = en;
+            } else {
+                subtitlesContainer.classList.remove('visible');
+            }
+        }
+
+        function clearScene() {
+            // A more graceful clear
+            Array.from(scene.children).forEach(child => {
+                animate(child, { opacity: [1, 0] }, 500);
+                setTimeout(() => child.remove(), 500);
+            });
+        }
+
+        // Simple polyfill for Element.animate
+        function animate(element, keyframes, duration, delay = 0) {
+            if (element.animate) {
+                element.animate(keyframes, { duration, delay, fill: 'forwards', easing: 'ease-in-out' });
+            } else { // Fallback for simple opacity
+                setTimeout(() => {
+                    element.style.opacity = keyframes.opacity ? keyframes.opacity[1] : 1;
+                }, delay);
+            }
+        }
+
+        // --- Helper for 3D Cube ---
+        function create3DCube(cx, cy, wx, wy, depth, faceColor, edgeColor) {
+            const g = document.createElementNS(SVG_NS, 'g');
+            const dx = depth * 0.5;
+            const dy = depth * 0.25;
+
+            // Paths for faces
+            const topFace = `M0,${-wy / 2 - dy} L${wx / 2},${-wy / 2} L0,${-wy / 2 + dy} L${-wx / 2},${-wy / 2} Z`;
+            const rightFace = `M${wx / 2},${-wy / 2} L${wx / 2 + dx},${-wy / 2 - dy} L${wx / 2 + dx},${wy / 2 - dy} L${wx / 2},${wy / 2} Z`;
+
+            const topPath = createPath(topFace, faceColor, edgeColor);
+            const rightPath = createPath(rightFace, faceColor, edgeColor);
+            const frontRect = createRect(-wx / 2, -wy / 2, wx, wy, faceColor, edgeColor);
+
+            g.append(topPath, rightPath, frontRect);
+            g.setAttribute('transform', `translate(${cx}, ${cy})`);
+
+            // Animate parts of the cube
+            animate(frontRect, { opacity: [0, 1] }, 800, 200);
+            animate(topPath, { opacity: [0, 1] }, 800, 400);
+            animate(rightPath, { opacity: [0, 1] }, 800, 600);
+
+            return g;
+        }
+
+        function createArrow(x1, y1, x2, y2) {
+            const g = document.createElementNS(SVG_NS, 'g');
+            const line = createLine(x1, y1, x2, y2, 'var(--light-text-color)', 3);
+            const head = createPath(`M${x2},${y2} L${x2 - 15},${y2 - 10} L${x2 - 15},${y2 + 10} Z`, 'var(--light-text-color)', 'var(--light-text-color)');
+            g.append(line, head);
+            return g;
+        }
+
+
+        // --- Resizing logic ---
+        function handleResize() {
+            const container = document.getElementById('container');
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const scale = Math.min(winW / W, winH / H);
+            container.style.transform = `scale(${scale})`;
+            container.style.left = `${(winW - W * scale) / 2}px`;
+            container.style.top = `${(winH - H * scale) / 2}px`;
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        // --- Start ---
+        window.onload = () => {
+            handleResize();
+            runTimeline();
+        };
+
+    </script>
+</body>
+
+</html>

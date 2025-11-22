@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态解说：统计推断</title>
+    <style>
+        /* --- 基础与布局 --- */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f4f8;
+            /* 柔和的背景色 */
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        #animation-container {
+            width: 1920px;
+            height: 1080px;
+            background-color: #ffffff;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transform-origin: top left;
+        }
+
+        /* --- 响应式缩放容器 --- */
+        @media (max-width: 1920px) {
+            #animation-container {
+                transform: scale(calc(100vw / 1920));
+            }
+
+            body {
+                height: calc(100vw * (1080 / 1920));
+            }
+        }
+
+        @media (max-height: 1080px) and (max-width: 1920px) and (min-aspect-ratio: 16/9) {
+            #animation-container {
+                transform: scale(calc(100vh / 1080));
+            }
+
+            body {
+                height: 100vh;
+            }
+        }
+
+
+        /* --- 动画元素通用样式 --- */
+        .scene-element {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out, transform 1s cubic-bezier(0.645, 0.045, 0.355, 1);
+        }
+
+        /* --- 字幕样式 --- */
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+        }
+
+        .subtitle-line {
+            padding: 10px 25px;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            display: inline-block;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+
+        .subtitle-line.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #zh-subtitle {
+            font-size: 36px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        #en-subtitle {
+            font-size: 24px;
+            font-weight: 300;
+            color: #555;
+            margin-top: 5px;
+        }
+
+        /* --- 场景1: 标题 --- */
+        #title-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #title-main {
+            font-size: 120px;
+            font-weight: 500;
+            color: #2c3e50;
+            transform: translateY(-20px);
+        }
+
+        #title-sub {
+            font-size: 48px;
+            font-weight: 300;
+            color: #7f8c8d;
+            letter-spacing: 2px;
+            transform: translateY(20px);
+        }
+
+        /* --- 场景2 & 3: 总体 --- */
+        #population-container {
+            width: 1000px;
+            height: 1000px;
+            top: 40px;
+            left: 460px;
+            transform: scale(0.8);
+        }
+
+        #population-svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 15px rgba(174, 198, 207, 0.5));
+        }
+
+        .pop-dot {
+            transition: transform 1.5s cubic-bezier(0.645, 0.045, 0.355, 1), fill 1s ease;
+        }
+
+        #population-label {
+            top: 150px;
+            left: 50%;
+            transform: translateX(-50%) scale(1.2);
+            text-align: center;
+        }
+
+        #population-label-text {
+            font-size: 48px;
+            color: #34495e;
+            font-weight: 500;
+        }
+
+        #population-label-symbol {
+            font-size: 72px;
+            color: #e74c3c;
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: bold;
+            margin-top: 10px;
+            text-shadow: 0 0 10px rgba(231, 76, 60, 0.3);
+        }
+
+        #impossibility-icon {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(3);
+            color: #c0392b;
+            font-size: 150px;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(192, 57, 43, 0.5);
+        }
+
+        /* --- 场景4 & 5: 样本 --- */
+        #sample-area {
+            top: 340px;
+            left: 1350px;
+            width: 400px;
+            height: 400px;
+            border: 3px dashed #98d8c8;
+            border-radius: 20px;
+            background-color: rgba(152, 216, 200, 0.05);
+            transform: scale(0.8);
+        }
+
+        #sample-label {
+            top: 250px;
+            left: 1550px;
+            transform: translateX(-50%);
+            text-align: center;
+        }
+
+        #sample-label-text {
+            font-size: 36px;
+            color: #34495e;
+            font-weight: 500;
+        }
+
+        #sample-label-symbol {
+            font-size: 60px;
+            color: #3498db;
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: bold;
+            margin-top: 5px;
+            text-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
+        }
+
+        /* --- 场景 6 & 7: 推断过程 --- */
+        #inference-arrow-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #inference-arrow {
+            stroke: #f39c12;
+            stroke-width: 8;
+            stroke-linecap: round;
+            fill: none;
+            stroke-dasharray: 2000;
+            stroke-dashoffset: 2000;
+            transition: stroke-dashoffset 2s cubic-bezier(0.645, 0.045, 0.355, 1);
+            filter: drop-shadow(0 0 5px rgba(243, 156, 18, 0.7));
+        }
+
+        #confidence-interval {
+            top: 245px;
+            left: 960px;
+            /* center */
+            transform-origin: center;
+            transform: translateX(-50%);
+        }
+
+        #ci-line {
+            width: 400px;
+            height: 8px;
+            background: linear-gradient(90deg, rgba(231, 76, 60, 0.2), #e74c3c, rgba(231, 76, 60, 0.2));
+            border-radius: 4px;
+            transform: scaleX(0);
+            transform-origin: center;
+            transition: transform 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        #ci-mu-symbol {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: #e74c3c;
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: bold;
+        }
+
+        /* --- 场景 8: 总结 --- */
+        #summary-diagram {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #summary-svg {
+            width: 1600px;
+            height: 800px;
+            overflow: visible;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-container">
+        <!-- 字幕 -->
+        <div id="subtitles">
+            <div id="subtitle-container" class="subtitle-line">
+                <div id="zh-subtitle"></div>
+                <div id="en-subtitle"></div>
+            </div>
+        </div>
+
+        <!-- 场景1: 标题 -->
+        <div id="title-card" class="scene-element">
+            <div id="title-main">统计推断</div>
+            <div id="title-sub">Statistical Inference</div>
+        </div>
+
+        <!-- 场景2 & 3: 总体 -->
+        <div id="population-container" class="scene-element">
+            <svg id="population-svg" viewBox="0 0 1000 1000"></svg>
+        </div>
+        <div id="population-label" class="scene-element">
+            <div id="population-label-text">未知的总体 (Population)</div>
+            <div id="population-label-symbol">μ = ?</div>
+        </div>
+        <div id="impossibility-icon" class="scene-element">
+            <span>&times;</span>
+        </div>
+
+        <!-- 场景 4 & 5: 样本 -->
+        <div id="sample-area" class="scene-element"></div>
+        <div id="sample-label" class="scene-element">
+            <div id="sample-label-text">可观测的样本 (Sample)</div>
+            <div id="sample-label-symbol">x̄</div>
+        </div>
+
+        <!-- 场景 6 & 7: 推断过程 -->
+        <svg id="inference-arrow-svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#f39c12" />
+                </marker>
+            </defs>
+            <path id="inference-arrow" d="M 1550,540 C 1400,350 1150,300 960,350" marker-end="url(#arrowhead)"></path>
+        </svg>
+
+        <div id="confidence-interval" class="scene-element">
+            <div id="ci-line"></div>
+            <div id="ci-mu-symbol">μ</div>
+        </div>
+
+        <!-- 场景 8: 总结图 -->
+        <div id="summary-diagram" class="scene-element">
+            <svg id="summary-svg" viewBox="0 0 1600 800">
+                <!-- 总体 -->
+                <g id="summary-pop">
+                    <circle cx="400" cy="400" r="300" fill="#eaf2f8" stroke="#aed6f1" stroke-width="5" />
+                    <text x="400" y="380" font-family="Noto Sans SC, sans-serif" font-size="60" text-anchor="middle"
+                        fill="#2c3e50">总体</text>
+                    <text x="400" y="450" font-family="'Times New Roman', serif" font-style="italic" font-size="80"
+                        text-anchor="middle" fill="#e74c3c">μ</text>
+                </g>
+                <!-- 样本 -->
+                <g id="summary-sample">
+                    <circle cx="1200" cy="400" r="120" fill="#e8f8f5" stroke="#a3e4d7" stroke-width="5" />
+                    <text x="1200" y="380" font-family="Noto Sans SC, sans-serif" font-size="40" text-anchor="middle"
+                        fill="#2c3e50">样本</text>
+                    <text x="1200" y="440" font-family="'Times New Roman', serif" font-style="italic" font-size="60"
+                        text-anchor="middle" fill="#3498db">x̄</text>
+                </g>
+                <!-- 箭头 -->
+                <g id="summary-arrows">
+                    <path d="M680,400 Q800,300 980,400" stroke="#2ecc71" stroke-width="6" fill="none"
+                        marker-end="url(#arrowhead-green)" />
+                    <text x="830" y="330" font-family="Noto Sans SC, sans-serif" font-size="30" fill="#2ecc71">抽样</text>
+
+                    <path d="M980,420 Q850,550 680,420" stroke="#f39c12" stroke-width="6" fill="none"
+                        marker-end="url(#arrowhead-orange)" />
+                    <text x="830" y="520" font-family="Noto Sans SC, sans-serif" font-size="30" fill="#f39c12">推断</text>
+                </g>
+                <defs>
+                    <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#2ecc71" />
+                    </marker>
+                    <marker id="arrowhead-orange" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#f39c12" />
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+
+    </div>
+
+    <script>
+        // --- DOM 元素获取 ---
+        const getEl = (id) => document.getElementById(id);
+        const elements = {
+            container: getEl('animation-container'),
+            titleCard: getEl('title-card'),
+            titleMain: getEl('title-main'),
+            titleSub: getEl('title-sub'),
+            populationContainer: getEl('population-container'),
+            populationSvg: getEl('population-svg'),
+            populationLabel: getEl('population-label'),
+            impossibilityIcon: getEl('impossibility-icon'),
+            sampleArea: getEl('sample-area'),
+            sampleLabel: getEl('sample-label'),
+            sampleSymbol: getEl('sample-label-symbol'),
+            inferenceArrow: getEl('inference-arrow'),
+            confidenceInterval: getEl('confidence-interval'),
+            ciLine: getEl('ci-line'),
+            summaryDiagram: getEl('summary-diagram'),
+            subtitleContainer: getEl('subtitle-container'),
+            zhSubtitle: getEl('zh-subtitle'),
+            enSubtitle: getEl('en-subtitle'),
+        };
+
+        const NUM_POP_DOTS = 500;
+        const NUM_SAMPLE_DOTS = 25;
+        const popDots = [];
+
+        // --- 辅助函数 ---
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function updateSubtitles(zh, en) {
+            if (zh === "" && en === "") {
+                elements.subtitleContainer.classList.remove('visible');
+            } else {
+                elements.zhSubtitle.innerHTML = zh;
+                elements.enSubtitle.innerHTML = en;
+                elements.subtitleContainer.classList.add('visible');
+            }
+        }
+
+        function show(el, style = { opacity: 1, transform: 'none' }) {
+            el.style.opacity = style.opacity || 1;
+            el.style.transform = style.transform || 'none';
+        }
+
+        function hide(el, style = { opacity: 0, transform: 'translateY(20px)' }) {
+            el.style.opacity = style.opacity || 0;
+            el.style.transform = style.transform || 'translateY(20px)';
+        }
+
+        // --- 动画序列 ---
+        const timeline = [
+            // 1. 开场标题
+            {
+                duration: 4000,
+                action: async () => {
+                    updateSubtitles("我们如何才能了解一个庞大、甚至无限的整体？", "How can we understand a vast, even infinite, whole?");
+                    show(elements.titleCard, { opacity: 1, transform: 'translateY(0)' });
+                    show(elements.titleMain, { opacity: 1, transform: 'translateY(0)' });
+                    show(elements.titleSub, { opacity: 1, transform: 'translateY(0)' });
+                }
+            },
+            // 2. 引入总体
+            {
+                duration: 4500,
+                action: async () => {
+                    updateSubtitles("在统计学中，这个整体被称为'总体'。", "In statistics, this whole is called a 'population'.");
+                    hide(elements.titleCard);
+                    await sleep(800);
+                    show(elements.populationContainer, { opacity: 1, transform: 'scale(1)' });
+                    show(elements.populationLabel, { opacity: 1, transform: 'translateX(-50%) scale(1)' });
+                }
+            },
+            // 3. 总体的未知性
+            {
+                duration: 4000,
+                action: async () => {
+                    updateSubtitles("我们想知道它的某个特征，比如平均值μ，但它通常是未知的。", "We want to know a characteristic, like its mean μ, but it's usually unknown.");
+                }
+            },
+            // 4. 普查的困难
+            {
+                duration: 4500,
+                action: async () => {
+                    updateSubtitles("要研究每一个个体几乎是不可能的，成本太高，耗时太长。", "Studying every single individual is nearly impossible—too costly and time-consuming.");
+                    show(elements.impossibilityIcon, { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' });
+                }
+            },
+            // 5. 引入抽样
+            {
+                duration: 5000,
+                action: async () => {
+                    updateSubtitles("于是，我们随机抽取一小部分，称之为'样本'。", "So, we randomly draw a small part from it, called a 'sample'.");
+                    hide(elements.impossibilityIcon, { opacity: 0, transform: 'translate(-50%, -50%) scale(0.5)' });
+                    await sleep(500);
+                    show(elements.sampleArea, { opacity: 1, transform: 'scale(1)' });
+
+                    // 抽样动画
+                    const sampleIndices = new Set();
+                    while (sampleIndices.size < NUM_SAMPLE_DOTS) {
+                        sampleIndices.add(Math.floor(Math.random() * NUM_POP_DOTS));
+                    }
+
+                    let i = 0;
+                    sampleIndices.forEach(index => {
+                        const dot = popDots[index];
+                        const sampleX = 1450 + Math.random() * 200;
+                        const sampleY = 440 + Math.random() * 200;
+                        dot.setAttribute('transform', `translate(${sampleX}, ${sampleY})`);
+                        dot.setAttribute('fill', '#3498db');
+                        dot.setAttribute('r', 6);
+                    });
+                }
+            },
+            // 6. 计算样本统计量
+            {
+                duration: 4500,
+                action: async () => {
+                    updateSubtitles("我们可以计算这个样本的特征，例如样本均值 x̄。", "We can calculate the characteristics of this sample, like the sample mean x̄.");
+                    show(elements.sampleLabel, { opacity: 1, transform: 'translateX(-50%)' });
+                    await sleep(1000);
+                    elements.sampleSymbol.style.transition = 'transform 0.5s, color 0.5s';
+                    elements.sampleSymbol.style.transform = 'scale(1.5)';
+                    elements.sampleSymbol.style.color = '#2980b9';
+                    await sleep(500);
+                    elements.sampleSymbol.style.transform = 'scale(1)';
+                    elements.sampleSymbol.style.color = '#3498db';
+                }
+            },
+            // 7. 推断的核心
+            {
+                duration: 4000,
+                action: async () => {
+                    updateSubtitles("统计推断的核心，就是用已知的样本 x̄ ...", "The core of statistical inference is using the known sample x̄ ...");
+                    elements.inferenceArrow.style.strokeDashoffset = '1000';
+                }
+            },
+            // 8. ...去推断总体
+            {
+                duration: 4000,
+                action: async () => {
+                    updateSubtitles("...来推断未知的总体 μ。", "... to infer the unknown population μ.");
+                    elements.inferenceArrow.style.strokeDashoffset = '0';
+                }
+            },
+            // 9. 置信区间
+            {
+                duration: 5000,
+                action: async () => {
+                    updateSubtitles("我们不能100%确定μ的值，但可以给出一个它可能在的范围，即'置信区间'。", "We can't be 100% certain of μ's value, but we can provide a range where it likely lies—a 'confidence interval'.");
+                    hide(elements.sampleArea);
+                    hide(elements.sampleLabel);
+                    elements.populationContainer.style.transform = 'scale(1.2) translate(-150px, 0)';
+
+                    // 把样本点隐藏
+                    popDots.forEach(dot => {
+                        if (dot.getAttribute('fill') === '#3498db') {
+                            dot.style.opacity = 0;
+                        }
+                    });
+
+                    await sleep(1000);
+                    show(elements.confidenceInterval);
+                    await sleep(500);
+                    elements.ciLine.style.transform = 'scaleX(1)';
+                }
+            },
+            // 10. 总结
+            {
+                duration: 5000,
+                action: async () => {
+                    updateSubtitles("这就是统计推断：一座从样本到总体，从已知到未知的桥梁。", "This is statistical inference: a bridge from the sample to the population, from the known to the unknown.");
+                    const allElements = document.querySelectorAll('.scene-element, #inference-arrow-svg');
+                    allElements.forEach(el => hide(el));
+                    await sleep(1000);
+                    show(elements.summaryDiagram);
+                }
+            },
+            // 11. 结束 & 循环
+            {
+                duration: 5000,
+                action: async () => {
+                    updateSubtitles("感谢观看", "Thanks for watching");
+                }
+            }
+        ];
+
+        // --- 初始化与执行 ---
+        async function main() {
+            // 1. 创建总体小点
+            for (let i = 0; i < NUM_POP_DOTS; i++) {
+                const angle = Math.random() * 2 * Math.PI;
+                const radius = Math.sqrt(Math.random()) * 450; // sqrt for uniform distribution
+                const x = 500 + radius * Math.cos(angle);
+                const y = 500 + radius * Math.sin(angle);
+
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', 0);
+                dot.setAttribute('cy', 0);
+                dot.setAttribute('r', 4);
+                dot.setAttribute('fill', '#aed6f1');
+                dot.setAttribute('class', 'pop-dot');
+                dot.setAttribute('transform', `translate(${x}, ${y})`);
+                dot.style.transition = 'transform 1.5s cubic-bezier(0.645, 0.045, 0.355, 1), fill 1s ease, opacity 0.5s ease';
+                elements.populationSvg.appendChild(dot);
+                popDots.push(dot);
+            }
+
+            // 2. 循环播放动画
+            while (true) {
+                // 重置状态
+                hide(elements.summaryDiagram);
+                elements.inferenceArrow.style.transition = 'none';
+                elements.inferenceArrow.style.strokeDashoffset = '2000';
+                await sleep(10);
+                elements.inferenceArrow.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.645, 0.045, 0.355, 1)';
+
+                elements.ciLine.style.transition = 'none';
+                elements.ciLine.style.transform = 'scaleX(0)';
+                await sleep(10);
+                elements.ciLine.style.transition = 'transform 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55)';
+
+                elements.populationContainer.style.transform = 'scale(0.8)';
+                popDots.forEach(dot => {
+                    const angle = Math.random() * 2 * Math.PI;
+                    const radius = Math.sqrt(Math.random()) * 450;
+                    const x = 500 + radius * Math.cos(angle);
+                    const y = 500 + radius * Math.sin(angle);
+                    dot.setAttribute('transform', `translate(${x}, ${y})`);
+                    dot.setAttribute('fill', '#aed6f1');
+                    dot.setAttribute('r', 4);
+                    dot.style.opacity = 1;
+                });
+
+                // 播放时间线
+                for (const scene of timeline) {
+                    await scene.action();
+                    await sleep(scene.duration);
+                }
+
+                updateSubtitles("", "");
+                await sleep(2000); // 循环播放前等待2秒
+            }
+        }
+
+        window.onload = main;
+
+    </script>
+</body>
+
+</html>

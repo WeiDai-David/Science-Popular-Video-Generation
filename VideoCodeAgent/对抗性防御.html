@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adversarial Defense Animation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&family=Poppins:wght@300;400;500&display=swap');
+
+        :root {
+            --bg-color: #f0f4f8;
+            --primary-text: #2c3e50;
+            --secondary-text: #7f8c8d;
+            --accent-blue: #3498db;
+            --accent-green: #2ecc71;
+            --accent-red: #e74c3c;
+            --accent-purple: #9b59b6;
+            --container-bg: #ffffff;
+            --shadow-color: rgba(44, 62, 80, 0.1);
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: 'Poppins', 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+        }
+
+        #animation-wrapper {
+            width: 100vw;
+            height: 56.25vw;
+            /* 16:9 Aspect Ratio */
+            max-width: 1920px;
+            max-height: 1080px;
+            position: relative;
+        }
+
+        #animation-container {
+            width: 1920px;
+            height: 1080px;
+            background-color: var(--container-bg);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: center center;
+            overflow: hidden;
+            box-shadow: 0 10px 30px var(--shadow-color);
+            border-radius: 12px;
+            transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+        }
+
+        /* General element styles */
+        .scene-element {
+            position: absolute;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out, transform 0.8s ease-in-out;
+            transform: translateY(20px);
+        }
+
+        .scene-element.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Title Screen */
+        #title-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #main-title {
+            font-size: 80px;
+            font-weight: 500;
+            color: var(--primary-text);
+            letter-spacing: 2px;
+        }
+
+        #sub-title {
+            font-size: 40px;
+            font-weight: 300;
+            color: var(--secondary-text);
+            margin-top: 10px;
+        }
+
+        /* Main Scene Elements */
+        .icon-card {
+            width: 280px;
+            height: 280px;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .icon-card svg {
+            width: 180px;
+            height: 180px;
+        }
+
+        #panda-card {
+            top: 350px;
+            left: 200px;
+        }
+
+        #perturbed-panda-card {
+            top: 350px;
+            left: 200px;
+        }
+
+        #nn-model {
+            top: 350px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+        }
+
+        #nn-model .node {
+            transition: fill 0.5s ease;
+        }
+
+        .label-box {
+            width: 350px;
+            padding: 20px 0;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        .label-box .label-name {
+            font-size: 36px;
+            font-weight: 500;
+            color: var(--primary-text);
+        }
+
+        .label-box .confidence {
+            font-size: 28px;
+            font-weight: 300;
+            margin-top: 10px;
+        }
+
+        #output-label-correct {
+            top: 350px;
+            right: 150px;
+        }
+
+        #output-label-correct .confidence {
+            color: var(--accent-green);
+        }
+
+        #output-label-wrong {
+            top: 350px;
+            right: 150px;
+        }
+
+        #output-label-wrong .confidence {
+            color: var(--accent-red);
+        }
+
+        #output-label-defended {
+            top: 350px;
+            right: 150px;
+        }
+
+        #output-label-defended .confidence {
+            color: var(--accent-green);
+        }
+
+        /* Arrows */
+        .arrow {
+            position: absolute;
+            stroke: var(--secondary-text);
+            stroke-width: 4;
+            fill: none;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            transition: stroke-dashoffset 1s ease-in-out;
+        }
+
+        .arrow.visible {
+            stroke-dashoffset: 0;
+        }
+
+        #arrow1 {
+            top: 480px;
+            left: 480px;
+        }
+
+        #arrow2 {
+            top: 480px;
+            left: 1160px;
+        }
+
+        /* Noise Element */
+        #noise-container {
+            top: 350px;
+            right: 200px;
+            width: 280px;
+            height: 280px;
+        }
+
+        #noise-svg {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        #plus-sign {
+            top: 470px;
+            right: 510px;
+            font-size: 80px;
+            color: var(--secondary-text);
+        }
+
+        /* Adversarial Training Scene */
+        #defense-title,
+        #defense-subtitle {
+            text-align: center;
+            width: 100%;
+        }
+
+        #defense-title {
+            top: 150px;
+            font-size: 70px;
+            color: var(--primary-text);
+        }
+
+        #defense-subtitle {
+            top: 250px;
+            font-size: 35px;
+            color: var(--secondary-text);
+        }
+
+        #defended-model {
+            top: 350px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+        }
+
+        #shield-icon {
+            position: absolute;
+            top: -30px;
+            right: -30px;
+            width: 80px;
+            height: 80px;
+            transform: scale(0);
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        #shield-icon.visible {
+            transform: scale(1);
+        }
+
+        #correct-label-for-training {
+            top: 680px;
+            left: 200px;
+            width: 280px;
+        }
+
+        #correct-label-for-training .label-name {
+            font-size: 30px;
+        }
+
+        #correct-label-for-training .confidence {
+            display: none;
+        }
+
+
+        /* Final Scene Elements */
+        #summary-text {
+            top: 850px;
+            width: 100%;
+            text-align: center;
+            font-size: 36px;
+            color: var(--primary-text);
+        }
+
+        #panda-card-final {
+            top: 450px;
+            left: 250px;
+            transform: scale(0.8);
+        }
+
+        #perturbed-panda-card-final {
+            top: 450px;
+            left: 650px;
+            transform: scale(0.8);
+        }
+
+        #defended-model-final {
+            top: 450px;
+            left: 50%;
+            transform: translateX(-50%) scale(0.8);
+        }
+
+        #output-label-final1 {
+            top: 450px;
+            right: 550px;
+            transform: scale(0.8);
+        }
+
+        #output-label-final2 {
+            top: 450px;
+            right: 150px;
+            transform: scale(0.8);
+        }
+
+
+        /* Subtitles */
+        #subtitles {
+            position: absolute;
+            bottom: 60px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            padding: 0 50px;
+            box-sizing: border-box;
+        }
+
+        .subtitle-line {
+            font-size: 32px;
+            font-weight: 400;
+            color: var(--primary-text);
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+        }
+
+        .subtitle-line.en {
+            font-size: 24px;
+            font-weight: 300;
+            color: var(--secondary-text);
+            margin-top: 5px;
+        }
+
+        .subtitle-line.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="animation-wrapper">
+        <div id="animation-container">
+            <!-- Scene 1: Title -->
+            <div id="title-card" class="scene-element">
+                <div id="main-title">Adversarial Defense</div>
+                <div id="sub-title">对抗性防御</div>
+            </div>
+
+            <!-- Scene 2 & 3 & 4: The Attack -->
+            <div id="panda-card" class="scene-element icon-card">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="40" fill="#FFFFFF" stroke="#2c3e50" stroke-width="3" />
+                    <circle cx="35" cy="38" r="10" fill="#2c3e50" />
+                    <circle cx="65" cy="38" r="10" fill="#2c3e50" />
+                    <circle cx="35" cy="38" r="3" fill="#FFFFFF" />
+                    <circle cx="65" cy="38" r="3" fill="#FFFFFF" />
+                    <path d="M42 60 Q 50 70 58 60" fill="none" stroke="#2c3e50" stroke-width="3"
+                        stroke-linecap="round" />
+                    <ellipse cx="25" cy="25" rx="12" ry="15" fill="#2c3e50" transform="rotate(-30 25 25)" />
+                    <ellipse cx="75" cy="25" rx="12" ry="15" fill="#2c3e50" transform="rotate(30 75 25)" />
+                </svg>
+            </div>
+
+            <div id="perturbed-panda-card" class="scene-element icon-card">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <filter id="slight-noise">
+                            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch" />
+                            <feDisplacementMap in="SourceGraphic" scale="1" />
+                        </filter>
+                    </defs>
+                    <g filter="url(#slight-noise)">
+                        <circle cx="50" cy="50" r="40" fill="#FFFFFF" stroke="#2c3e50" stroke-width="3" />
+                        <circle cx="35" cy="38" r="10" fill="#2c3e50" />
+                        <circle cx="65" cy="38" r="10" fill="#2c3e50" />
+                        <circle cx="35" cy="38" r="3" fill="#FFFFFF" />
+                        <circle cx="65" cy="38" r="3" fill="#FFFFFF" />
+                        <path d="M42 60 Q 50 70 58 60" fill="none" stroke="#2c3e50" stroke-width="3"
+                            stroke-linecap="round" />
+                        <ellipse cx="25" cy="25" rx="12" ry="15" fill="#2c3e50" transform="rotate(-30 25 25)" />
+                        <ellipse cx="75" cy="25" rx="12" ry="15" fill="#2c3e50" transform="rotate(30 75 25)" />
+                    </g>
+                </svg>
+            </div>
+
+            <div id="nn-model" class="scene-element icon-card">
+                <svg viewBox="0 0 100 100">
+                    <g class="layer">
+                        <circle cx="20" cy="20" r="5" fill="#3498db" class="node" />
+                        <circle cx="20" cy="50" r="5" fill="#3498db" class="node" />
+                        <circle cx="20" cy="80" r="5" fill="#3498db" class="node" />
+                    </g>
+                    <g class="layer">
+                        <circle cx="50" cy="20" r="5" fill="#9b59b6" class="node" />
+                        <circle cx="50" cy="37" r="5" fill="#9b59b6" class="node" />
+                        <circle cx="50" cy="54" r="5" fill="#9b59b6" class="node" />
+                        <circle cx="50" cy="71" r="5" fill="#9b59b6" class="node" />
+                    </g>
+                    <g class="layer">
+                        <circle cx="80" cy="35" r="5" fill="#2ecc71" class="node" />
+                        <circle cx="80" cy="65" r="5" fill="#2ecc71" class="node" />
+                    </g>
+                    <line x1="20" y1="20" x2="50" y2="20" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="20" x2="50" y2="37" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="20" x2="50" y2="54" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="20" x2="50" y2="71" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="20" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="37" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="54" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="71" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="20" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="37" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="54" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="71" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="20" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="20" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="37" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="37" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="54" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="54" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="71" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="71" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                </svg>
+            </div>
+
+            <div id="output-label-correct" class="scene-element label-box">
+                <div class="label-name">熊猫 (Panda)</div>
+                <div class="confidence">置信度: 99%</div>
+            </div>
+
+            <div id="output-label-wrong" class="scene-element label-box">
+                <div class="label-name">长臂猿 (Gibbon)</div>
+                <div class="confidence">置信度: 98%</div>
+            </div>
+
+            <div id="noise-container" class="scene-element">
+                <svg id="noise-svg" viewBox="0 0 100 100">
+                    <filter id="noiseFilter">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.1" numOctaves="3" stitchTiles="stitch" />
+                        <feColorMatrix type="matrix" values="0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1 0" />
+                    </filter>
+                    <rect width="100%" height="100%" filter="url(#noiseFilter)" />
+                </svg>
+            </div>
+            <div id="plus-sign" class="scene-element">+</div>
+
+            <svg id="arrow1" class="arrow" width="300" height="20">
+                <line x1="0" y1="10" x2="300" y2="10" marker-end="url(#arrowhead)" />
+            </svg>
+            <svg id="arrow2" class="arrow" width="300" height="20">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#7f8c8d" />
+                    </marker>
+                </defs>
+                <line x1="0" y1="10" x2="300" y2="10" marker-end="url(#arrowhead)" />
+            </svg>
+
+            <!-- Scene 5 & 6: Adversarial Training -->
+            <div id="defense-title" class="scene-element">对抗性训练</div>
+            <div id="defense-subtitle" class="scene-element">Adversarial Training</div>
+
+            <div id="defended-model" class="scene-element icon-card">
+                <svg viewBox="0 0 100 100">
+                    <g class="layer">
+                        <circle cx="20" cy="20" r="5" fill="#3498db" class="node" />
+                        <circle cx="20" cy="50" r="5" fill="#3498db" class="node" />
+                        <circle cx="20" cy="80" r="5" fill="#3498db" class="node" />
+                    </g>
+                    <g class="layer">
+                        <circle cx="50" cy="20" r="5" fill="#9b59b6" class="node" />
+                        <circle cx="50" cy="37" r="5" fill="#9b59b6" class="node" />
+                        <circle cx="50" cy="54" r="5" fill="#9b59b6" class="node" />
+                        <circle cx="50" cy="71" r="5" fill="#9b59b6" class="node" />
+                    </g>
+                    <g class="layer">
+                        <circle cx="80" cy="35" r="5" fill="#2ecc71" class="node" />
+                        <circle cx="80" cy="65" r="5" fill="#2ecc71" class="node" />
+                    </g>
+                    <line x1="20" y1="20" x2="50" y2="20" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="20" x2="50" y2="37" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="20" x2="50" y2="54" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="20" x2="50" y2="71" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="20" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="37" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="54" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="50" x2="50" y2="71" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="20" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="37" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="54" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="20" y1="80" x2="50" y2="71" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="20" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="20" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="37" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="37" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="54" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="54" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="71" x2="80" y2="35" stroke="#bdc3c7" stroke-width="1" />
+                    <line x1="50" y1="71" x2="80" y2="65" stroke="#bdc3c7" stroke-width="1" />
+                </svg>
+                <div id="shield-icon" class="scene-element">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22S19 18 19 12V5L12 2L5 5V12C5 18 12 22 12 22Z" fill="#2ecc71" stroke="#ffffff"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M9 12L11 14L15 10" stroke="#ffffff" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </div>
+            </div>
+
+            <div id="correct-label-for-training" class="scene-element label-box">
+                <div class="label-name">正确标签: 熊猫</div>
+            </div>
+
+            <div id="output-label-defended" class="scene-element label-box">
+                <div class="label-name">熊猫 (Panda)</div>
+                <div class="confidence">置信度: 96%</div>
+            </div>
+
+            <!-- Scene 8: Summary -->
+            <div id="summary-text" class="scene-element">
+                通过对抗性训练，模型学会了抵抗干扰，变得更加安全和可靠。 <br>
+                Through adversarial training, the model learns to resist disturbances, becoming more secure and
+                reliable.
+            </div>
+
+            <!-- Subtitles -->
+            <div id="subtitles">
+                <div id="subtitle-zh" class="subtitle-line"></div>
+                <div id="subtitle-en" class="subtitle-line en"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const $ = (selector) => document.querySelector(selector);
+        const $$ = (selector) => document.querySelectorAll(selector);
+
+        // Elements
+        const elements = {
+            titleCard: $('#title-card'),
+            panda: $('#panda-card'),
+            perturbedPanda: $('#perturbed-panda-card'),
+            nnModel: $('#nn-model'),
+            nnNodes: $$('#nn-model .node'),
+            defendedModel: $('#defended-model'),
+            defendedNodes: $$('#defended-model .node'),
+            shield: $('#shield-icon'),
+            labelCorrect: $('#output-label-correct'),
+            labelWrong: $('#output-label-wrong'),
+            labelDefended: $('#output-label-defended'),
+            labelForTraining: $('#correct-label-for-training'),
+            noise: $('#noise-container'),
+            plus: $('#plus-sign'),
+            arrow1: $('#arrow1'),
+            arrow2: $('#arrow2'),
+            defenseTitle: $('#defense-title'),
+            defenseSubtitle: $('#defense-subtitle'),
+            summaryText: $('#summary-text'),
+            subtitles: {
+                zh: $('#subtitle-zh'),
+                en: $('#subtitle-en'),
+            }
+        };
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        function setSubtitle(zh, en, duration = 2000) {
+            elements.subtitles.zh.textContent = zh;
+            elements.subtitles.en.textContent = en;
+            elements.subtitles.zh.classList.add('visible');
+            elements.subtitles.en.classList.add('visible');
+            return sleep(duration);
+        }
+
+        function clearSubtitles() {
+            elements.subtitles.zh.classList.remove('visible');
+            elements.subtitles.en.classList.remove('visible');
+        }
+
+        function show(...elems) {
+            elems.forEach(el => el.classList.add('visible'));
+        }
+
+        function hide(...elems) {
+            elems.forEach(el => el.classList.remove('visible'));
+        }
+
+        function pulseNetwork(nodes, color, duration = 1000) {
+            nodes.forEach(node => {
+                node.style.transition = 'fill 0.3s ease';
+                node.style.fill = color;
+            });
+            setTimeout(() => {
+                nodes.forEach(node => {
+                    node.style.fill = ''; // Revert to original color
+                });
+            }, duration);
+        }
+
+        async function playScene1() {
+            show(elements.titleCard);
+            await setSubtitle(
+                '我们的AI模型在识别图像时通常表现出色。',
+                'Our AI models are generally excellent at identifying images.',
+                4000
+            );
+            hide(elements.titleCard);
+            clearSubtitles();
+        }
+
+        async function playScene2() {
+            await sleep(500);
+            show(elements.panda, elements.nnModel, elements.labelCorrect);
+            await setSubtitle(
+                '例如，它可以轻松地认出这是一只熊猫，并给出很高的置信度。',
+                'For example, it can easily recognize this is a panda with high confidence.',
+                1000
+            );
+            show(elements.arrow1, elements.arrow2);
+            pulseNetwork(elements.nnNodes, 'var(--accent-green)');
+            await sleep(4000);
+            clearSubtitles();
+        }
+
+        async function playScene3() {
+            show(elements.noise, elements.plus);
+            await setSubtitle(
+                '但攻击者可以制造一种人眼几乎无法察觉的“对抗性噪声”。',
+                'However, an attacker can create "adversarial noise" that is nearly invisible to the human eye.',
+                4500
+            );
+            clearSubtitles();
+
+            elements.noise.style.transition = 'transform 1.5s ease-in-out, opacity 1.5s ease-in-out';
+            elements.noise.style.transform = 'translateX(-450px) scale(0.1)';
+            elements.noise.style.opacity = '0';
+            hide(elements.plus);
+
+            await setSubtitle(
+                '当这种噪声被微量添加到原始图像中...',
+                'When this noise is added in small amounts to the original image...',
+                1500
+            );
+
+            await sleep(500);
+            hide(elements.panda);
+            show(elements.perturbedPanda);
+            elements.perturbedPanda.style.transition = 'transform 0.2s';
+            elements.perturbedPanda.style.transform = 'scale(1.05)';
+            await sleep(100);
+            elements.perturbedPanda.style.transform = 'scale(1)';
+            await sleep(100);
+            elements.perturbedPanda.style.transform = 'scale(1.05)';
+            await sleep(100);
+            elements.perturbedPanda.style.transform = 'scale(1)';
+
+            await sleep(1500);
+            clearSubtitles();
+        }
+
+        async function playScene4() {
+            hide(elements.labelCorrect, elements.arrow2);
+            await sleep(500);
+
+            await setSubtitle(
+                '...神奇的事情发生了：模型被完全欺骗了。',
+                '...something magical happens: the model is completely fooled.',
+                1000
+            );
+
+            elements.arrow2.style.transition = 'none'; // Reset animation
+            elements.arrow2.classList.remove('visible');
+            await sleep(10);
+            elements.arrow2.style.transition = 'stroke-dashoffset 1s ease-in-out';
+
+            show(elements.labelWrong, elements.arrow2);
+            pulseNetwork(elements.nnNodes, 'var(--accent-red)');
+
+            await sleep(4000);
+
+            await setSubtitle(
+                '它以极高的置信度给出了一个完全错误的答案。',
+                'It gives a completely wrong answer with extremely high confidence.',
+                4000
+            );
+
+            hide(elements.perturbedPanda, elements.nnModel, elements.labelWrong, elements.arrow1, elements.arrow2, elements.noise);
+            elements.noise.style.transform = ''; // reset noise position
+            elements.noise.style.opacity = '0';
+            clearSubtitles();
+        }
+
+        async function playScene5() {
+            await sleep(1000);
+            show(elements.defenseTitle, elements.defenseSubtitle);
+            await setSubtitle(
+                '那么，我们如何防御呢？一种核心方法是“对抗性训练”。',
+                'So, how do we defend against this? A core method is "Adversarial Training".',
+                5000
+            );
+            clearSubtitles();
+            await sleep(500);
+            hide(elements.defenseTitle, elements.defenseSubtitle);
+        }
+
+        async function playScene6() {
+            show(elements.perturbedPanda, elements.defendedModel, elements.labelForTraining);
+            await setSubtitle(
+                '我们把这些“被攻击”的样本和它们的“正确标签”一起，重新训练模型。',
+                'We retrain the model using these "attacked" samples along with their "correct labels".',
+                5000
+            );
+
+            elements.perturbedPanda.style.transition = 'transform 1s ease';
+            elements.labelForTraining.style.transition = 'transform 1s ease';
+            elements.perturbedPanda.style.transform = 'translate(450px, -50px) scale(0.5)';
+            elements.labelForTraining.style.transform = 'translate(450px, -350px) scale(0.5)';
+
+            await sleep(1500);
+            pulseNetwork(elements.defendedNodes, 'var(--accent-purple)', 2000);
+            await sleep(500);
+            show(elements.shield);
+
+            clearSubtitles();
+            await sleep(2000);
+            hide(elements.perturbedPanda, elements.labelForTraining);
+            elements.perturbedPanda.style.transform = ''; // reset panda pos
+            elements.labelForTraining.style.transform = '';
+        }
+
+        async function playScene7() {
+            await sleep(1000);
+            show(elements.perturbedPanda);
+            await setSubtitle(
+                '现在，我们用同样的攻击样本来测试这个新模型。',
+                'Now, let\'s test this new model with the same attacked sample.',
+                4000
+            );
+
+            show(elements.arrow1, elements.arrow2, elements.labelDefended);
+            pulseNetwork(elements.defendedNodes, 'var(--accent-green)');
+
+            await sleep(2000);
+            clearSubtitles();
+            await setSubtitle(
+                '模型变得更加鲁棒，成功抵御了攻击，做出了正确的判断！',
+                'The model has become more robust, successfully defending against the attack and making the correct judgment!',
+                5000
+            );
+
+            await sleep(2000);
+            hide(elements.perturbedPanda, elements.defendedModel, elements.arrow1, elements.arrow2, elements.labelDefended, elements.shield);
+            clearSubtitles();
+        }
+
+        async function playScene8() {
+            await sleep(1000);
+            show(elements.summaryText);
+            await sleep(8000);
+            hide(elements.summaryText);
+        }
+
+        async function startAnimation() {
+            await playScene1();
+            await playScene2();
+            await playScene3();
+            await playScene4();
+            await playScene5();
+            await playScene6();
+            await playScene7();
+            await playScene8();
+
+            // Loop animation
+            await sleep(2000);
+            location.reload();
+        }
+
+        // Handle responsive scaling
+        function resizeHandler() {
+            const wrapper = document.getElementById('animation-wrapper');
+            const container = document.getElementById('animation-container');
+            const scaleFactor = Math.min(
+                wrapper.clientWidth / 1920,
+                wrapper.clientHeight / 1080
+            );
+            container.style.setProperty('--scale-factor', scaleFactor);
+        }
+
+        window.addEventListener('resize', resizeHandler);
+
+        window.onload = () => {
+            resizeHandler();
+            startAnimation();
+        };
+
+    </script>
+</body>
+
+</html>
